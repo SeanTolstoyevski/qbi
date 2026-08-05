@@ -1,0 +1,57 @@
+#        kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/cloud/deploy.yaml
+#        kubectl get svc -n ingress-nginx
+#        (EXTERNAL-IP sütununda "localhost" görmelisin)
+#
+#   2. Bu ingress'i uygula:
+#        kubectl apply -f test/ingress-demo.yaml
+#
+#   3. QBI'da test et: Networking sekmesi → Ingresses → "Inspect" (demo)
+#      - "Address: localhost" ve "Backend status: ok (1 ready)" görmelisin.
+#
+#   4. Terminalden test et (Host header ile yerel DNS olmadan):
+#        curl -H "Host: demo.local" http://localhost/
+#      nginx karşılama sayfası gelmelidir.
+#
+#   5. Ingress durumunu kubectl ile de izleyebilirsin:
+#        kubectl get ingress demo -n qbi-test
+#
+# Temizlik:
+#        kubectl delete -f test/ingress-demo.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo
+  namespace: qbi-test
+  annotations:
+    # nginx controller'a istekleri olduğu gibi backend'e iletmesini söyler.
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  # Controller'ın oluşturduğu IngressClass adı "nginx"tir.
+  ingressClassName: nginx
+  rules:
+    - host: demo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx
+                port:
+                  number: 80
+
+# ── TLS deneyi (isteğe bağlı) ─────────────────────────────────────────────
+# Self-signed sertifika üretip secret olarak ekleyince TLS satırını
+# açabilirsin; QBI'nin TLS tablosunda "secret present" görürsün:
+#
+#   openssl req -x509 -nodes -newkey rsa:2048 -days 30 \
+#     -keyout demo.key -out demo.crt \
+#     -subj "/CN=demo.local" -addext "subjectAltName=DNS:demo.local"
+#   kubectl create secret tls demo-tls -n qbi-test \
+#     --key demo.key --cert demo.crt
+#
+#   spec:
+#     tls:
+#       - hosts: [demo.local]
+#         secretName: demo-tls

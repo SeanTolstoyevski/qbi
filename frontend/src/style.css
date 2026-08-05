@@ -1,0 +1,106 @@
+/*
+ * Accessibility-first styles.
+ *
+ * The goals here are: a strong visible focus indicator everywhere, respect for
+ * the user's reduced-motion and contrast preferences, and a utility for
+ * screen-reader-only text. We deliberately keep Bootstrap's defaults and only
+ * add what improves keyboard and screen-reader usability.
+ */
+
+:root {
+  --qba-focus: #1a56db;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+/* A single, consistent, high-contrast focus ring for every interactive
+   element. This is the most important a11y affordance for keyboard users. */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible,
+.list-group-item-action:focus-visible,
+[role="option"]:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--qba-focus);
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+/* Visually hide content while keeping it available to screen readers. */
+.visually-hidden-focusable:not(:focus):not(:focus-within) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Skip link becomes visible when focused. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 1080;
+  transform: translateY(-200%);
+  transition: transform 0.15s ease-in-out;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Honour users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Log viewer: monospaced, scrollable, readable. */
+.log-view {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #0b1021;
+  color: #e6e6e6;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  overflow-y: auto;
+  height: 100%;
+  min-height: 12rem;
+}
+
+/* The selected item in a list should be obvious without relying on colour
+   alone; we pair the Bootstrap active background with a left border. */
+.list-group-item.active {
+  border-left: 4px solid #fff;
+}
+
+/* Layout helpers for the resizable-free two-pane view. */
+.app-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+.app-body {
+  min-height: 0;
+  overflow: hidden;
+}
+.scroll-pane {
+  overflow-y: auto;
+  height: 100%;
+}

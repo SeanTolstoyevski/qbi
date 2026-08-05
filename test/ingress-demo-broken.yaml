@@ -1,0 +1,34 @@
+# QBI Ingress demo — KASITLI BOZUK backend
+#
+# Bu ingress, var olmayan bir servise ("ghost") yönlendirir. QBI'nin
+# Inspect panelinde kırmızı "service missing" uyarısını ve liste rozetinde
+# "1 issue" ibaresini görmek içindir.
+#
+# Kullanım:
+#   kubectl apply -f test/ingress-demo-broken.yaml
+#   QBI → Networking → Ingresses → "demo-broken" üzerinde "1 issue" rozeti
+#   → Inspect → "Issues: Host broken.local, path / routes to service
+#   "ghost", which does not exist in this namespace."
+#
+# Gerçek hayatta bu, ingress'i kırdığın anki görünümdür (örn. yanlış servis
+# adı yazdığında). Testten sonra sil:
+#   kubectl delete -f test/ingress-demo-broken.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-broken
+  namespace: qbi-test
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: broken.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ghost # ← bu servis yok: "service missing" uyarısı tetiklenir
+                port:
+                  number: 80

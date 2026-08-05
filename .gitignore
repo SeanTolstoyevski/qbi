@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+/frontend/dist/
+/frontend/node_modules/
+frontend/wailsjs/
+
+# Go
+*.exe
+*.test
+*.out
+
+# Editor
+.DS_Store
+
+# Local test certificates (test/ingress-demo.yaml TLS experiment)
+*.key
+*.crt
+*.pem
+.reasonix/
+frontend/package.json.md5

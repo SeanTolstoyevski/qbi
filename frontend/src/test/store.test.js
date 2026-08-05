@@ -1,0 +1,95 @@
+/*
+ * Tests for store.js
+ *
+ * The store is a module singleton, so we re-import it fresh in each test via
+ * Vitest's module isolation. We test:
+ *   - announce()  : sets status + statusKind, resets before re-announcing
+ *   - setConnection() : populates state, recalls last namespace from storage
+ *   - setNamespace()  : updates state and persists to localStorage
+ */
+
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Re-import the module fresh for every test to avoid singleton state leaking.
+async function freshStore() {
+  vi.resetModules();
+  const mod = await import("../store.js");
+  return mod.useStore();
+}
+
+describe("store — announce()", () => {
+  it("sets status and defaults to polite", async () => {
+    const { state, announce } = await freshStore();
+    // announce resets to '' then sets via rAF; we flush rAF with a tick.
+    announce("hello");
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(state.status).toBe("hello");
+    expect(state.statusKind).toBe("polite");
+  });
+
+  it("sets assertive kind for errors", async () => {
+    const { state, announce } = await freshStore();
+    announce("boom", "assertive");
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(state.statusKind).toBe("assertive");
+  });
+
+  it("re-announces the same message by first clearing to empty", async () => {
+    const { state, announce } = await freshStore();
+    announce("same");
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(state.status).toBe("same");
+
+    // Calling again with the same text should first set '' then the text,
+    // so the aria-live region always fires a mutation event.
+    announce("same");
+    // After the synchronous reset, status is ''
+    expect(state.status).toBe("");
+    await new Promise((r) => requestAnimationFrame(r));
+    expect(state.status).toBe("same");
+  });
+});
+
+describe("store — setConnection()", () => {
+  it("marks connected and stores context", async () => {
+    const { state, setConnection } = await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    expect(state.connected).toBe(true);
+    expect(state.context.name).toBe("prod");
+  });
+
+  it("recalls a previously remembered namespace for the same context", async () => {
+    // Seed localStorage as if the user had previously selected 'kube-system'.
+    localStorage.setItem(
+      "qba.lastNamespace",
+      JSON.stringify({ prod: "kube-system" })
+    );
+    const { state, setConnection } = await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    // Should prefer the remembered namespace over the kubeconfig default.
+    expect(state.namespace).toBe("kube-system");
+  });
+
+  it("falls back to the context default namespace when nothing is remembered", async () => {
+    const { state, setConnection } = await freshStore();
+    setConnection({ name: "dev", namespace: "my-ns" });
+    expect(state.namespace).toBe("my-ns");
+  });
+});
+
+describe("store — setNamespace()", () => {
+  it("updates state.namespace", async () => {
+    const { state, setConnection, setNamespace } = await freshStore();
+    setConnection({ name: "dev", namespace: "default" });
+    setNamespace("monitoring");
+    expect(state.namespace).toBe("monitoring");
+  });
+
+  it("persists the selection to localStorage keyed by context", async () => {
+    const { setConnection, setNamespace } = await freshStore();
+    setConnection({ name: "staging", namespace: "default" });
+    setNamespace("logging");
+    const stored = JSON.parse(localStorage.getItem("qba.lastNamespace") || "{}");
+    expect(stored.staging).toBe("logging");
+  });
+});

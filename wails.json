@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "qbi",
+  "outputfilename": "qbi",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "",
+    "email": ""
+  },
+  "info": {
+    "companyName": "qbi",
+    "productName": "qbi — Kubernetes inspector",
+    "productVersion": "0.1.0",
+    "copyright": "",
+    "comments": "Accessible Kubernetes inspection and light-management tool"
+  }
+}
