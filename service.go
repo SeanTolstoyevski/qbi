@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"qbi/internal/kube"
+	"qbi/internal/version"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,18 @@ func NewService(app *App) *Service {
 	s := &Service{app: app, streams: make(map[string]func())}
 	s.watcher = kube.NewWatcher(app.kube, s.emitWatchEvent)
 	return s
+}
+
+// Version returns the semantic version of QBI (e.g. "0.2.0"). It is injected
+// at build time from the VERSION file; see internal/version.
+func (s *Service) Version() string {
+	return version.Version
+}
+
+// Commit returns the git commit this build was produced from, injected at
+// build time; "unknown" for non-release builds.
+func (s *Service) Commit() string {
+	return version.Commit
 }
 
 // AppSettings is the settings payload exchanged with the frontend.
