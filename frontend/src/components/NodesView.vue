@@ -58,7 +58,7 @@ const filteredNodes = computed(() => {
     (n) =>
       n.name.toLowerCase().includes(q) ||
       (n.internalIP || "").toLowerCase().includes(q) ||
-      n.roles.some((r) => r.toLowerCase().includes(q))
+      n.roles.some((r) => r.toLowerCase().includes(q)),
   );
 });
 
@@ -101,7 +101,9 @@ defineExpose({ load });
     </p>
     <p v-else-if="loading" class="text-muted small" role="status">Loading…</p>
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
-    <p v-else-if="nodes.length === 0" class="text-muted small">No nodes visible.</p>
+    <p v-else-if="nodes.length === 0" class="text-muted small">
+      No nodes visible.
+    </p>
 
     <div v-else class="row g-3">
       <div :class="yamlTarget ? 'col-lg-8' : 'col-12'">
@@ -116,19 +118,24 @@ defineExpose({ load });
               <dd class="col-10 col-sm-7">
                 <code>{{ nodeMetrics.cluster.cpuUsage }}</code> /
                 <code>{{ nodeMetrics.cluster.cpuAllocatable }}</code>
-                <span v-if="nodeMetrics.cluster.cpuPercent">({{ nodeMetrics.cluster.cpuPercent }}%)</span>
+                <span v-if="nodeMetrics.cluster.cpuPercent"
+                  >({{ nodeMetrics.cluster.cpuPercent }}%)</span
+                >
               </dd>
               <dt class="col-2 col-sm-1">Memory</dt>
               <dd class="col-10 col-sm-7">
                 <code>{{ nodeMetrics.cluster.memoryUsage }}</code> /
                 <code>{{ nodeMetrics.cluster.memoryAllocatable }}</code>
-                <span v-if="nodeMetrics.cluster.memoryPercent">({{ nodeMetrics.cluster.memoryPercent }}%)</span>
+                <span v-if="nodeMetrics.cluster.memoryPercent"
+                  >({{ nodeMetrics.cluster.memoryPercent }}%)</span
+                >
               </dd>
             </dl>
           </div>
         </div>
         <p v-else-if="metricsError" class="text-muted small">
-          Live CPU/memory usage unavailable (metrics-server not installed or not ready).
+          Live CPU/memory usage unavailable (metrics-server not installed or not
+          ready).
         </p>
         <label for="node-filter" class="visually-hidden">Filter nodes</label>
         <input
@@ -142,8 +149,13 @@ defineExpose({ load });
         <p v-if="filteredNodes.length === 0" class="text-muted small">
           No nodes match “{{ filter }}”.
         </p>
-        <table v-if="filteredNodes.length" class="table table-hover align-middle">
-          <caption class="visually-hidden">Cluster nodes</caption>
+        <table
+          v-if="filteredNodes.length"
+          class="table table-hover align-middle"
+        >
+          <caption class="visually-hidden">
+            Cluster nodes
+          </caption>
           <thead>
             <tr>
               <th scope="col">Name</th>
@@ -167,42 +179,64 @@ defineExpose({ load });
                     class="btn btn-link btn-sm p-0"
                     @click="copyNodeName(n)"
                   >
-                    Copy<span class="visually-hidden"> node name {{ n.name }}</span>
+                    Copy<span class="visually-hidden">
+                      node name {{ n.name }}</span
+                    >
                   </button>
                 </span>
-                <div v-if="n.internalIP" class="small text-body-secondary">{{ n.internalIP }}</div>
+                <div v-if="n.internalIP" class="small text-body-secondary">
+                  {{ n.internalIP }}
+                </div>
               </th>
               <td>
                 <span
                   class="badge"
-                  :class="n.status === 'Ready' ? 'text-bg-success' : 'text-bg-danger'"
+                  :class="
+                    n.status === 'Ready' ? 'text-bg-success' : 'text-bg-danger'
+                  "
                   >{{ n.status }}</span
                 >
                 <span v-if="!n.schedulable" class="badge text-bg-warning ms-1">
                   cordoned
                   <span class="visually-hidden">, scheduling disabled</span>
                 </span>
-                <div v-if="n.conditions && n.conditions.length" class="small text-danger mt-1">
+                <div
+                  v-if="n.conditions && n.conditions.length"
+                  class="small text-danger mt-1"
+                >
                   {{ n.conditions.join(", ") }}
                 </div>
               </td>
               <td>
-                <span v-for="r in n.roles" :key="r" class="badge text-bg-secondary me-1">{{ r }}</span>
+                <span
+                  v-for="r in n.roles"
+                  :key="r"
+                  class="badge text-bg-secondary me-1"
+                  >{{ r }}</span
+                >
               </td>
-              <td><code class="small">{{ n.version }}</code></td>
+              <td>
+                <code class="small">{{ n.version }}</code>
+              </td>
               <td>
                 <template v-if="metricByName[n.name]">
                   <code>{{ metricByName[n.name].cpuUsage || "—" }}</code>
                   <span class="text-body-secondary">/ {{ n.cpu || "—" }}</span>
-                  <span v-if="metricByName[n.name].cpuPercent">({{ metricByName[n.name].cpuPercent }}%)</span>
+                  <span v-if="metricByName[n.name].cpuPercent"
+                    >({{ metricByName[n.name].cpuPercent }}%)</span
+                  >
                 </template>
                 <template v-else>{{ n.cpu || "—" }}</template>
               </td>
               <td>
                 <template v-if="metricByName[n.name]">
                   <code>{{ metricByName[n.name].memoryUsage || "—" }}</code>
-                  <span class="text-body-secondary">/ {{ n.memory || "—" }}</span>
-                  <span v-if="metricByName[n.name].memoryPercent">({{ metricByName[n.name].memoryPercent }}%)</span>
+                  <span class="text-body-secondary"
+                    >/ {{ n.memory || "—" }}</span
+                  >
+                  <span v-if="metricByName[n.name].memoryPercent"
+                    >({{ metricByName[n.name].memoryPercent }}%)</span
+                  >
                 </template>
                 <template v-else>{{ n.memory || "—" }}</template>
               </td>
@@ -214,7 +248,9 @@ defineExpose({ load });
                   class="btn btn-sm btn-outline-secondary"
                   @click="yamlTarget = n.name"
                 >
-                  YAML<span class="visually-hidden"> for node {{ n.name }}</span>
+                  YAML<span class="visually-hidden">
+                    for node {{ n.name }}</span
+                  >
                 </button>
               </td>
             </tr>

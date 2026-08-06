@@ -22,7 +22,9 @@ const form = ref({
   name: "",
   type: "ClusterIP",
   selector: [{ key: "", value: "" }],
-  ports: [{ name: "", port: "", targetPort: "", protocol: "TCP", nodePort: "" }],
+  ports: [
+    { name: "", port: "", targetPort: "", protocol: "TCP", nodePort: "" },
+  ],
   sessionAffinity: "",
   clusterIP: "",
   externalIPs: [""],
@@ -43,7 +45,7 @@ const { onKeydown } = useReturnFocus({
 // The node port only means something for NodePort/LoadBalancer types; it is
 // shown then, and empty means the cluster picks one.
 const showNodePort = computed(
-  () => form.value.type === "NodePort" || form.value.type === "LoadBalancer"
+  () => form.value.type === "NodePort" || form.value.type === "LoadBalancer",
 );
 
 // ── row helpers ─────────────────────────────────────────────────────────────
@@ -54,7 +56,13 @@ function removeRow(rows, i) {
   rows.splice(i, 1);
 }
 function addPort() {
-  form.value.ports.push({ name: "", port: "", targetPort: "", protocol: "TCP", nodePort: "" });
+  form.value.ports.push({
+    name: "",
+    port: "",
+    targetPort: "",
+    protocol: "TCP",
+    nodePort: "",
+  });
 }
 function removePort(i) {
   form.value.ports.splice(i, 1);
@@ -108,7 +116,11 @@ function validate() {
       return "Service ports must be whole numbers between 1 and 65535.";
     }
     const target = p.targetPort.trim();
-    if (target && !/^\d+$/.test(target) && !/^[a-zA-Z][a-zA-Z0-9-]*$/.test(target)) {
+    if (
+      target &&
+      !/^\d+$/.test(target) &&
+      !/^[a-zA-Z][a-zA-Z0-9-]*$/.test(target)
+    ) {
       return `Invalid target port "${target}". Use a number or a named port.`;
     }
     if (p.protocol && !["TCP", "UDP", "SCTP"].includes(p.protocol)) {
@@ -139,7 +151,10 @@ async function togglePreview() {
     return;
   }
   try {
-    preview.value = await api.renderServiceYaml(props.namespace, buildPayload());
+    preview.value = await api.renderServiceYaml(
+      props.namespace,
+      buildPayload(),
+    );
     previewOpen.value = true;
   } catch (e) {
     error.value = String(e);
@@ -211,7 +226,11 @@ async function submit() {
       </div>
       <div class="col-12 col-md-6">
         <label for="svc-type" class="form-label mb-1 small">Type</label>
-        <select id="svc-type" v-model="form.type" class="form-select form-select-sm">
+        <select
+          id="svc-type"
+          v-model="form.type"
+          class="form-select form-select-sm"
+        >
           <option value="ClusterIP">ClusterIP (internal only)</option>
           <option value="NodePort">NodePort (external via node IP)</option>
           <option value="LoadBalancer">LoadBalancer (cloud)</option>
@@ -226,7 +245,9 @@ async function submit() {
           </legend>
           <div v-for="(row, i) in form.selector" :key="i" class="row g-2 mb-1">
             <div class="col-5">
-              <label class="visually-hidden" :for="`svc-sel-key-${i}`">Selector key</label>
+              <label class="visually-hidden" :for="`svc-sel-key-${i}`"
+                >Selector key</label
+              >
               <input
                 :id="`svc-sel-key-${i}`"
                 v-model="row.key"
@@ -237,7 +258,9 @@ async function submit() {
               />
             </div>
             <div class="col-5">
-              <label class="visually-hidden" :for="`svc-sel-value-${i}`">Selector value</label>
+              <label class="visually-hidden" :for="`svc-sel-value-${i}`"
+                >Selector value</label
+              >
               <input
                 :id="`svc-sel-value-${i}`"
                 v-model="row.value"
@@ -258,7 +281,11 @@ async function submit() {
               </button>
             </div>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="addRow(form.selector)">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="addRow(form.selector)"
+          >
             Add selector
           </button>
         </fieldset>
@@ -268,9 +295,15 @@ async function submit() {
       <div class="col-12">
         <fieldset>
           <legend class="h6 small text-body-secondary">Ports</legend>
-          <div v-for="(p, i) in form.ports" :key="i" class="row g-2 mb-1 align-items-end">
+          <div
+            v-for="(p, i) in form.ports"
+            :key="i"
+            class="row g-2 mb-1 align-items-end"
+          >
             <div class="col-6 col-md-3">
-              <label class="visually-hidden" :for="`svc-port-${i}`">Service port</label>
+              <label class="visually-hidden" :for="`svc-port-${i}`"
+                >Service port</label
+              >
               <input
                 :id="`svc-port-${i}`"
                 v-model.number="p.port"
@@ -282,7 +315,9 @@ async function submit() {
               />
             </div>
             <div class="col-6 col-md-3">
-              <label class="visually-hidden" :for="`svc-target-${i}`">Target port</label>
+              <label class="visually-hidden" :for="`svc-target-${i}`"
+                >Target port</label
+              >
               <input
                 :id="`svc-target-${i}`"
                 v-model="p.targetPort"
@@ -293,15 +328,23 @@ async function submit() {
               />
             </div>
             <div class="col-6 col-md-2">
-              <label class="visually-hidden" :for="`svc-proto-${i}`">Protocol</label>
-              <select :id="`svc-proto-${i}`" v-model="p.protocol" class="form-select form-select-sm">
+              <label class="visually-hidden" :for="`svc-proto-${i}`"
+                >Protocol</label
+              >
+              <select
+                :id="`svc-proto-${i}`"
+                v-model="p.protocol"
+                class="form-select form-select-sm"
+              >
                 <option value="TCP">TCP</option>
                 <option value="UDP">UDP</option>
                 <option value="SCTP">SCTP</option>
               </select>
             </div>
             <div v-if="showNodePort" class="col-6 col-md-2">
-              <label class="visually-hidden" :for="`svc-nodeport-${i}`">Node port (empty = auto)</label>
+              <label class="visually-hidden" :for="`svc-nodeport-${i}`"
+                >Node port (empty = auto)</label
+              >
               <input
                 :id="`svc-nodeport-${i}`"
                 v-model.number="p.nodePort"
@@ -323,7 +366,11 @@ async function submit() {
               </button>
             </div>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="addPort">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="addPort"
+          >
             Add port
           </button>
         </fieldset>
@@ -336,8 +383,14 @@ async function submit() {
           <div class="mt-2 border rounded p-2">
             <div class="row g-2 mb-3">
               <div class="col-6 col-md-4">
-                <label for="svc-affinity" class="form-label mb-1 small">Session affinity</label>
-                <select id="svc-affinity" v-model="form.sessionAffinity" class="form-select form-select-sm">
+                <label for="svc-affinity" class="form-label mb-1 small"
+                  >Session affinity</label
+                >
+                <select
+                  id="svc-affinity"
+                  v-model="form.sessionAffinity"
+                  class="form-select form-select-sm"
+                >
                   <option value="">None (default)</option>
                   <option value="ClientIP">ClientIP (stick to one pod)</option>
                 </select>
@@ -359,9 +412,15 @@ async function submit() {
 
             <fieldset>
               <legend class="h6 small text-body-secondary">External IPs</legend>
-              <div v-for="(ip, i) in form.externalIPs" :key="i" class="row g-2 mb-1">
+              <div
+                v-for="(ip, i) in form.externalIPs"
+                :key="i"
+                class="row g-2 mb-1"
+              >
                 <div class="col-10">
-                  <label class="visually-hidden" :for="`svc-extip-${i}`">External IP</label>
+                  <label class="visually-hidden" :for="`svc-extip-${i}`"
+                    >External IP</label
+                  >
                   <input
                     :id="`svc-extip-${i}`"
                     v-model="form.externalIPs[i]"
@@ -382,7 +441,11 @@ async function submit() {
                   </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" @click="addExternalIP">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                @click="addExternalIP"
+              >
                 Add IP
               </button>
             </fieldset>
@@ -400,7 +463,9 @@ async function submit() {
         >
           {{ previewOpen ? "Hide preview" : "Preview YAML" }}
         </button>
-        <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">Create</button>
+        <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">
+          Create
+        </button>
         <button
           type="button"
           class="btn btn-sm btn-outline-secondary"
@@ -416,7 +481,11 @@ async function submit() {
       <div v-if="previewOpen" class="col-12">
         <div class="d-flex align-items-center justify-content-between mb-1">
           <span class="small fw-semibold">Preview YAML</span>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="copyPreview">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="copyPreview"
+          >
             Copy
           </button>
         </div>
@@ -424,7 +493,7 @@ async function submit() {
           role="document"
           class="small font-monospace border rounded p-2 mb-0"
           style="max-height: 20rem; overflow: auto; white-space: pre"
-        >{{ preview }}</pre>
+          >{{ preview }}</pre>
       </div>
     </form>
   </section>

@@ -18,8 +18,8 @@ const createIngressOpen = ref(false);
 const editTarget = ref(""); // ingress name being edited
 const deleting = ref(""); // service name while a deletion is in flight
 const inspectTarget = ref(null); // IngressInfo being inspected
-const detailRef = ref(null);     // IngressDetail component instance (for reload)
-const deletingIng = ref("");    // ingress name while a deletion is in flight
+const detailRef = ref(null); // IngressDetail component instance (for reload)
+const deletingIng = ref(""); // ingress name while a deletion is in flight
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
 const menuOpen = ref(""); // key of the currently open action menu
@@ -29,7 +29,7 @@ function openMenu(key) {
   nextTick(() =>
     document
       .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
-      ?.focus()
+      ?.focus(),
   );
 }
 
@@ -50,7 +50,7 @@ function focusTriggerAndAct(key, fn) {
 function onMenuKeydown(e, key) {
   const menu = document.querySelector(`[data-menu="${key}"]`);
   const items = Array.from(
-    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? []
+    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? [],
   );
   const idx = items.indexOf(document.activeElement);
   switch (e.key) {
@@ -168,13 +168,16 @@ function onIngressEdit(name) {
 // A namespace switch invalidates all side panels: their content belongs to
 // the previous namespace. Watch-triggered reloads must NOT close them (a
 // user mid-form would lose their work on a busy cluster).
-watch(() => state.namespace, () => {
-  inspectTarget.value = null;
-  createServiceOpen.value = false;
-  createIngressOpen.value = false;
-  editTarget.value = "";
-  menuOpen.value = "";
-});
+watch(
+  () => state.namespace,
+  () => {
+    inspectTarget.value = null;
+    createServiceOpen.value = false;
+    createIngressOpen.value = false;
+    editTarget.value = "";
+    menuOpen.value = "";
+  },
+);
 
 // Deleting a service is a confirmed row action; only the load-balancing
 // entry is removed, the backing pods keep running.
@@ -187,7 +190,10 @@ async function removeService(svc) {
     await load();
   } catch (e) {
     error.value = String(e);
-    announce(`Failed to delete service ${svc.name}: ${error.value}`, "assertive");
+    announce(
+      `Failed to delete service ${svc.name}: ${error.value}`,
+      "assertive",
+    );
   } finally {
     deleting.value = "";
   }
@@ -211,7 +217,10 @@ async function removeIngress(ing) {
     await load();
   } catch (e) {
     error.value = String(e);
-    announce(`Failed to delete ingress ${ing.name}: ${error.value}`, "assertive");
+    announce(
+      `Failed to delete ingress ${ing.name}: ${error.value}`,
+      "assertive",
+    );
   } finally {
     deletingIng.value = "";
   }
@@ -229,7 +238,7 @@ async function load() {
     services.value = svc || [];
     ingresses.value = ing || [];
     announce(
-      `${services.value.length} services and ${ingresses.value.length} ingresses in ${state.namespace}.`
+      `${services.value.length} services and ${ingresses.value.length} ingresses in ${state.namespace}.`,
     );
   } catch (e) {
     error.value = String(e);
@@ -254,7 +263,8 @@ function portSummary(p) {
   return `${name}${p.port} → ${p.targetPort}/${p.protocol}${np}`;
 }
 
-const hasSelector = (svc) => svc.selector && Object.keys(svc.selector).length > 0;
+const hasSelector = (svc) =>
+  svc.selector && Object.keys(svc.selector).length > 0;
 
 function selectorSummary(svc) {
   return Object.entries(svc.selector)
@@ -266,7 +276,8 @@ watch(() => state.namespace, load, { immediate: true });
 
 useWatch("watch:services", {
   reload: load,
-  summarize: (batch) => announce(watchAnnouncement("Service", "services", batch)),
+  summarize: (batch) =>
+    announce(watchAnnouncement("Service", "services", batch)),
 });
 useWatch("watch:ingresses", {
   // The list reloads and, if an ingress is being inspected, the open detail
@@ -275,7 +286,8 @@ useWatch("watch:ingresses", {
     await load();
     detailRef.value?.load?.();
   },
-  summarize: (batch) => announce(watchAnnouncement("Ingress", "ingresses", batch)),
+  summarize: (batch) =>
+    announce(watchAnnouncement("Ingress", "ingresses", batch)),
 });
 
 // Close the open action menu when the user clicks outside it.
@@ -330,246 +342,342 @@ defineExpose({ load });
       <!-- The side panel stays mounted while the list reloads, so a watch
            refresh never tears it down (which would bounce focus and refetch
            the detail). -->
-      <div :class="createServiceOpen || createIngressOpen || editTarget || inspectTarget ? 'col-lg-7' : 'col-12'">
+      <div
+        :class="
+          createServiceOpen || createIngressOpen || editTarget || inspectTarget
+            ? 'col-lg-7'
+            : 'col-12'
+        "
+      >
         <p v-if="loading" class="text-muted small" role="status">Loading…</p>
-        <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
+        <p v-else-if="error" class="text-danger small" role="alert">
+          {{ error }}
+        </p>
         <template v-else>
-      <!-- SERVICES -->
-      <h3 class="h6 mt-2">Services</h3>
-      <p v-if="services.length === 0" class="text-muted small">No services found.</p>
-      <ul v-else class="list-group mb-4">
-        <li v-for="svc in services" :key="svc.name" class="list-group-item">
-          <div class="d-flex align-items-start justify-content-between gap-2">
-            <div>
-              <span class="fw-semibold">{{ svc.name }}</span>
-              <span class="badge text-bg-secondary ms-1">{{ svc.type }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="small text-body-secondary">{{ svc.age }}</span>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-danger"
-                :disabled="deleting === svc.name"
-                @click="removeService(svc)"
+          <!-- SERVICES -->
+          <h3 class="h6 mt-2">Services</h3>
+          <p v-if="services.length === 0" class="text-muted small">
+            No services found.
+          </p>
+          <ul v-else class="list-group mb-4">
+            <li v-for="svc in services" :key="svc.name" class="list-group-item">
+              <div
+                class="d-flex align-items-start justify-content-between gap-2"
               >
-                <span
-                  v-if="deleting === svc.name"
-                  class="spinner-border spinner-border-sm me-1"
-                  aria-hidden="true"
-                ></span>
-                Delete<span class="visually-hidden"> service {{ svc.name }}</span>
-              </button>
-            </div>
-          </div>
-
-          <dl class="row mb-0 mt-1 small">
-            <dt class="col-sm-3">DNS name</dt>
-            <dd class="col-sm-9 mb-1">
-              <code>{{ svc.dnsName }}</code>
-              <button
-                type="button"
-                class="btn btn-link btn-sm p-0 ms-2 align-baseline"
-                @click="copy(svc.dnsName, 'DNS name')"
-              >
-                Copy
-              </button>
-            </dd>
-
-            <dt class="col-sm-3">Cluster IP</dt>
-            <dd class="col-sm-9 mb-1">
-              <code>{{ svc.clusterIP || "None" }}</code>
-            </dd>
-
-            <template v-if="svc.externalIPs && svc.externalIPs.length">
-              <dt class="col-sm-3">External IPs</dt>
-              <dd class="col-sm-9 mb-1">
-                <code>{{ svc.externalIPs.join(", ") }}</code>
-              </dd>
-            </template>
-
-            <dt class="col-sm-3">Ports</dt>
-            <dd class="col-sm-9 mb-1">
-              <span v-if="svc.ports.length === 0" class="text-body-secondary">none</span>
-              <ul v-else class="list-unstyled mb-0">
-                <li v-for="p in svc.ports" :key="p.name + p.port">
-                  <code>{{ portSummary(p) }}</code>
-                </li>
-              </ul>
-            </dd>
-
-            <dt class="col-sm-3">Selector</dt>
-            <dd class="col-sm-9 mb-1">
-              <code v-if="hasSelector(svc)">{{ selectorSummary(svc) }}</code>
-              <span v-else class="text-body-secondary">none (manual endpoints)</span>
-            </dd>
-
-            <dt class="col-sm-3">
-              Endpoints
-              <span class="visually-hidden">(backing pod IPs)</span>
-            </dt>
-            <dd class="col-sm-9 mb-0">
-              <span v-if="!svc.endpoints || svc.endpoints.length === 0" class="text-warning">
-                No ready endpoints
-              </span>
-              <ul v-else class="list-unstyled mb-0">
-                <li v-for="ip in svc.endpoints" :key="ip">
-                  <code>{{ ip }}</code>
-                </li>
-              </ul>
-            </dd>
-          </dl>
-        </li>
-      </ul>
-
-      <!-- INGRESSES -->
-      <h3 class="h6">Ingresses</h3>
-      <p v-if="ingresses.length === 0" class="text-muted small">No ingresses found.</p>
-      <ul v-else class="list-group">
-        <li v-for="ing in ingresses" :key="ing.name" class="list-group-item">
-          <div class="d-flex align-items-start justify-content-between gap-2">
-            <div>
-              <span class="fw-semibold">{{ ing.name }}</span>
-              <span v-if="ing.class" class="badge text-bg-secondary ms-1">{{ ing.class }}</span>
-              <span
-                v-if="ing.issues && ing.issues.length"
-                class="badge text-bg-warning ms-1"
-              >{{ ing.issues.length }} issue{{ ing.issues.length === 1 ? "" : "s" }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="small text-body-secondary">{{ ing.age }}</span>
-              <div class="dropdown">
-                <button
-                  :id="`actions-btn-ing-${ing.name}`"
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                  aria-haspopup="menu"
-                  :aria-expanded="menuOpen === `ing-${ing.name}`"
-                  :aria-controls="`menu-ing-${ing.name}`"
-                  @click.stop="menuOpen === `ing-${ing.name}` ? closeMenu(`ing-${ing.name}`) : openMenu(`ing-${ing.name}`)"
-                >
-                  Actions <span class="visually-hidden">for ingress {{ ing.name }}</span>
-                </button>
-
-                <ul
-                  v-if="menuOpen === `ing-${ing.name}`"
-                  :id="`menu-ing-${ing.name}`"
-                  role="menu"
-                  :aria-label="`Actions for ingress ${ing.name}`"
-                  class="dropdown-menu show"
-                  :data-menu="`ing-${ing.name}`"
-                  @keydown="onMenuKeydown($event, `ing-${ing.name}`)"
-                >
-                  <li role="presentation">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="dropdown-item"
-                      @click="focusTriggerAndAct(`ing-${ing.name}`, () => openEditIngress(ing))"
-                    >Edit</button>
-                  </li>
-                  <li role="presentation">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="dropdown-item"
-                      @click="focusTriggerAndAct(`ing-${ing.name}`, () => openInspect(ing))"
-                    >Inspect</button>
-                  </li>
-                  <li role="separator" class="dropdown-divider"></li>
-                  <li role="presentation">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      class="dropdown-item text-danger"
-                      :disabled="deletingIng === ing.name"
-                      @click="focusTriggerAndAct(`ing-${ing.name}`, () => removeIngress(ing))"
+                <div>
+                  <span class="fw-semibold">{{ svc.name }}</span>
+                  <span class="badge text-bg-secondary ms-1">{{
+                    svc.type
+                  }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="small text-body-secondary">{{ svc.age }}</span>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    :disabled="deleting === svc.name"
+                    @click="removeService(svc)"
+                  >
+                    <span
+                      v-if="deleting === svc.name"
+                      class="spinner-border spinner-border-sm me-1"
+                      aria-hidden="true"
+                    ></span>
+                    Delete<span class="visually-hidden">
+                      service {{ svc.name }}</span
                     >
-                      <span
-                        v-if="deletingIng === ing.name"
-                        class="spinner-border spinner-border-sm me-1"
-                        aria-hidden="true"
-                      ></span>
-                      Delete
-                    </button>
-                  </li>
-                </ul>
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <dl class="row mb-0 mt-1 small">
-            <dt class="col-sm-3">Address</dt>
-            <dd class="col-sm-9 mb-1">
-              <template v-if="ing.addresses && ing.addresses.length">
-                <code>{{ ing.addresses.join(", ") }}</code>
-              </template>
-              <span v-else class="text-warning">not assigned yet</span>
-            </dd>
+              <dl class="row mb-0 mt-1 small">
+                <dt class="col-sm-3">DNS name</dt>
+                <dd class="col-sm-9 mb-1">
+                  <code>{{ svc.dnsName }}</code>
+                  <button
+                    type="button"
+                    class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                    @click="copy(svc.dnsName, 'DNS name')"
+                  >
+                    Copy
+                  </button>
+                </dd>
 
-            <template v-if="ing.tls && ing.tls.length">
-              <dt class="col-sm-3">TLS</dt>
-              <dd class="col-sm-9 mb-1">
-                <ul class="list-unstyled mb-0">
-                  <li v-for="(t, ti) in ing.tls" :key="ti">
-                    <code>{{ (t.hosts || []).join(", ") || "(all hosts)" }}</code>
-                    <span class="text-body-secondary"> via </span>
-                    <code>{{ t.secretName || "—" }}</code>
-                    <span v-if="t.secretStatus === 'missing'" class="text-warning">
-                      (secret missing)
-                    </span>
-                  </li>
-                </ul>
-              </dd>
-            </template>
+                <dt class="col-sm-3">Cluster IP</dt>
+                <dd class="col-sm-9 mb-1">
+                  <code>{{ svc.clusterIP || "None" }}</code>
+                </dd>
 
-            <dt class="col-sm-3">Host rules</dt>
-            <dd class="col-sm-9 mb-0">
-              <p v-if="ing.rules.length === 0" class="text-body-secondary mb-0">none</p>
-              <table v-else class="table table-sm mb-0">
-                <caption class="visually-hidden">
-                  Host and path routing rules for ingress {{ ing.name }}
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Host</th>
-                    <th scope="col">Path</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Backend service</th>
-                    <th scope="col">Backend status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template v-for="(rule, ri) in ing.rules" :key="ri">
-                    <tr v-for="(path, pi) in rule.paths" :key="ri + '-' + pi">
-                      <td><code>{{ rule.host }}</code></td>
-                      <td><code>{{ path.path || "/" }}</code></td>
-                      <td>{{ path.pathType || "—" }}</td>
-                      <td>
-                        <code v-if="path.serviceName">{{ path.serviceName }}:{{ path.servicePort }}</code>
-                        <span v-else class="text-body-secondary">resource backend</span>
-                      </td>
-                      <td>
-                        <span
-                          v-if="path.status === 'no-service'"
-                          class="text-danger fw-semibold"
-                        >service missing</span>
-                        <span
-                          v-else-if="path.status === 'no-endpoints'"
-                          class="text-warning fw-semibold"
-                        >no ready endpoints</span>
-                        <span v-else-if="path.status === 'ok'" class="text-success">
-                          ok ({{ path.readyEndpoints }} ready)
-                        </span>
-                        <span v-else class="text-body-secondary">not checked</span>
-                      </td>
-                    </tr>
+                <template v-if="svc.externalIPs && svc.externalIPs.length">
+                  <dt class="col-sm-3">External IPs</dt>
+                  <dd class="col-sm-9 mb-1">
+                    <code>{{ svc.externalIPs.join(", ") }}</code>
+                  </dd>
+                </template>
+
+                <dt class="col-sm-3">Ports</dt>
+                <dd class="col-sm-9 mb-1">
+                  <span
+                    v-if="svc.ports.length === 0"
+                    class="text-body-secondary"
+                    >none</span
+                  >
+                  <ul v-else class="list-unstyled mb-0">
+                    <li v-for="p in svc.ports" :key="p.name + p.port">
+                      <code>{{ portSummary(p) }}</code>
+                    </li>
+                  </ul>
+                </dd>
+
+                <dt class="col-sm-3">Selector</dt>
+                <dd class="col-sm-9 mb-1">
+                  <code v-if="hasSelector(svc)">{{
+                    selectorSummary(svc)
+                  }}</code>
+                  <span v-else class="text-body-secondary"
+                    >none (manual endpoints)</span
+                  >
+                </dd>
+
+                <dt class="col-sm-3">
+                  Endpoints
+                  <span class="visually-hidden">(backing pod IPs)</span>
+                </dt>
+                <dd class="col-sm-9 mb-0">
+                  <span
+                    v-if="!svc.endpoints || svc.endpoints.length === 0"
+                    class="text-warning"
+                  >
+                    No ready endpoints
+                  </span>
+                  <ul v-else class="list-unstyled mb-0">
+                    <li v-for="ip in svc.endpoints" :key="ip">
+                      <code>{{ ip }}</code>
+                    </li>
+                  </ul>
+                </dd>
+              </dl>
+            </li>
+          </ul>
+
+          <!-- INGRESSES -->
+          <h3 class="h6">Ingresses</h3>
+          <p v-if="ingresses.length === 0" class="text-muted small">
+            No ingresses found.
+          </p>
+          <ul v-else class="list-group">
+            <li
+              v-for="ing in ingresses"
+              :key="ing.name"
+              class="list-group-item"
+            >
+              <div
+                class="d-flex align-items-start justify-content-between gap-2"
+              >
+                <div>
+                  <span class="fw-semibold">{{ ing.name }}</span>
+                  <span v-if="ing.class" class="badge text-bg-secondary ms-1">{{
+                    ing.class
+                  }}</span>
+                  <span
+                    v-if="ing.issues && ing.issues.length"
+                    class="badge text-bg-warning ms-1"
+                    >{{ ing.issues.length }} issue{{
+                      ing.issues.length === 1 ? "" : "s"
+                    }}</span
+                  >
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="small text-body-secondary">{{ ing.age }}</span>
+                  <div class="dropdown">
+                    <button
+                      :id="`actions-btn-ing-${ing.name}`"
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                      aria-haspopup="menu"
+                      :aria-expanded="menuOpen === `ing-${ing.name}`"
+                      :aria-controls="`menu-ing-${ing.name}`"
+                      @click.stop="
+                        menuOpen === `ing-${ing.name}`
+                          ? closeMenu(`ing-${ing.name}`)
+                          : openMenu(`ing-${ing.name}`)
+                      "
+                    >
+                      Actions
+                      <span class="visually-hidden"
+                        >for ingress {{ ing.name }}</span
+                      >
+                    </button>
+
+                    <ul
+                      v-if="menuOpen === `ing-${ing.name}`"
+                      :id="`menu-ing-${ing.name}`"
+                      role="menu"
+                      :aria-label="`Actions for ingress ${ing.name}`"
+                      class="dropdown-menu show"
+                      :data-menu="`ing-${ing.name}`"
+                      @keydown="onMenuKeydown($event, `ing-${ing.name}`)"
+                    >
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          @click="
+                            focusTriggerAndAct(`ing-${ing.name}`, () =>
+                              openEditIngress(ing),
+                            )
+                          "
+                        >
+                          Edit
+                        </button>
+                      </li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          @click="
+                            focusTriggerAndAct(`ing-${ing.name}`, () =>
+                              openInspect(ing),
+                            )
+                          "
+                        >
+                          Inspect
+                        </button>
+                      </li>
+                      <li role="separator" class="dropdown-divider"></li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item text-danger"
+                          :disabled="deletingIng === ing.name"
+                          @click="
+                            focusTriggerAndAct(`ing-${ing.name}`, () =>
+                              removeIngress(ing),
+                            )
+                          "
+                        >
+                          <span
+                            v-if="deletingIng === ing.name"
+                            class="spinner-border spinner-border-sm me-1"
+                            aria-hidden="true"
+                          ></span>
+                          Delete
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <dl class="row mb-0 mt-1 small">
+                <dt class="col-sm-3">Address</dt>
+                <dd class="col-sm-9 mb-1">
+                  <template v-if="ing.addresses && ing.addresses.length">
+                    <code>{{ ing.addresses.join(", ") }}</code>
                   </template>
-                </tbody>
-              </table>
-            </dd>
-          </dl>
-        </li>
-      </ul>
+                  <span v-else class="text-warning">not assigned yet</span>
+                </dd>
+
+                <template v-if="ing.tls && ing.tls.length">
+                  <dt class="col-sm-3">TLS</dt>
+                  <dd class="col-sm-9 mb-1">
+                    <ul class="list-unstyled mb-0">
+                      <li v-for="(t, ti) in ing.tls" :key="ti">
+                        <code>{{
+                          (t.hosts || []).join(", ") || "(all hosts)"
+                        }}</code>
+                        <span class="text-body-secondary"> via </span>
+                        <code>{{ t.secretName || "—" }}</code>
+                        <span
+                          v-if="t.secretStatus === 'missing'"
+                          class="text-warning"
+                        >
+                          (secret missing)
+                        </span>
+                      </li>
+                    </ul>
+                  </dd>
+                </template>
+
+                <dt class="col-sm-3">Host rules</dt>
+                <dd class="col-sm-9 mb-0">
+                  <p
+                    v-if="ing.rules.length === 0"
+                    class="text-body-secondary mb-0"
+                  >
+                    none
+                  </p>
+                  <table v-else class="table table-sm mb-0">
+                    <caption class="visually-hidden">
+                      Host and path routing rules for ingress
+                      {{
+                        ing.name
+                      }}
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Host</th>
+                        <th scope="col">Path</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Backend service</th>
+                        <th scope="col">Backend status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template v-for="(rule, ri) in ing.rules" :key="ri">
+                        <tr
+                          v-for="(path, pi) in rule.paths"
+                          :key="ri + '-' + pi"
+                        >
+                          <td>
+                            <code>{{ rule.host }}</code>
+                          </td>
+                          <td>
+                            <code>{{ path.path || "/" }}</code>
+                          </td>
+                          <td>{{ path.pathType || "—" }}</td>
+                          <td>
+                            <code v-if="path.serviceName"
+                              >{{ path.serviceName }}:{{
+                                path.servicePort
+                              }}</code
+                            >
+                            <span v-else class="text-body-secondary"
+                              >resource backend</span
+                            >
+                          </td>
+                          <td>
+                            <span
+                              v-if="path.status === 'no-service'"
+                              class="text-danger fw-semibold"
+                              >service missing</span
+                            >
+                            <span
+                              v-else-if="path.status === 'no-endpoints'"
+                              class="text-warning fw-semibold"
+                              >no ready endpoints</span
+                            >
+                            <span
+                              v-else-if="path.status === 'ok'"
+                              class="text-success"
+                            >
+                              ok ({{ path.readyEndpoints }} ready)
+                            </span>
+                            <span v-else class="text-body-secondary"
+                              >not checked</span
+                            >
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </dd>
+              </dl>
+            </li>
+          </ul>
         </template>
       </div>
 
@@ -582,7 +690,11 @@ defineExpose({ load });
           @created="onServiceCreated"
         />
       </div>
-      <div v-else-if="createIngressOpen" class="col-lg-5" style="min-height: 24rem">
+      <div
+        v-else-if="createIngressOpen"
+        class="col-lg-5"
+        style="min-height: 24rem"
+      >
         <IngressCreate
           :namespace="state.namespace"
           opener-id="ing-create-btn"

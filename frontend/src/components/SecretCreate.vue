@@ -129,7 +129,7 @@ async function submitForm() {
     const created = await api.createSecret(
       props.namespace,
       { name, type: form.value.type.trim(), data: rowsToMap(draft.value) },
-      props.mode
+      props.mode,
     );
     if (!created) return; // user cancelled the confirmation — keep the form
     announce(`Secret ${name} created.`);
@@ -152,7 +152,10 @@ async function submitYaml() {
   }
   yamlSaving.value = true;
   try {
-    const created = await api.createSecretFromYaml(props.namespace, yamlText.value);
+    const created = await api.createSecretFromYaml(
+      props.namespace,
+      yamlText.value,
+    );
     if (!created) return; // user cancelled the confirmation — keep editing
     announce("Secret created from YAML.");
     emit("created");
@@ -172,7 +175,12 @@ async function submitYaml() {
     @keydown="onKeydown"
   >
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h3 id="secret-create-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
+      <h3
+        id="secret-create-heading"
+        ref="headingEl"
+        class="h6 mb-0"
+        tabindex="-1"
+      >
         New secret
       </h3>
       <button
@@ -227,7 +235,9 @@ async function submitYaml() {
     >
       <form class="row g-2" @submit.prevent="submitForm">
         <div class="col-12 col-md-6">
-          <label for="secret-create-name" class="form-label mb-1 small">Name</label>
+          <label for="secret-create-name" class="form-label mb-1 small"
+            >Name</label
+          >
           <input
             id="secret-create-name"
             v-model="form.name"
@@ -238,7 +248,9 @@ async function submitYaml() {
           />
         </div>
         <div class="col-12 col-md-6">
-          <label for="secret-create-type" class="form-label mb-1 small">Type</label>
+          <label for="secret-create-type" class="form-label mb-1 small"
+            >Type</label
+          >
           <input
             id="secret-create-type"
             v-model="form.type"
@@ -260,7 +272,8 @@ async function submitYaml() {
             <code>tls.key</code> key.
           </p>
           <p v-if="mode === 'base64'" class="small text-body-secondary mb-1">
-            Values are stored as raw base64 — encode them yourself before saving.
+            Values are stored as raw base64 — encode them yourself before
+            saving.
           </p>
           <p v-else class="small text-body-secondary mb-1">
             Values are plain text — QBI encodes them to base64 for storage.
@@ -278,7 +291,11 @@ async function submitYaml() {
         </div>
 
         <div class="col-12 d-flex align-items-center gap-2">
-          <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">
+          <button
+            type="submit"
+            class="btn btn-sm btn-primary"
+            :disabled="saving"
+          >
             <span
               v-if="saving"
               class="spinner-border spinner-border-sm me-1"
@@ -313,7 +330,9 @@ async function submitYaml() {
             : "Plain-text stringData — Kubernetes encodes it. You can also use data with base64."
         }}
       </p>
-      <p v-if="yamlError" class="text-danger small" role="alert">{{ yamlError }}</p>
+      <p v-if="yamlError" class="text-danger small" role="alert">
+        {{ yamlError }}
+      </p>
       <textarea
         id="secret-create-yaml"
         v-model="yamlText"

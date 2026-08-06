@@ -20,7 +20,7 @@ async function load() {
     events.value = list || [];
     const warnings = events.value.filter((e) => e.type === "Warning").length;
     announce(
-      `${events.value.length} events in ${state.namespace}, ${warnings} warnings.`
+      `${events.value.length} events in ${state.namespace}, ${warnings} warnings.`,
     );
   } catch (e) {
     error.value = String(e);
@@ -72,7 +72,9 @@ defineExpose({ load });
             class="form-check-input"
             type="checkbox"
           />
-          <label class="form-check-label small" for="warnings-only">Warnings only</label>
+          <label class="form-check-label small" for="warnings-only"
+            >Warnings only</label
+          >
         </div>
         <button
           type="button"
@@ -115,13 +117,20 @@ defineExpose({ load });
         <template v-if="filter">No events match “{{ filter }}”.</template>
         <template v-else-if="warningsOnly">No warning events.</template>
         <template v-else
-          >No events in the last hour. For change history, see Workloads.</template
+          >No events in the last hour. For change history, see
+          Workloads.</template
         >
       </p>
 
-      <table v-if="shown.length" class="table table-sm table-hover align-middle">
+      <table
+        v-if="shown.length"
+        class="table table-sm table-hover align-middle"
+      >
         <caption class="visually-hidden">
-          Events in namespace {{ state.namespace }}, most recent first
+          Events in namespace
+          {{
+            state.namespace
+          }}, most recent first
         </caption>
         <thead>
           <tr>
@@ -144,12 +153,16 @@ defineExpose({ load });
             <td>
               <span
                 class="badge"
-                :class="e.type === 'Warning' ? 'text-bg-warning' : 'text-bg-secondary'"
+                :class="
+                  e.type === 'Warning' ? 'text-bg-warning' : 'text-bg-secondary'
+                "
                 >{{ e.type }}</span
               >
             </td>
             <td>{{ e.reason }}</td>
-            <td><code class="small">{{ e.object }}</code></td>
+            <td>
+              <code class="small">{{ e.object }}</code>
+            </td>
             <td>
               {{ e.message }}
               <button

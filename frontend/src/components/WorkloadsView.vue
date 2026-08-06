@@ -18,8 +18,8 @@ const cronJobs = ref([]);
 const loading = ref(false);
 const error = ref("");
 const restarting = ref(""); // "Kind/name" currently being restarted
-const deleting = ref("");  // "Kind/name" currently being deleted
-const scaling = ref(null);  // { kind, name } while scale input is open
+const deleting = ref(""); // "Kind/name" currently being deleted
+const scaling = ref(null); // { kind, name } while scale input is open
 const scaleValue = ref(1);
 const yamlTarget = ref(null); // { kind, name }
 const rollouts = ref([]);
@@ -33,11 +33,11 @@ const revisionsPerDeploy = ref(5); // 0 = all
 let rolloutTimer = null;
 
 // ── Cron job actions: logs, create, edit, suspend ──────────────────────────
-const logTarget = ref(null);      // { pod, container } for the shared LogViewer
+const logTarget = ref(null); // { pod, container } for the shared LogViewer
 const cronLogChooser = ref(null); // { cj, pod, containers } while picking a container
 const createOpen = ref(false);
 const editTarget = ref(null); // CronJobInfo being edited in the edit panel
-const suspending = ref("");   // cron job name while a suspend/resume is in flight
+const suspending = ref(""); // cron job name while a suspend/resume is in flight
 const createDeployOpen = ref(false); // Deployment create panel
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
@@ -48,7 +48,7 @@ function openMenu(key) {
   nextTick(() =>
     document
       .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
-      ?.focus()
+      ?.focus(),
   );
 }
 
@@ -69,7 +69,7 @@ function focusTriggerAndAct(key, fn) {
 function onMenuKeydown(e, key) {
   const menu = document.querySelector(`[data-menu="${key}"]`);
   const items = Array.from(
-    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? []
+    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? [],
   );
   const idx = items.indexOf(document.activeElement);
   switch (e.key) {
@@ -135,7 +135,7 @@ async function load() {
     cronJobs.value = cjl || [];
     await loadRollouts(); // best-effort; a history failure never breaks the tables
     announce(
-      `${workloads.value.length} workloads, ${jobs.value.length} jobs, ${cronJobs.value.length} cron jobs, ${rollouts.value.length} recent rollouts in ${state.namespace}.`
+      `${workloads.value.length} workloads, ${jobs.value.length} jobs, ${cronJobs.value.length} cron jobs, ${rollouts.value.length} recent rollouts in ${state.namespace}.`,
     );
   } catch (e) {
     error.value = String(e);
@@ -193,11 +193,20 @@ async function openCronLogs(cj) {
       return;
     }
     if (pod.containers.length <= 1) {
-      logTarget.value = { pod: pod.name, container: pod.containers[0] || pod.name };
+      logTarget.value = {
+        pod: pod.name,
+        container: pod.containers[0] || pod.name,
+      };
     } else {
-      cronLogChooser.value = { cj: cj.name, pod: pod.name, containers: pod.containers };
+      cronLogChooser.value = {
+        cj: cj.name,
+        pod: pod.name,
+        containers: pod.containers,
+      };
       nextTick(() =>
-        document.querySelector(`[data-cj-log-group="${cj.name}"] button`)?.focus()
+        document
+          .querySelector(`[data-cj-log-group="${cj.name}"] button`)
+          ?.focus(),
       );
     }
   } catch (e) {
@@ -282,7 +291,11 @@ async function restart(w) {
   const id = `${w.kind}/${w.name}`;
   restarting.value = id;
   try {
-    const triggered = await api.restartWorkload(state.namespace, w.kind, w.name);
+    const triggered = await api.restartWorkload(
+      state.namespace,
+      w.kind,
+      w.name,
+    );
     if (!triggered) return;
     announce(`Rolling restart triggered for ${w.kind} ${w.name}.`);
     await load();
@@ -306,7 +319,10 @@ async function removeWorkload(w) {
     await load();
   } catch (e) {
     error.value = String(e);
-    announce(`Failed to delete ${w.kind} ${w.name}: ${error.value}`, "assertive");
+    announce(
+      `Failed to delete ${w.kind} ${w.name}: ${error.value}`,
+      "assertive",
+    );
   } finally {
     deleting.value = "";
   }
@@ -328,7 +344,12 @@ async function applyScale(w) {
     return;
   }
   try {
-    const triggered = await api.scaleWorkload(state.namespace, w.kind, w.name, n);
+    const triggered = await api.scaleWorkload(
+      state.namespace,
+      w.kind,
+      w.name,
+      n,
+    );
     if (!triggered) return;
     announce(`${w.kind} ${w.name} scaled to ${n} replica(s).`);
     scaling.value = null;
@@ -367,7 +388,7 @@ useWatch("watch:workloads", {
       (byKind[kind] = byKind[kind] || []).push(ev);
     }
     const parts = Object.entries(byKind).map(([kind, evs]) =>
-      watchAnnouncement(kind, kind + "s", evs)
+      watchAnnouncement(kind, kind + "s", evs),
     );
     announce(parts.join(" "));
   },
@@ -411,8 +432,17 @@ defineExpose({ load });
       </p>
       <div class="row g-3">
         <!-- Left: workload / job / cronjob tables -->
-        <div :class="yamlTarget || logTarget || createOpen || editTarget || createDeployOpen ? 'col-lg-7' : 'col-12'">
-
+        <div
+          :class="
+            yamlTarget ||
+            logTarget ||
+            createOpen ||
+            editTarget ||
+            createDeployOpen
+              ? 'col-lg-7'
+              : 'col-12'
+          "
+        >
           <!-- ── Deployments / StatefulSets / DaemonSets ── -->
           <div class="d-flex align-items-center justify-content-between mb-1">
             <h3 class="h6 text-body-secondary mb-0">Controllers</h3>
@@ -426,10 +456,17 @@ defineExpose({ load });
               Create<span class="visually-hidden"> deployment</span>
             </button>
           </div>
-          <p v-if="workloads.length === 0" class="text-muted small">None found.</p>
+          <p v-if="workloads.length === 0" class="text-muted small">
+            None found.
+          </p>
           <div v-else class="table-responsive mb-3">
             <table class="table table-hover align-middle table-sm">
-              <caption class="visually-hidden">Workload controllers in {{ state.namespace }}</caption>
+              <caption class="visually-hidden">
+                Workload controllers in
+                {{
+                  state.namespace
+                }}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Kind</th>
@@ -437,17 +474,26 @@ defineExpose({ load });
                   <th scope="col">Ready</th>
                   <th scope="col">Images</th>
                   <th scope="col">Age</th>
-                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  <th scope="col">
+                    <span class="visually-hidden">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 <template v-for="w in workloads" :key="w.kind + w.name">
                   <tr>
-                    <td><span class="badge text-bg-secondary">{{ w.kind }}</span></td>
+                    <td>
+                      <span class="badge text-bg-secondary">{{ w.kind }}</span>
+                    </td>
                     <th scope="row" class="fw-normal">{{ w.name }}</th>
                     <td>
-                      <span :class="degraded(w) ? 'text-danger fw-semibold' : ''">{{ w.ready }}</span>
-                      <span v-if="degraded(w)" class="visually-hidden">, degraded</span>
+                      <span
+                        :class="degraded(w) ? 'text-danger fw-semibold' : ''"
+                        >{{ w.ready }}</span
+                      >
+                      <span v-if="degraded(w)" class="visually-hidden"
+                        >, degraded</span
+                      >
                     </td>
                     <td>
                       <ul class="list-unstyled mb-0">
@@ -466,9 +512,16 @@ defineExpose({ load });
                           aria-haspopup="menu"
                           :aria-expanded="menuOpen === `w-${w.kind}-${w.name}`"
                           :aria-controls="`menu-w-${w.kind}-${w.name}`"
-                          @click.stop="menuOpen === `w-${w.kind}-${w.name}` ? closeMenu(`w-${w.kind}-${w.name}`) : openMenu(`w-${w.kind}-${w.name}`)"
+                          @click.stop="
+                            menuOpen === `w-${w.kind}-${w.name}`
+                              ? closeMenu(`w-${w.kind}-${w.name}`)
+                              : openMenu(`w-${w.kind}-${w.name}`)
+                          "
                         >
-                          Actions <span class="visually-hidden">for {{ w.kind }} {{ w.name }}</span>
+                          Actions
+                          <span class="visually-hidden"
+                            >for {{ w.kind }} {{ w.name }}</span
+                          >
                         </button>
 
                         <ul
@@ -478,15 +531,24 @@ defineExpose({ load });
                           :aria-label="`Actions for ${w.kind} ${w.name}`"
                           class="dropdown-menu show"
                           :data-menu="`w-${w.kind}-${w.name}`"
-                          @keydown="onMenuKeydown($event, `w-${w.kind}-${w.name}`)"
+                          @keydown="
+                            onMenuKeydown($event, `w-${w.kind}-${w.name}`)
+                          "
                         >
                           <li role="presentation">
                             <button
                               type="button"
                               role="menuitem"
                               class="dropdown-item"
-                              @click="focusTriggerAndAct(`w-${w.kind}-${w.name}`, () => openYaml(w.kind, w.name))"
-                            >YAML</button>
+                              @click="
+                                focusTriggerAndAct(
+                                  `w-${w.kind}-${w.name}`,
+                                  () => openYaml(w.kind, w.name),
+                                )
+                              "
+                            >
+                              YAML
+                            </button>
                           </li>
                           <li v-if="canScale(w)" role="presentation">
                             <!-- Scale opens an inline row (not a panel), so we close the menu
@@ -495,8 +557,15 @@ defineExpose({ load });
                               type="button"
                               role="menuitem"
                               class="dropdown-item"
-                              @click="closeMenu(`w-${w.kind}-${w.name}`, { skipFocus: true }); nextTick(() => openScale(w))"
-                            >Scale</button>
+                              @click="
+                                closeMenu(`w-${w.kind}-${w.name}`, {
+                                  skipFocus: true,
+                                });
+                                nextTick(() => openScale(w));
+                              "
+                            >
+                              Scale
+                            </button>
                           </li>
                           <li role="presentation">
                             <button
@@ -504,7 +573,12 @@ defineExpose({ load });
                               role="menuitem"
                               class="dropdown-item"
                               :disabled="restarting === `${w.kind}/${w.name}`"
-                              @click="focusTriggerAndAct(`w-${w.kind}-${w.name}`, () => restart(w))"
+                              @click="
+                                focusTriggerAndAct(
+                                  `w-${w.kind}-${w.name}`,
+                                  () => restart(w),
+                                )
+                              "
                             >
                               <span
                                 v-if="restarting === `${w.kind}/${w.name}`"
@@ -521,7 +595,12 @@ defineExpose({ load });
                               role="menuitem"
                               class="dropdown-item text-danger"
                               :disabled="deleting === `${w.kind}/${w.name}`"
-                              @click="focusTriggerAndAct(`w-${w.kind}-${w.name}`, () => removeWorkload(w))"
+                              @click="
+                                focusTriggerAndAct(
+                                  `w-${w.kind}-${w.name}`,
+                                  () => removeWorkload(w),
+                                )
+                              "
                             >
                               <span
                                 v-if="deleting === `${w.kind}/${w.name}`"
@@ -536,13 +615,22 @@ defineExpose({ load });
                     </td>
                   </tr>
                   <!-- Inline scale row -->
-                  <tr v-if="scaling && scaling.kind === w.kind && scaling.name === w.name">
+                  <tr
+                    v-if="
+                      scaling &&
+                      scaling.kind === w.kind &&
+                      scaling.name === w.name
+                    "
+                  >
                     <td colspan="6">
                       <form
                         class="d-flex align-items-center gap-2"
                         @submit.prevent="applyScale(w)"
                       >
-                        <label :for="`scale-${w.name}`" class="form-label mb-0 small">
+                        <label
+                          :for="`scale-${w.name}`"
+                          class="form-label mb-0 small"
+                        >
                           Replicas for {{ w.name }}
                         </label>
                         <input
@@ -554,8 +642,16 @@ defineExpose({ load });
                           style="width: 5rem"
                           autofocus
                         />
-                        <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" @click="cancelScale">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary">
+                          Apply
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-secondary"
+                          @click="cancelScale"
+                        >
+                          Cancel
+                        </button>
                       </form>
                     </td>
                   </tr>
@@ -569,7 +665,12 @@ defineExpose({ load });
           <p v-if="jobs.length === 0" class="text-muted small">None found.</p>
           <div v-else class="table-responsive mb-3">
             <table class="table table-hover align-middle table-sm">
-              <caption class="visually-hidden">Jobs in {{ state.namespace }}</caption>
+              <caption class="visually-hidden">
+                Jobs in
+                {{
+                  state.namespace
+                }}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Name</th>
@@ -578,7 +679,9 @@ defineExpose({ load });
                   <th scope="col">Active</th>
                   <th scope="col">Failed</th>
                   <th scope="col">Age</th>
-                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  <th scope="col">
+                    <span class="visually-hidden">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -589,16 +692,19 @@ defineExpose({ load });
                       class="badge"
                       :class="{
                         'text-bg-success': j.status === 'Complete',
-                        'text-bg-danger':  j.status === 'Failed',
+                        'text-bg-danger': j.status === 'Failed',
                         'text-bg-warning': j.status === 'Suspended',
                         'text-bg-secondary': j.status === 'Running',
                       }"
-                    >{{ j.status }}</span>
+                      >{{ j.status }}</span
+                    >
                   </td>
                   <td>{{ j.completions }}</td>
                   <td>{{ j.active }}</td>
                   <td>
-                    <span :class="j.failed > 0 ? 'text-danger' : ''">{{ j.failed }}</span>
+                    <span :class="j.failed > 0 ? 'text-danger' : ''">{{
+                      j.failed
+                    }}</span>
                   </td>
                   <td>{{ j.age }}</td>
                   <td>
@@ -607,7 +713,9 @@ defineExpose({ load });
                       class="btn btn-sm btn-outline-secondary"
                       @click="openYaml('Job', j.name)"
                     >
-                      YAML<span class="visually-hidden"> for job {{ j.name }}</span>
+                      YAML<span class="visually-hidden">
+                        for job {{ j.name }}</span
+                      >
                     </button>
                   </td>
                 </tr>
@@ -629,10 +737,17 @@ defineExpose({ load });
             </button>
           </div>
 
-          <p v-if="cronJobs.length === 0" class="text-muted small">None found.</p>
+          <p v-if="cronJobs.length === 0" class="text-muted small">
+            None found.
+          </p>
           <div v-else class="table-responsive">
             <table class="table table-hover align-middle table-sm">
-              <caption class="visually-hidden">Cron jobs in {{ state.namespace }}</caption>
+              <caption class="visually-hidden">
+                Cron jobs in
+                {{
+                  state.namespace
+                }}
+              </caption>
               <thead>
                 <tr>
                   <th scope="col">Name</th>
@@ -641,7 +756,9 @@ defineExpose({ load });
                   <th scope="col">Active</th>
                   <th scope="col">Last scheduled</th>
                   <th scope="col">Age</th>
-                  <th scope="col"><span class="visually-hidden">Actions</span></th>
+                  <th scope="col">
+                    <span class="visually-hidden">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -650,14 +767,18 @@ defineExpose({ load });
                     <th scope="row" class="fw-normal">{{ cj.name }}</th>
                     <td>
                       <code class="small">{{ cj.schedule }}</code>
-                      <span v-if="cj.suspended" class="badge text-bg-warning ms-1"
+                      <span
+                        v-if="cj.suspended"
+                        class="badge text-bg-warning ms-1"
                         >suspended</span
                       >
-                      <span class="badge text-bg-secondary ms-1"
-                        >{{ cj.concurrencyPolicy || "Allow" }}</span
-                      >
+                      <span class="badge text-bg-secondary ms-1">{{
+                        cj.concurrencyPolicy || "Allow"
+                      }}</span>
                     </td>
-                    <td><code class="small">{{ cj.image || "—" }}</code></td>
+                    <td>
+                      <code class="small">{{ cj.image || "—" }}</code>
+                    </td>
                     <td>{{ cj.active }}</td>
                     <td>{{ cj.lastSchedule || "never" }}</td>
                     <td>{{ cj.age }}</td>
@@ -670,9 +791,16 @@ defineExpose({ load });
                           aria-haspopup="menu"
                           :aria-expanded="menuOpen === `cj-${cj.name}`"
                           :aria-controls="`menu-cj-${cj.name}`"
-                          @click.stop="menuOpen === `cj-${cj.name}` ? closeMenu(`cj-${cj.name}`) : openMenu(`cj-${cj.name}`)"
+                          @click.stop="
+                            menuOpen === `cj-${cj.name}`
+                              ? closeMenu(`cj-${cj.name}`)
+                              : openMenu(`cj-${cj.name}`)
+                          "
                         >
-                          Actions <span class="visually-hidden">for cron job {{ cj.name }}</span>
+                          Actions
+                          <span class="visually-hidden"
+                            >for cron job {{ cj.name }}</span
+                          >
                         </button>
 
                         <ul
@@ -689,16 +817,28 @@ defineExpose({ load });
                               type="button"
                               role="menuitem"
                               class="dropdown-item"
-                              @click="focusTriggerAndAct(`cj-${cj.name}`, () => openCronLogs(cj))"
-                            >Logs</button>
+                              @click="
+                                focusTriggerAndAct(`cj-${cj.name}`, () =>
+                                  openCronLogs(cj),
+                                )
+                              "
+                            >
+                              Logs
+                            </button>
                           </li>
                           <li role="presentation">
                             <button
                               type="button"
                               role="menuitem"
                               class="dropdown-item"
-                              @click="focusTriggerAndAct(`cj-${cj.name}`, () => openEdit(cj))"
-                            >Edit</button>
+                              @click="
+                                focusTriggerAndAct(`cj-${cj.name}`, () =>
+                                  openEdit(cj),
+                                )
+                              "
+                            >
+                              Edit
+                            </button>
                           </li>
                           <li role="presentation">
                             <button
@@ -706,7 +846,11 @@ defineExpose({ load });
                               role="menuitem"
                               class="dropdown-item"
                               :disabled="suspending === cj.name"
-                              @click="focusTriggerAndAct(`cj-${cj.name}`, () => toggleSuspend(cj))"
+                              @click="
+                                focusTriggerAndAct(`cj-${cj.name}`, () =>
+                                  toggleSuspend(cj),
+                                )
+                              "
                             >
                               {{ cj.suspended ? "Resume" : "Suspend" }}
                             </button>
@@ -716,8 +860,14 @@ defineExpose({ load });
                               type="button"
                               role="menuitem"
                               class="dropdown-item"
-                              @click="focusTriggerAndAct(`cj-${cj.name}`, () => openYaml('CronJob', cj.name))"
-                            >YAML</button>
+                              @click="
+                                focusTriggerAndAct(`cj-${cj.name}`, () =>
+                                  openYaml('CronJob', cj.name),
+                                )
+                              "
+                            >
+                              YAML
+                            </button>
                           </li>
                         </ul>
                       </div>
@@ -728,7 +878,8 @@ defineExpose({ load });
                     <td colspan="7">
                       <fieldset class="mb-0" :data-cj-log-group="cj.name">
                         <legend class="h6 small text-body-secondary">
-                          Choose a container to stream logs from {{ cronLogChooser.pod }}
+                          Choose a container to stream logs from
+                          {{ cronLogChooser.pod }}
                         </legend>
                         <div class="d-flex flex-wrap gap-2">
                           <button
@@ -809,7 +960,10 @@ defineExpose({ load });
             No rollouts match these options.
           </p>
           <template v-else>
-            <p v-if="rolloutsTotal > rollouts.length" class="text-body-secondary small">
+            <p
+              v-if="rolloutsTotal > rollouts.length"
+              class="text-body-secondary small"
+            >
               Showing {{ rollouts.length }} of {{ rolloutsTotal }} rolled-out
               deployments. Increase “Deployments shown” to see more.
             </p>
@@ -828,7 +982,10 @@ defineExpose({ load });
                     >{{ r.rollouts[0].age }} ago</span
                   >
                 </div>
-                <ul v-if="r.rollouts.length" class="list-unstyled mb-0 mt-1 ps-3">
+                <ul
+                  v-if="r.rollouts.length"
+                  class="list-unstyled mb-0 mt-1 ps-3"
+                >
                   <li v-for="rev in r.rollouts" :key="rev.revision">
                     <span class="me-2">revision {{ rev.revision }}</span>
                     <span class="text-body-secondary">{{ rev.age }}</span>
@@ -844,7 +1001,13 @@ defineExpose({ load });
              it takes focus on open and returns it to the triggering button on
              close. -->
         <div
-          v-if="yamlTarget || logTarget || createOpen || editTarget || createDeployOpen"
+          v-if="
+            yamlTarget ||
+            logTarget ||
+            createOpen ||
+            editTarget ||
+            createDeployOpen
+          "
           class="col-lg-5"
           style="min-height: 24rem"
         >
@@ -894,4 +1057,3 @@ defineExpose({ load });
     </template>
   </section>
 </template>
-

@@ -1,170 +1,182 @@
-# qbi —  another Kubernetes inspector
+# QBI - another Kubernetes inspector
 
-`qbi` is a lightweight desktop application for **inspecting** Kubernetes
-clusters: browsing namespaces, viewing pods, streaming container logs, and
-reading secrets. It is built for keyboard and screen-reader users first.
+QBI is a lightweight desktop app for inspecting and debugging Kubernetes
+clusters. Point it at a kubeconfig, pick a context and you get a clean,
+readable view of your namespace: pods, workloads, networking, config maps,
+secrets, events and node metrics, plus a log viewer that stays usable under
+pressure.
 
-It is focused on observation and light secret management — not a full
-cluster-management console. Everything except secret editing is read-only.
+The name is a small pun: q stands for kubernetes (a q in place of the k), b
+is the b in kubernetes and I is for Inspector.
 
-## Why
+It was built keyboard-first for screen-reader users, which turned out to make
+it a fast, low-noise tool for everyone. Why it exists: [read the story](docs/motivation.md).
 
-Terminal `kubectl` workflows are verbose and awkward with assistive technology,
-and existing GUI tools have weak accessibility. `qbi` aims for a small,
-semantic, fully keyboard-navigable interface.
+> **Status** - early but working (v0.1.0), actively developed. It is not a
+> dashboard; there are no charts and no auto-generated walls of YAML.
+> Everything is a list or a table you can actually read.
 
 ## Features
 
-- Pick any context from your kubeconfig and connect.
-- List namespaces and select one.
-- View pods with readiness, phase, restarts and age.
-- Inspect a pod in detail (IP, node, container states/restart reasons,
-  conditions and labels).
-- Stream a container's logs live (with stop / restart / clear / auto-scroll).
+**Connect in seconds** - Open any kubeconfig file with the native file picker
+(or fall back to `KUBECONFIG` / `~/.kube/config`), pick a context, connect.
+Your kubeconfig path and last namespace are remembered between launches.
 
-### Workloads
+**Pods** - Filterable table with readiness, phase, restarts, age, owner and
+node. Per pod:
 
-- Deployments, StatefulSets and DaemonSets with ready / up-to-date / available
-  replica counts and container images; degraded workloads are highlighted.
-- Trigger a **rolling restart** of a workload (the equivalent of
-  `kubectl rollout restart`) — with an explicit confirmation prompt.
+- **Details** - IPs, node, QoS class, container states with restart reasons,
+  conditions, labels and live CPU/memory usage (when metrics-server is present).
+- **Logs** - the streaming viewer described below.
+- **Shell** - an interactive `kubectl exec` in your OS terminal.
+- **YAML** - the resource as Kubernetes sees it.
+- **Delete** - with a confirmation that says whether a controller will
+  recreate the pod or not.
 
-### Events
+**Workloads** - Deployments, StatefulSets and DaemonSets with ready counts and
+images; degraded workloads are highlighted. Scale, restart (rolling restart)
+or delete any of them or create a Deployment from a form with a live YAML
+preview. Jobs and CronJobs get their own tables: create and edit CronJobs
+(schedule, concurrency policy), suspend/resume them and stream the logs of
+the latest run. A *recent rollouts* panel rebuilds deployment history from
+ReplicaSet revisions, durable where events are not.
 
-- Namespace events (most recent first) for diagnosing scheduling failures,
-  image pull errors, crash loops and probe failures — with a warnings-only
-  filter.
+**Networking** - Services with their DNS name, type, ClusterIP, ports, selector
+and the endpoints actually backing them, with a clear warning when there are
+no ready endpoints. Create and delete services. Ingresses show addresses, TLS
+with certificate-secret status and host → path → backend routing rules where
+every backend is health-checked (`ok`, `service missing`, `no ready
+endpoints`). An **Inspect** panel spells the issues out in plain language,
+plus annotations, default backend and the ingress's own events. Create and
+edit ingresses with validation that mirrors the API. If the form can't
+express something (like a resource backend), it tells you instead of
+silently dropping it.
 
-### Config maps
+**Config maps** - Full contents per key, with copy-to-clipboard.
 
-- List config maps and view their full contents, with copy-to-clipboard.
+**Secrets** - Values stay masked until you reveal them. Edit via a form (a
+review dialog lists exactly what will change) or directly in YAML; create new
+secrets from a form or a starter template; switch between plain-text and
+raw-base64 modes. Binary values are flagged and preserved untouched.
 
-### Networking
+**Events** - Namespace events, newest first, with a warnings-only filter.
+Honest about its limits: events expire after ~1 hour, which is why the
+rollout history exists.
 
-For each namespace, view the network wiring that matters when debugging
-connectivity or DNS:
+**Cluster view** - Nodes with health, roles, versions and live CPU/memory
+usage, plus a cluster-wide resource summary (`kubectl top nodes` equivalent).
+If metrics-server is absent, QBI degrades gracefully instead of erroring.
 
-- **Services** — in-cluster DNS name (`<svc>.<ns>.svc.cluster.local`), type,
-  ClusterIP, external IPs, ports, and pod selector.
-- **Endpoints** — the actual pod IPs currently backing each service (with a
-  clear warning when a service has no ready endpoints).
-- **Ingresses** — external address(es), TLS hosts with the certificate
-  secrets that serve them, and host → path → backend service routing rules.
-  Every backend is health-checked, and problems are spelled out in plain
-  language: no load-balancer address assigned yet, TLS secret missing from
-  the namespace, backend service not found, or no ready endpoints. The
-  list shows an issue badge per ingress; the **Inspect** panel adds the
-  full issue list, annotations (nginx/cert-manager and friends), default
-  backend, the ingress's own events, and a YAML view. Ingresses can be
-  **deleted** (from the list or the Inspect panel) behind the same native
-  confirmation used for other writes — only the routing rules are removed,
-  the services and pods they pointed to keep running.
+**Log viewer** - Live streaming with:
 
-### Secrets
+- search: plain text or regex, case-sensitivity, live match count,
+  `Enter`/`Shift+Enter` to jump between matches and an *only matches* mode;
+- previous-instance logs (`kubectl logs -p`) for post-crash diagnosis;
+- tail 100 / 500 / 1000 / all, timestamps, wrap and auto-scroll toggles;
+- save the current view to a `.log` file or copy it;
+- desktop-style line navigation: `↑`/`↓`, `PageUp`/`PageDown`, `Ctrl+C` to
+  copy the focused line, `Ctrl+A` to copy everything.
 
-- List secrets and reveal/copy individual decoded values on demand.
-- Edit secrets: change values, add or remove keys, or delete a secret
-  entirely — each write goes through an explicit confirmation step.
+**Live refresh** - Optional auto-refresh: QBI watches the cluster and reloads
+views as resources are added or deleted, announcing what changed. Toggle it
+in Settings.
 
-### Log investigation
+**Writes are always confirmed** - Anything that changes the cluster goes
+through a native confirmation dialog that defaults to **No** and says exactly
+what will happen. More in [Security](#security).
 
-Built for incident response, the log viewer supports:
-
-- **Search** with plain text or **regex**, optional case-sensitivity, live
-  match count, and next/previous match navigation (`Enter` / `Shift+Enter`).
-- **Only matches** filter to collapse the view to matching lines.
-- **Timestamps** toggle (RFC3339 per line).
-- **Previous (crashed) instance** logs — the equivalent of `kubectl logs -p`,
-  essential for post-crash diagnosis.
-- Adjustable **history** (tail 100 / 500 / 1000 / all).
-- **Save…** the current view to a `.log` file, or **Copy** it to the clipboard.
-- **Wrap** / auto-scroll toggles.
-
-## Accessibility highlights
-
-- Single, high-contrast focus ring on every interactive element.
-- Skip-to-content link.
-- Landmark regions (`header`, `nav`, `main`) and proper headings.
-- Status and errors announced via a polite/assertive `aria-live` region,
-  without stealing focus.
-- Semantic ARIA tabs, listboxes and a `role="log"` output region.
-- Respects `prefers-reduced-motion`.
-- Secret values are hidden by default and revealed intentionally.
-
-## Keyboard
-
-| Where | Keys | Action |
-| --- | --- | --- |
-| Namespace / secret lists | `↑` `↓` | Move between items |
-| Namespace / secret lists | `Home` / `End` | First / last item |
-| Namespace / secret lists | type letters | Jump to a matching item (type-ahead) |
-| Namespace / secret lists | `Enter` / `Space` | Select the focused item |
-| Tabs (Pods / Secrets) | `←` `→` `Home` `End` | Switch tab |
-| Anywhere | `Tab` / `Shift+Tab` | Move between regions and controls |
-
-Choosing **Logs** for a pod moves focus into the log panel. Pods with a single
-container open their logs directly; pods with several show a container chooser.
+**Accessible by design** - Keyboard-first with WAI-ARIA patterns throughout, a
+single high-contrast focus ring, `aria-live` announcements and
+`prefers-reduced-motion` support. Accessibility is a design constraint, not a
+bolt-on, but you don't need a screen reader to benefit from it.
 
 ## Requirements
 
 - [Go](https://go.dev/dl/) 1.25+
 - [Node.js](https://nodejs.org/) 18+
 - [Wails CLI](https://wails.io/) v2: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- A valid `~/.kube/config` (or `KUBECONFIG`) pointing at the cluster(s) you
-  want to inspect.
+- A valid kubeconfig (`~/.kube/config`, `KUBECONFIG` or any file you pick in the app)
+- `kubectl` on `PATH` (only needed for the pod shell feature)
+
+## Build & run
+
+```bash
+# development, with hot reload (installs frontend deps and starts Vite):
+wails dev
+
+# production build: the binary lands in build/bin/
+wails build
+```
+
+The app persists a few preferences (kubeconfig path, auto-refresh) in a
+`qbi/settings.json` file inside your OS user-config directory.
 
 ## Development
 
 ```bash
-# From the project root, run the app with hot reload:
-wails dev
+go build ./...   # compile check
+go vet ./...     # vet
+
+cd frontend
+npm test         # vitest: the frontend suite
 ```
 
-`wails dev` installs the frontend dependencies, starts Vite, and launches the
-desktop window.
+The Go tests in `internal/kube` run against a fake clientset (no cluster
+needed): `go test ./...`.
 
-## Production build
+## Keyboard
 
-```bash
-wails build
-# Output binary lands in build/bin/
-```
+The whole app is driven by the keyboard. The most useful patterns:
+
+| Where | Keys | Action |
+| --- | --- | --- |
+| Lists (namespaces, config maps, secrets) | `↑` `↓`, `Home`/`End`, type letters | Move, jump, type-ahead |
+| Lists | `Enter` / `Space` | Select the focused item |
+| Tabs (namespace tabs, secret view modes) | `←` `→`, `Home`/`End` | Switch tab |
+| Row action menus | `↑` `↓`, `Home`/`End`, `Esc` | Navigate |
+| Log region | `↑` `↓`, `Home`/`End`, `PageUp`/`PageDown` | Move through lines |
+| Log region | `Ctrl+C` / `Ctrl+A` | Copy the focused line / copy all |
+| Log search | `Ctrl+F`, then `Enter` / `Shift+Enter` | Focus search, next / previous match |
+| Panels (detail, logs, create/edit forms) | `Esc` | Close; focus returns where you opened from |
 
 ## Architecture
 
 ```
 main.go            Wails entry point, embeds the built frontend
 app.go             App state + Wails runtime context
-service.go         Frontend-facing API (bound to JS) + log-stream lifecycle
-internal/kube/     Kubernetes client-go wrapper (no Wails dependency)
-  types.go         DTOs shared with the frontend
-  client.go        Contexts, namespaces, pods, secrets
-  logs.go          Follow log streaming
+service.go         The JS-bound API + log-stream and watch lifecycle
+settings.go        Persisted preferences (kubeconfig path, auto-refresh)
+internal/kube/     Kubernetes client-go wrapper (no Wails imports)
 frontend/          Vue 3 + Vite + Bootstrap 5
-  src/api.js       Wraps the Wails-injected bindings
+  src/api.js       Wraps the Wails bindings, maps errors to plain language
   src/store.js     Small reactive store (connection, namespace, announcements)
-  src/components/  ContextBar, NamespaceList, PodList, SecretList, LogViewer
+  src/components/  One component per screen (list, detail, create forms…)
 ```
 
-The `internal/kube` package has no knowledge of Wails, so it can be reused or
-tested independently. Log streaming pushes lines to the frontend via Wails
-events (`log:<key>`), keeping the UI responsive.
+The frontend talks only to `service.go`, which delegates to `internal/kube`,
+a Wails-free layer that could be reused or tested independently. Logs stream
+over Wails events (`log:<key>`); Kubernetes watch events are pushed as
+`watch:<kind>` and coalesced on the frontend so a burst doesn't reload the
+view repeatedly. Every API call is bounded by a 30-second timeout, so a hung
+cluster never freezes the UI.
 
-## Security notes
+## Security
 
-- The app is read-only except for two explicit actions: **editing/deleting
-  secrets** and **triggering a rolling restart** of a workload.
-- Every write (secret change, secret delete, workload restart) requires an
-  explicit confirmation step in the UI.
-- Restarting a workload does not delete or force-kill pods; it stamps the pod
-  template so the controller rolls out replacements gradually, honouring the
-  workload's own update strategy and availability guarantees.
-- Secret values stay in memory and are only decoded when a secret is opened.
-- Binary secret values cannot be edited as text and are preserved untouched
-  when saving other keys.
-- No data is sent anywhere except between the app and your Kubernetes API
-  server using your existing kubeconfig credentials.
+- **No telemetry** - QBI talks only to your Kubernetes API server, using the
+  credentials from your existing kubeconfig. Credentials are never stored;
+  at most the *path* to your kubeconfig is remembered.
+- **Secret values stay local** - They are fetched only when you open a secret,
+  kept in memory and masked until you reveal them. Binary values cannot be
+  edited as text and survive updates untouched.
+- **Every write is confirmed** - All cluster mutations go through a native
+  dialog that defaults to **No** and states exactly what will happen, for
+  example whether a controller will recreate a deleted pod or that deleting
+  a StatefulSet keeps its PVCs.
+- **Auth plugins can't hang you** - Exec auth plugins (aws-eks,
+  gke-gcloud-auth-plugin, OIDC…) are bounded by a 15-second timeout on
+  connect; every other call is bounded by 30 seconds.
+- **Large clusters stay responsive** - List calls are capped at 1000 objects.
 
 ## License
 
-TBD — intended to be open-sourced once past the prototype stage.
+[MIT](LICENSE) © SeanTolstoyevski

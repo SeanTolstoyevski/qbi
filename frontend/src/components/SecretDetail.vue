@@ -70,7 +70,9 @@ function toggleReveal(key) {
 
 function toggleRevealAll() {
   const entries = detail.value?.entries || [];
-  const next = allRevealed.value ? {} : Object.fromEntries(entries.map((e) => [e.key, true]));
+  const next = allRevealed.value
+    ? {}
+    : Object.fromEntries(entries.map((e) => [e.key, true]));
   revealed.value = next;
   announce(allRevealed.value ? "All values hidden." : "All values revealed.");
 }
@@ -137,7 +139,7 @@ function reviewChanges() {
   // summary and can act on it (APG alertdialog pattern).
   nextTick(() => confirmHeading.value?.focus());
   announce(
-    `Review changes: ${changeSummary.value.added} added, ${changeSummary.value.changed} changed, ${changeSummary.value.deleted} deleted.`
+    `Review changes: ${changeSummary.value.added} added, ${changeSummary.value.changed} changed, ${changeSummary.value.deleted} deleted.`,
   );
 }
 
@@ -153,7 +155,12 @@ async function saveChanges() {
   editError.value = "";
   try {
     const changes = buildChanges(draft.value, detail.value.entries, props.mode);
-    const updated = await api.updateSecret(props.namespace, props.name, changes, props.mode);
+    const updated = await api.updateSecret(
+      props.namespace,
+      props.name,
+      changes,
+      props.mode,
+    );
     detail.value = updated;
     revealed.value = {};
     confirming.value = false;
@@ -184,7 +191,7 @@ async function loadYaml() {
     yamlText.value = await api.getSecretYaml(
       props.namespace,
       props.name,
-      props.mode !== "base64"
+      props.mode !== "base64",
     );
   } catch (e) {
     yamlError.value = String(e);
@@ -209,7 +216,11 @@ async function applyYaml() {
   yamlSaving.value = true;
   yamlError.value = "";
   try {
-    const applied = await api.updateSecretFromYaml(props.namespace, props.name, yamlText.value);
+    const applied = await api.updateSecretFromYaml(
+      props.namespace,
+      props.name,
+      yamlText.value,
+    );
     if (!applied) return; // user cancelled the confirmation — keep editing
     announce(`Secret ${props.name} replaced from YAML.`);
     await loadDetail(true); // silent: refresh data + yaml in one go
@@ -239,7 +250,9 @@ async function loadDetail(silent) {
     detail.value = await api.getSecret(props.namespace, props.name);
     revealed.value = {};
     if (!silent) {
-      announce(`Secret ${props.name} opened with ${detail.value.entries.length} keys.`);
+      announce(
+        `Secret ${props.name} opened with ${detail.value.entries.length} keys.`,
+      );
     }
   } catch (e) {
     detailError.value = String(e);
@@ -269,7 +282,7 @@ watch(
     await loadDetail();
     nextTick(() => headingEl.value?.focus());
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // The value mode is global to the tab; when it changes while this panel is
@@ -282,7 +295,7 @@ watch(
     } else if (submode.value === "yaml" && yamlText.value !== "") {
       loadYaml();
     }
-  }
+  },
 );
 
 // APG tabs for the View/Edit/YAML submodes: arrows move, focus follows.
@@ -315,7 +328,9 @@ function selectSubmode(m) {
   else if (m === "yaml") enterYaml();
   else submode.value = "view";
   // APG tabs: activating a tab keeps focus on it so arrow keys keep working.
-  nextTick(() => tablistEl.value?.querySelector(`#secret-submode-${m}`)?.focus());
+  nextTick(() =>
+    tablistEl.value?.querySelector(`#secret-submode-${m}`)?.focus(),
+  );
 }
 
 // Escape returns through the layers: confirm dialog → edit/YAML → view → close.
@@ -336,19 +351,32 @@ function onKeydown(e) {
 
 <template>
   <section aria-labelledby="secret-detail-heading" @keydown="onKeydown">
-    <div v-if="detailLoading" role="status" class="text-muted small">Loading…</div>
+    <div v-if="detailLoading" role="status" class="text-muted small">
+      Loading…
+    </div>
 
-    <div v-else-if="detailError" class="text-danger small" role="alert">{{ detailError }}</div>
+    <div v-else-if="detailError" class="text-danger small" role="alert">
+      {{ detailError }}
+    </div>
 
     <template v-else-if="detail">
       <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
         <div>
-          <h3 id="secret-detail-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
+          <h3
+            id="secret-detail-heading"
+            ref="headingEl"
+            class="h6 mb-0"
+            tabindex="-1"
+          >
             Secret: {{ detail.name }}
           </h3>
           <p class="small text-body-secondary mb-0">{{ detail.type }}</p>
         </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" @click="deleteSecret">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-danger"
+          @click="deleteSecret"
+        >
           Delete secret
         </button>
       </div>
@@ -386,7 +414,9 @@ function onKeydown(e) {
       >
         <div class="d-flex justify-content-between align-items-center mb-2">
           <span class="small text-body-secondary">
-            {{ detail.entries.length }} key{{ detail.entries.length === 1 ? "" : "s" }}
+            {{ detail.entries.length }} key{{
+              detail.entries.length === 1 ? "" : "s"
+            }}
           </span>
           <button
             v-if="detail.entries.length"
@@ -401,7 +431,10 @@ function onKeydown(e) {
 
         <table class="table table-sm align-middle" aria-label="Secret values">
           <caption class="visually-hidden">
-            Secret values for {{ detail.name }}. Values are hidden by default.
+            Secret values for
+            {{
+              detail.name
+            }}. Values are hidden by default.
           </caption>
           <thead>
             <tr>
@@ -412,7 +445,9 @@ function onKeydown(e) {
           </thead>
           <tbody>
             <tr v-for="entry in detail.entries" :key="entry.key">
-              <th scope="row" class="font-monospace fw-normal">{{ entry.key }}</th>
+              <th scope="row" class="font-monospace fw-normal">
+                {{ entry.key }}
+              </th>
               <td>
                 <code
                   v-if="revealed[entry.key]"
@@ -420,7 +455,9 @@ function onKeydown(e) {
                   style="white-space: pre-wrap; overflow-wrap: anywhere"
                   >{{ displayValue(entry) }}</code
                 >
-                <span v-else class="text-body-secondary" aria-hidden="true">••••••••</span>
+                <span v-else class="text-body-secondary" aria-hidden="true"
+                  >••••••••</span
+                >
                 <span
                   v-if="entry.isBinary && mode !== 'base64'"
                   class="small text-body-secondary ms-1"
@@ -467,7 +504,9 @@ function onKeydown(e) {
           <span class="badge text-bg-warning">unsaved</span>
         </div>
 
-        <p v-if="editError" class="text-danger small" role="alert">{{ editError }}</p>
+        <p v-if="editError" class="text-danger small" role="alert">
+          {{ editError }}
+        </p>
 
         <SecretKeyRows
           :rows="draft"
@@ -485,16 +524,23 @@ function onKeydown(e) {
           aria-labelledby="secret-confirm-heading"
           @keydown.esc.prevent.stop="closeConfirm"
         >
-          <h4 id="secret-confirm-heading" ref="confirmHeading" class="h6" tabindex="-1">
+          <h4
+            id="secret-confirm-heading"
+            ref="confirmHeading"
+            class="h6"
+            tabindex="-1"
+          >
             Confirm changes
           </h4>
           <p class="small mb-2">
-            {{ changeSummary.added }} added, {{ changeSummary.changed }} changed,
+            {{ changeSummary.added }} added,
+            {{ changeSummary.changed }} changed,
             {{ changeSummary.deleted }} deleted.
           </p>
           <ul class="small mb-2">
             <li v-for="c in changeSummary.list" :key="c.kind + c.key">
-              <strong>{{ c.kind }}</strong>: {{ c.key }}
+              <strong>{{ c.kind }}</strong
+              >: {{ c.key }}
             </li>
           </ul>
           <div class="d-flex gap-2">
@@ -532,7 +578,11 @@ function onKeydown(e) {
           >
             Review &amp; save
           </button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="cancelEdit">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="cancelEdit"
+          >
             Cancel
           </button>
         </div>
@@ -546,9 +596,7 @@ function onKeydown(e) {
         aria-labelledby="secret-submode-yaml"
       >
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h4 id="secret-yaml-heading" class="h6 mb-0" tabindex="-1">
-            YAML
-          </h4>
+          <h4 id="secret-yaml-heading" class="h6 mb-0" tabindex="-1">YAML</h4>
         </div>
         <p class="small text-body-secondary">
           {{
@@ -557,8 +605,12 @@ function onKeydown(e) {
               : "Manifest with plain-text values (stringData). Applying replaces the whole secret."
           }}
         </p>
-        <p v-if="yamlError" class="text-danger small" role="alert">{{ yamlError }}</p>
-        <p v-if="yamlLoading" class="text-muted small" role="status">Loading…</p>
+        <p v-if="yamlError" class="text-danger small" role="alert">
+          {{ yamlError }}
+        </p>
+        <p v-if="yamlLoading" class="text-muted small" role="status">
+          Loading…
+        </p>
         <textarea
           v-else
           v-model="yamlText"

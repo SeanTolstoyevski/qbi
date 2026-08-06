@@ -87,7 +87,9 @@ async function removeFromMenu() {
   try {
     const requested = await api.deleteNamespace(name);
     if (!requested) return;
-    announce(`Deletion requested for namespace ${name}. It is now terminating.`);
+    announce(
+      `Deletion requested for namespace ${name}. It is now terminating.`,
+    );
     await load();
   } catch (e) {
     error.value = String(e);
@@ -102,7 +104,7 @@ watch(
   (val) => {
     if (val) load();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 defineExpose({ load });

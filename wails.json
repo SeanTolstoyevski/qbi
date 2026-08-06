@@ -7,14 +7,14 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "SeanTolstoyevski",
+    "email": "seantolstoyevski@protonmail.com"
   },
   "info": {
     "companyName": "qbi",
-    "productName": "qbi — Kubernetes inspector",
+    "productName": "QBI",
     "productVersion": "0.1.0",
     "copyright": "",
-    "comments": "Accessible Kubernetes inspection and light-management tool"
+    "comments": "A lightweight, simple (and accessible) kubernetes inspect / debug tool"
   }
 }

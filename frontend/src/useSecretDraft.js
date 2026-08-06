@@ -24,7 +24,13 @@ export function isValidBase64(s) {
 
 let rowSeq = 0;
 
-export function newRow({ key = "", value = "", isBinary = false, isNew = true, deleted = false } = {}) {
+export function newRow({
+  key = "",
+  value = "",
+  isBinary = false,
+  isNew = true,
+  deleted = false,
+} = {}) {
   return { id: rowSeq++, key, value, isBinary, isNew, deleted };
 }
 
@@ -38,7 +44,7 @@ export function seedRows(entries, mode) {
       isBinary: e.isBinary,
       isNew: false,
       deleted: false,
-    })
+    }),
   );
 }
 

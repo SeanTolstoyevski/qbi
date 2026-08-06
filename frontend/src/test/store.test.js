@@ -62,7 +62,7 @@ describe("store — setConnection()", () => {
     // Seed localStorage as if the user had previously selected 'kube-system'.
     localStorage.setItem(
       "qba.lastNamespace",
-      JSON.stringify({ prod: "kube-system" })
+      JSON.stringify({ prod: "kube-system" }),
     );
     const { state, setConnection } = await freshStore();
     setConnection({ name: "prod", namespace: "default" });
@@ -89,7 +89,9 @@ describe("store — setNamespace()", () => {
     const { setConnection, setNamespace } = await freshStore();
     setConnection({ name: "staging", namespace: "default" });
     setNamespace("logging");
-    const stored = JSON.parse(localStorage.getItem("qba.lastNamespace") || "{}");
+    const stored = JSON.parse(
+      localStorage.getItem("qba.lastNamespace") || "{}",
+    );
     expect(stored.staging).toBe("logging");
   });
 });

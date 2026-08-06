@@ -147,7 +147,11 @@ describe("WorkloadsView — actions", () => {
     await openActions(w);
     await findBtn(w, "Restart").trigger("click");
     await flushPromises();
-    expect(api.restartWorkload).toHaveBeenCalledWith("default", "Deployment", "web");
+    expect(api.restartWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+    );
     w.unmount();
   });
 });
@@ -160,7 +164,11 @@ describe("WorkloadsView — delete workload", () => {
     await openActions(w);
     await findBtn(w, "Delete").trigger("click");
     await flushPromises();
-    expect(api.deleteWorkload).toHaveBeenCalledWith("default", "Deployment", "web");
+    expect(api.deleteWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+    );
     w.unmount();
   });
 
@@ -293,7 +301,7 @@ describe("WorkloadsView — recent rollouts", () => {
           filter: "web",
           maxDeployments: 200,
           revisionsPerDeploy: 10,
-        })
+        }),
       );
       w.unmount();
     } finally {
@@ -307,7 +315,11 @@ describe("WorkloadsView — recent rollouts", () => {
     api.listCronJobs.mockResolvedValue([]);
     api.history.mockResolvedValue({
       rollouts: [
-        { name: "web", revision: "2", rollouts: [{ revision: "2", age: "1m" }] },
+        {
+          name: "web",
+          revision: "2",
+          rollouts: [{ revision: "2", age: "1m" }],
+        },
       ],
       total: 37,
     });
@@ -342,7 +354,7 @@ describe("WorkloadsView — cron job logs", () => {
       "default",
       "backup-123-abc",
       "main",
-      expect.anything()
+      expect.anything(),
     );
     w.unmount();
   });
@@ -356,9 +368,7 @@ describe("WorkloadsView — cron job logs", () => {
           name: "backup-123",
           status: "Running",
           age: "1m",
-          pods: [
-            { name: "backup-123-abc", containers: ["main", "sidecar"] },
-          ],
+          pods: [{ name: "backup-123-abc", containers: ["main", "sidecar"] }],
         },
       ],
     });
@@ -370,15 +380,13 @@ describe("WorkloadsView — cron job logs", () => {
     expect(w.find('[data-cj-log-group="backup"]').exists()).toBe(true);
 
     // Picking a container starts the stream for it.
-    await w
-      .find('[data-cj-log-group="backup"] button')
-      .trigger("click");
+    await w.find('[data-cj-log-group="backup"] button').trigger("click");
     await flushPromises();
     expect(api.startLogStream).toHaveBeenCalledWith(
       "default",
       "backup-123-abc",
       "main",
-      expect.anything()
+      expect.anything(),
     );
     w.unmount();
   });
@@ -413,7 +421,10 @@ describe("WorkloadsView — cron job create", () => {
     await w.find("#cj-command").setValue("echo hi");
     await w.find("#cj-concurrency").setValue("Forbid");
     await w.find("#cj-suspend").setValue(true);
-    await w.findAll("button").find((b) => b.text().trim() === "Create").trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().trim() === "Create")
+      .trigger("click");
     await flushPromises();
     expect(api.createCronJob).toHaveBeenCalledWith("default", {
       name: "nightly",
@@ -435,7 +446,10 @@ describe("WorkloadsView — cron job create", () => {
     await w.find("#cj-schedule").setValue("not a cron");
     await w.find("#cj-image").setValue("busybox");
     api.createCronJob.mockClear(); // ignore creates sent by earlier tests
-    await w.findAll("button").find((b) => b.text().trim() === "Create").trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().trim() === "Create")
+      .trigger("click");
     await flushPromises();
     expect(api.createCronJob).not.toHaveBeenCalled();
     expect(w.text()).toContain("5-field cron expression");
@@ -505,7 +519,7 @@ describe("WorkloadsView — deployment create", () => {
 
   it("renders a YAML preview from the form spec", async () => {
     api.renderDeploymentYaml.mockResolvedValue(
-      "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n"
+      "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n",
     );
     const w = mountWithCronJobs();
     await flushPromises();
@@ -517,7 +531,7 @@ describe("WorkloadsView — deployment create", () => {
     await flushPromises();
     expect(api.renderDeploymentYaml).toHaveBeenCalledWith(
       "default",
-      expect.objectContaining({ name: "web", image: "nginx:1.27" })
+      expect.objectContaining({ name: "web", image: "nginx:1.27" }),
     );
     expect(w.text()).toContain("kind: Deployment");
     w.unmount();
@@ -543,7 +557,7 @@ describe("WorkloadsView — deployment create", () => {
         replicas: 3,
         port: 80,
         protocol: "TCP",
-      })
+      }),
     );
     w.unmount();
   });

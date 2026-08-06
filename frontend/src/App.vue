@@ -20,13 +20,16 @@ const { state } = useStore();
 
 // Notify the backend whenever the active namespace changes so it can
 // (re)start the appropriate Kubernetes watch streams.
-watch(() => state.namespace, (ns) => {
-  if (ns) api.setWatchNamespace(ns);
-});
+watch(
+  () => state.namespace,
+  (ns) => {
+    if (ns) api.setWatchNamespace(ns);
+  },
+);
 
-const logTarget = ref(null);  // { pod, container }
-const detailPod = ref(null);  // pod name
-const yamlPod = ref(null);    // pod name for YAML view
+const logTarget = ref(null); // { pod, container }
+const detailPod = ref(null); // pod name
+const yamlPod = ref(null); // pod name for YAML view
 
 // A context (cluster) or namespace switch invalidates any open pod panels:
 // the pod names belong to the previous scope, so close them instead of
@@ -38,24 +41,37 @@ watch(
     logTarget.value = null;
     detailPod.value = null;
     yamlPod.value = null;
-  }
+  },
 );
 
 // Top-level split: cluster-scoped resources vs namespace-scoped resources.
 // Persisted so the user lands back where they were on reconnect.
 const SECTION_KEY = "qba.section";
-const section = ref(localStorage.getItem(SECTION_KEY) === "cluster" ? "cluster" : "namespace");
+const section = ref(
+  localStorage.getItem(SECTION_KEY) === "cluster" ? "cluster" : "namespace",
+);
 
 function selectSection(name) {
   section.value = name;
-  try { localStorage.setItem(SECTION_KEY, name); } catch { /* best-effort */ }
+  try {
+    localStorage.setItem(SECTION_KEY, name);
+  } catch {
+    /* best-effort */
+  }
   // Move focus to the newly revealed region heading on the next tick so
   // keyboard and screen-reader users know the view has changed.
   nextTick(() => document.getElementById(`section-heading-${name}`)?.focus());
 }
 
 // Namespace-scoped tabs.
-const tabs = ["pods", "workloads", "networking", "configmaps", "secrets", "events"];
+const tabs = [
+  "pods",
+  "workloads",
+  "networking",
+  "configmaps",
+  "secrets",
+  "events",
+];
 
 // Top-level tabs including settings (always visible, cluster-independent).
 const topTabs = ["cluster", "namespace", "settings"];
@@ -122,14 +138,18 @@ function openPodYaml(podName) {
 }
 
 const logKey = computed(() =>
-  logTarget.value ? `${logTarget.value.pod}/${logTarget.value.container}` : ""
+  logTarget.value ? `${logTarget.value.pod}/${logTarget.value.container}` : "",
 );
 
-const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yamlPod.value));
+const anyPodPanel = computed(
+  () => !!(logTarget.value || detailPod.value || yamlPod.value),
+);
 </script>
 
 <template>
-  <a class="skip-link btn btn-primary" href="#main-content">Skip to main content</a>
+  <a class="skip-link btn btn-primary" href="#main-content"
+    >Skip to main content</a
+  >
 
   <div class="app-shell">
     <header class="border-bottom bg-body-tertiary px-3 py-2">
@@ -141,7 +161,11 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
 
     <!-- Global status region: loading/errors are announced here without moving
          focus. Screen readers pick these up via aria-live. -->
-    <div class="visually-hidden" :aria-live="state.statusKind" aria-atomic="true">
+    <div
+      class="visually-hidden"
+      :aria-live="state.statusKind"
+      aria-atomic="true"
+    >
       {{ state.status }}
     </div>
 
@@ -153,11 +177,15 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
         </nav>
 
         <!-- Main content -->
-        <main id="main-content" class="col-12 col-md-9 col-lg-10 h-100 scroll-pane">
+        <main
+          id="main-content"
+          class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
+        >
           <template v-if="!state.connected">
             <div class="alert alert-info" role="status">
-              Select a kubeconfig file with <strong>Open kubeconfig file…</strong>,
-              choose a context, then select <strong>Connect</strong> to begin.
+              Select a kubeconfig file with
+              <strong>Open kubeconfig file…</strong>, choose a context, then
+              select <strong>Connect</strong> to begin.
             </div>
           </template>
 
@@ -175,25 +203,43 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                 role="radio"
                 :aria-checked="section === 'cluster'"
                 class="btn btn-sm"
-              :class="section === 'cluster' ? 'btn-secondary' : 'btn-outline-secondary'"
+                :class="
+                  section === 'cluster'
+                    ? 'btn-secondary'
+                    : 'btn-outline-secondary'
+                "
                 @click="selectSection('cluster')"
-              >Cluster</button>
+              >
+                Cluster
+              </button>
               <button
                 type="button"
                 role="radio"
                 :aria-checked="section === 'namespace'"
                 class="btn btn-sm"
-                :class="section === 'namespace' ? 'btn-secondary' : 'btn-outline-secondary'"
+                :class="
+                  section === 'namespace'
+                    ? 'btn-secondary'
+                    : 'btn-outline-secondary'
+                "
                 @click="selectSection('namespace')"
-              >Namespace</button>
+              >
+                Namespace
+              </button>
               <button
                 type="button"
                 role="radio"
                 :aria-checked="section === 'settings'"
                 class="btn btn-sm"
-                :class="section === 'settings' ? 'btn-secondary' : 'btn-outline-secondary'"
+                :class="
+                  section === 'settings'
+                    ? 'btn-secondary'
+                    : 'btn-outline-secondary'
+                "
                 @click="selectSection('settings')"
-              >Settings</button>
+              >
+                Settings
+              </button>
             </div>
 
             <!-- ── CLUSTER VIEW ───────────────────────────────────────────── -->
@@ -202,17 +248,21 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                 id="section-heading-cluster"
                 class="visually-hidden"
                 tabindex="-1"
-              >Cluster resources</h2>
+              >
+                Cluster resources
+              </h2>
               <NodesView />
             </div>
 
-              <!-- ── SETTINGS ───────────────────────────────────────────────── -->
+            <!-- ── SETTINGS ───────────────────────────────────────────────── -->
             <div v-show="section === 'settings'">
               <h2
                 id="section-heading-settings"
                 class="visually-hidden"
                 tabindex="-1"
-              >Settings</h2>
+              >
+                Settings
+              </h2>
               <SettingsView />
             </div>
 
@@ -222,15 +272,31 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                 id="section-heading-namespace"
                 class="visually-hidden"
                 tabindex="-1"
-              >Namespace resources</h2>
+              >
+                Namespace resources
+              </h2>
 
-              <div v-if="!state.namespace" class="alert alert-secondary" role="status">
-                Select a namespace from the list to view its pods, networking and secrets.
+              <div
+                v-if="!state.namespace"
+                class="alert alert-secondary"
+                role="status"
+              >
+                Select a namespace from the list to view its pods, networking
+                and secrets.
               </div>
 
               <template v-else>
-                <ul class="nav nav-tabs mb-3" role="tablist" @keydown="onTabKeydown">
-                  <li v-for="t in tabs" :key="t" class="nav-item" role="presentation">
+                <ul
+                  class="nav nav-tabs mb-3"
+                  role="tablist"
+                  @keydown="onTabKeydown"
+                >
+                  <li
+                    v-for="t in tabs"
+                    :key="t"
+                    class="nav-item"
+                    role="presentation"
+                  >
                     <button
                       :id="`tab-${t}`"
                       class="nav-link text-capitalize"
@@ -255,9 +321,17 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                 >
                   <div class="row g-3">
                     <div :class="anyPodPanel ? 'col-lg-6' : 'col-12'">
-                      <PodList @view-logs="openLogs" @view-details="openDetails" @view-yaml="openPodYaml" />
+                      <PodList
+                        @view-logs="openLogs"
+                        @view-details="openDetails"
+                        @view-yaml="openPodYaml"
+                      />
                     </div>
-                    <div v-if="detailPod" class="col-lg-6" style="min-height: 24rem">
+                    <div
+                      v-if="detailPod"
+                      class="col-lg-6"
+                      style="min-height: 24rem"
+                    >
                       <PodDetail
                         :key="detailPod"
                         :namespace="state.namespace"
@@ -265,7 +339,11 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                         @close="closeDetails"
                       />
                     </div>
-                    <div v-if="logTarget" class="col-lg-6" style="min-height: 24rem">
+                    <div
+                      v-if="logTarget"
+                      class="col-lg-6"
+                      style="min-height: 24rem"
+                    >
                       <LogViewer
                         :key="logKey"
                         :namespace="state.namespace"
@@ -274,7 +352,11 @@ const anyPodPanel = computed(() => !!(logTarget.value || detailPod.value || yaml
                         @close="closeLogs"
                       />
                     </div>
-                    <div v-if="yamlPod" class="col-lg-6" style="min-height: 24rem">
+                    <div
+                      v-if="yamlPod"
+                      class="col-lg-6"
+                      style="min-height: 24rem"
+                    >
                       <YamlViewer
                         :key="yamlPod"
                         :namespace="state.namespace"

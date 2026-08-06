@@ -52,6 +52,7 @@ export function watchAnnouncement(label, plural, batch) {
   if (added.length === 1) parts.push(`${label} ${added[0].name} added.`);
   else if (added.length > 1) parts.push(`${added.length} ${plural} added.`);
   if (deleted.length === 1) parts.push(`${label} ${deleted[0].name} deleted.`);
-  else if (deleted.length > 1) parts.push(`${deleted.length} ${plural} deleted.`);
+  else if (deleted.length > 1)
+    parts.push(`${deleted.length} ${plural} deleted.`);
   return parts.join(" ");
 }

@@ -26,7 +26,11 @@ vi.mock("../api.js", () => ({
   },
 }));
 
-function makeHost({ eventName = "watch:pods", reload = vi.fn(), summarize = vi.fn() } = {}) {
+function makeHost({
+  eventName = "watch:pods",
+  reload = vi.fn(),
+  summarize = vi.fn(),
+} = {}) {
   return defineComponent({
     setup() {
       useWatch(eventName, { reload, summarize });
@@ -136,15 +140,15 @@ describe("useWatch — coalescing", () => {
 
 describe("watchAnnouncement", () => {
   it("announces a single add by name", () => {
-    expect(watchAnnouncement("Pod", "pods", [{ type: "ADDED", name: "web-1" }])).toBe(
-      "Pod web-1 added."
-    );
+    expect(
+      watchAnnouncement("Pod", "pods", [{ type: "ADDED", name: "web-1" }]),
+    ).toBe("Pod web-1 added.");
   });
 
   it("announces a single delete by name", () => {
-    expect(watchAnnouncement("Secret", "secrets", [{ type: "DELETED", name: "s1" }])).toBe(
-      "Secret s1 deleted."
-    );
+    expect(
+      watchAnnouncement("Secret", "secrets", [{ type: "DELETED", name: "s1" }]),
+    ).toBe("Secret s1 deleted.");
   });
 
   it("counts multiple adds", () => {
@@ -162,11 +166,13 @@ describe("watchAnnouncement", () => {
       { type: "DELETED", name: "b" },
     ];
     expect(watchAnnouncement("Service", "services", batch)).toBe(
-      "Service a added. Service b deleted."
+      "Service a added. Service b deleted.",
     );
   });
 
   it("returns an empty string for an irrelevant batch", () => {
-    expect(watchAnnouncement("Pod", "pods", [{ type: "MODIFIED", name: "a" }])).toBe("");
+    expect(
+      watchAnnouncement("Pod", "pods", [{ type: "MODIFIED", name: "a" }]),
+    ).toBe("");
   });
 });

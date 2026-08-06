@@ -57,7 +57,9 @@ async function mountCreate(props = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   api.listIngressClasses.mockResolvedValue(["nginx", "traefik"]);
-  api.renderIngressYaml.mockResolvedValue("apiVersion: networking.k8s.io/v1\nkind: Ingress\n");
+  api.renderIngressYaml.mockResolvedValue(
+    "apiVersion: networking.k8s.io/v1\nkind: Ingress\n",
+  );
   api.createIngress.mockResolvedValue(true);
   api.updateIngress.mockResolvedValue(true);
 });
@@ -68,7 +70,14 @@ const validCreate = {
   rules: [
     {
       host: "example.com",
-      paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80" }],
+      paths: [
+        {
+          path: "/",
+          pathType: "Prefix",
+          serviceName: "web",
+          servicePort: "80",
+        },
+      ],
     },
   ],
   tls: [],
@@ -171,7 +180,9 @@ describe("IngressCreate — validation", () => {
     await fillValid(w);
     await findAria(w, "Remove rule 1").trigger("click");
     await w.find("form").trigger("submit");
-    expect(lastAlert(w).text()).toContain("at least one rule or a default backend");
+    expect(lastAlert(w).text()).toContain(
+      "at least one rule or a default backend",
+    );
     expect(api.createIngress).not.toHaveBeenCalled();
     w.unmount();
   });
@@ -191,7 +202,9 @@ describe("IngressCreate — validation", () => {
     await fillValid(w);
     await w.find("#ing-svc-0-0").setValue("");
     await w.find("form").trigger("submit");
-    expect(w.find('[role="alert"]').text()).toContain("backend service name is required");
+    expect(w.find('[role="alert"]').text()).toContain(
+      "backend service name is required",
+    );
     expect(api.createIngress).not.toHaveBeenCalled();
     w.unmount();
   });
@@ -222,9 +235,24 @@ describe("IngressCreate — validation", () => {
     await w.find("#ing-svcport-0-0").setValue("http");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.createIngress).toHaveBeenCalledWith("default", expect.objectContaining({
-      rules: [{ host: "example.com", paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "http" }] }],
-    }));
+    expect(api.createIngress).toHaveBeenCalledWith(
+      "default",
+      expect.objectContaining({
+        rules: [
+          {
+            host: "example.com",
+            paths: [
+              {
+                path: "/",
+                pathType: "Prefix",
+                serviceName: "web",
+                servicePort: "http",
+              },
+            ],
+          },
+        ],
+      }),
+    );
     w.unmount();
   });
 
@@ -244,9 +272,12 @@ describe("IngressCreate — validation", () => {
     await w.find("#ing-rule-host-0").setValue("*.example.com");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.createIngress).toHaveBeenCalledWith("default", expect.objectContaining({
-      rules: [{ host: "*.example.com", paths: expect.any(Array) }],
-    }));
+    expect(api.createIngress).toHaveBeenCalledWith(
+      "default",
+      expect.objectContaining({
+        rules: [{ host: "*.example.com", paths: expect.any(Array) }],
+      }),
+    );
     w.unmount();
   });
 
@@ -318,9 +349,14 @@ describe("IngressCreate — create flow", () => {
     await findBtn(w, "Add TLS").trigger("click"); // empty row: dropped
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.createIngress).toHaveBeenCalledWith("default", expect.objectContaining({
-      tls: [{ hosts: ["a.example.com", "b.example.com"], secretName: "web-tls" }],
-    }));
+    expect(api.createIngress).toHaveBeenCalledWith(
+      "default",
+      expect.objectContaining({
+        tls: [
+          { hosts: ["a.example.com", "b.example.com"], secretName: "web-tls" },
+        ],
+      }),
+    );
     w.unmount();
   });
 
@@ -353,9 +389,12 @@ describe("IngressCreate — create flow", () => {
     await w.find("#ing-db-port").setValue("8080");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.createIngress).toHaveBeenCalledWith("default", expect.objectContaining({
-      defaultBackend: { serviceName: "fallback", servicePort: "8080" },
-    }));
+    expect(api.createIngress).toHaveBeenCalledWith(
+      "default",
+      expect.objectContaining({
+        defaultBackend: { serviceName: "fallback", servicePort: "8080" },
+      }),
+    );
     w.unmount();
   });
 });
@@ -376,7 +415,10 @@ describe("IngressCreate — YAML preview", () => {
     await w.find("#ing-svcport-0-0").setValue("80");
     await findBtn(w, "Preview YAML").trigger("click");
     await flushPromises();
-    expect(api.renderIngressYaml).toHaveBeenCalledWith("default", expect.objectContaining({ name: "web" }));
+    expect(api.renderIngressYaml).toHaveBeenCalledWith(
+      "default",
+      expect.objectContaining({ name: "web" }),
+    );
     expect(w.text()).toContain("kind: Ingress");
     w.unmount();
   });
@@ -390,7 +432,14 @@ describe("IngressCreate — edit mode", () => {
       rules: [
         {
           host: "example.com",
-          paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80" }],
+          paths: [
+            {
+              path: "/",
+              pathType: "Prefix",
+              serviceName: "web",
+              servicePort: "80",
+            },
+          ],
         },
       ],
       tls: [{ hosts: ["a.example.com"], secretName: "web-tls" }],
@@ -413,7 +462,9 @@ describe("IngressCreate — edit mode", () => {
     expect(w.find("#ing-tls-hosts-0").element.value).toBe("a.example.com");
     expect(w.find("#ing-tls-secret-0").element.value).toBe("web-tls");
     expect(w.find("#ing-db-svc").element.value).toBe("fallback");
-    expect(w.find("#ing-ann-key-0").element.value).toBe("nginx.ingress.kubernetes.io/rewrite-target");
+    expect(w.find("#ing-ann-key-0").element.value).toBe(
+      "nginx.ingress.kubernetes.io/rewrite-target",
+    );
     expect(w.find("#ing-label-key-0").element.value).toBe("app");
     expect(w.find("#ing-create-class").element.value).toBe("nginx");
     w.unmount();
@@ -425,14 +476,30 @@ describe("IngressCreate — edit mode", () => {
     await w.find("#ing-svcport-0-0").setValue("8080");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.updateIngress).toHaveBeenCalledWith("default", "web", expect.objectContaining({
-      name: "web",
-      rules: [{ host: "example.com", paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "8080" }] }],
-      tls: [{ hosts: ["a.example.com"], secretName: "web-tls" }],
-      defaultBackend: { serviceName: "fallback", servicePort: "8080" },
-      annotations: { "nginx.ingress.kubernetes.io/rewrite-target": "/" },
-      labels: { app: "web" },
-    }));
+    expect(api.updateIngress).toHaveBeenCalledWith(
+      "default",
+      "web",
+      expect.objectContaining({
+        name: "web",
+        rules: [
+          {
+            host: "example.com",
+            paths: [
+              {
+                path: "/",
+                pathType: "Prefix",
+                serviceName: "web",
+                servicePort: "8080",
+              },
+            ],
+          },
+        ],
+        tls: [{ hosts: ["a.example.com"], secretName: "web-tls" }],
+        defaultBackend: { serviceName: "fallback", servicePort: "8080" },
+        annotations: { "nginx.ingress.kubernetes.io/rewrite-target": "/" },
+        labels: { app: "web" },
+      }),
+    );
     expect(w.emitted("saved")).toBeTruthy();
     w.unmount();
   });
@@ -456,7 +523,14 @@ describe("IngressCreate — edit mode", () => {
         rules: [
           {
             host: "example.com",
-            paths: [{ path: "/static", pathType: "Prefix", serviceName: "", servicePort: "" }],
+            paths: [
+              {
+                path: "/static",
+                pathType: "Prefix",
+                serviceName: "",
+                servicePort: "",
+              },
+            ],
           },
         ],
         tls: [],
@@ -480,9 +554,25 @@ describe("IngressCreate — edit mode", () => {
     await w.find("#ing-svcport-0-0").setValue("80");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.updateIngress).toHaveBeenCalledWith("default", "res", expect.objectContaining({
-      rules: [{ host: "example.com", paths: [{ path: "/static", pathType: "Prefix", serviceName: "static-svc", servicePort: "80" }] }],
-    }));
+    expect(api.updateIngress).toHaveBeenCalledWith(
+      "default",
+      "res",
+      expect.objectContaining({
+        rules: [
+          {
+            host: "example.com",
+            paths: [
+              {
+                path: "/static",
+                pathType: "Prefix",
+                serviceName: "static-svc",
+                servicePort: "80",
+              },
+            ],
+          },
+        ],
+      }),
+    );
     expect(w.emitted("saved")).toBeTruthy();
     w.unmount();
   });
@@ -495,7 +585,14 @@ describe("IngressCreate — edit mode", () => {
         rules: [
           {
             host: "example.com",
-            paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80" }],
+            paths: [
+              {
+                path: "/",
+                pathType: "Prefix",
+                serviceName: "web",
+                servicePort: "80",
+              },
+            ],
           },
         ],
         tls: [{ hosts: [], secretName: "" }],
@@ -525,9 +622,13 @@ describe("IngressCreate — edit mode", () => {
     expect(w.find("#ing-create-class-custom").element.value).toBe("istio");
     await w.find("form").trigger("submit");
     await flushPromises();
-    expect(api.updateIngress).toHaveBeenCalledWith("default", "web", expect.objectContaining({
-      ingressClassName: "istio",
-    }));
+    expect(api.updateIngress).toHaveBeenCalledWith(
+      "default",
+      "web",
+      expect.objectContaining({
+        ingressClassName: "istio",
+      }),
+    );
     w.unmount();
   });
 

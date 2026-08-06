@@ -54,20 +54,30 @@ describe("SecretCreate — focus and layout", () => {
 
   it("starts with one empty key row", async () => {
     const w = await mountCreate();
-    expect(w.find("#secret-create-panel-form").findAll("textarea")).toHaveLength(1);
+    expect(
+      w.find("#secret-create-panel-form").findAll("textarea"),
+    ).toHaveLength(1);
     w.unmount();
   });
 
   it("adds a row via Add key", async () => {
     const w = await mountCreate();
-    await w.findAll("button").find((b) => b.text() === "Add key").trigger("click");
-    expect(w.find("#secret-create-panel-form").findAll("textarea")).toHaveLength(2);
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Add key")
+      .trigger("click");
+    expect(
+      w.find("#secret-create-panel-form").findAll("textarea"),
+    ).toHaveLength(2);
     w.unmount();
   });
 });
 
 describe("SecretCreate — form validation", () => {
-  async function fill(w, { name = "api-token", key = "user", value = "admin" } = {}) {
+  async function fill(
+    w,
+    { name = "api-token", key = "user", value = "admin" } = {},
+  ) {
     if (name !== undefined) await w.find("#secret-create-name").setValue(name);
     const { keys, vals } = rowInputs(w);
     await keys[0].setValue(key);
@@ -86,7 +96,10 @@ describe("SecretCreate — form validation", () => {
   it("rejects duplicate keys", async () => {
     const w = await mountCreate();
     await fill(w);
-    await w.findAll("button").find((b) => b.text() === "Add key").trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Add key")
+      .trigger("click");
     const { keys } = rowInputs(w);
     await keys[1].setValue("user");
     await w.find("form").trigger("submit");
@@ -112,7 +125,7 @@ describe("SecretCreate — form validation", () => {
     expect(api.createSecret).toHaveBeenCalledWith(
       "default",
       { name: "api-token", type: "", data: { user: "YWRtaW4=" } },
-      "base64"
+      "base64",
     );
     w.unmount();
   });
@@ -130,7 +143,7 @@ describe("SecretCreate — create flow", () => {
     expect(api.createSecret).toHaveBeenCalledWith(
       "default",
       { name: "api-token", type: "", data: { user: "admin" } },
-      "transparent"
+      "transparent",
     );
     expect(w.emitted("created")).toBeTruthy();
     w.unmount();
@@ -168,7 +181,10 @@ describe("SecretCreate — create flow", () => {
 describe("SecretCreate — YAML surface", () => {
   it("renders a stringData starter template in transparent mode", async () => {
     const w = await mountCreate("transparent");
-    await w.findAll('[role="tab"]').find((b) => b.text() === "YAML").trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((b) => b.text() === "YAML")
+      .trigger("click");
     const ta = w.find("#secret-create-yaml");
     expect(ta.exists()).toBe(true);
     expect(ta.element.value).toContain("stringData:");
@@ -178,7 +194,10 @@ describe("SecretCreate — YAML surface", () => {
 
   it("renders a data (base64) starter template in base64 mode", async () => {
     const w = await mountCreate("base64");
-    await w.findAll('[role="tab"]').find((b) => b.text() === "YAML").trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((b) => b.text() === "YAML")
+      .trigger("click");
     const ta = w.find("#secret-create-yaml");
     expect(ta.element.value).toContain("data:");
     expect(ta.element.value).not.toContain("stringData:");
@@ -187,14 +206,22 @@ describe("SecretCreate — YAML surface", () => {
 
   it("creates from YAML and emits created", async () => {
     const w = await mountCreate("transparent");
-    await w.findAll('[role="tab"]').find((b) => b.text() === "YAML").trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((b) => b.text() === "YAML")
+      .trigger("click");
     const ta = w.find("#secret-create-yaml");
-    await ta.setValue("apiVersion: v1\nkind: Secret\nmetadata:\n  name: mine\ntype: Opaque\nstringData:\n  a: b\n");
-    await w.findAll("button").find((b) => b.text() === "Create from YAML").trigger("click");
+    await ta.setValue(
+      "apiVersion: v1\nkind: Secret\nmetadata:\n  name: mine\ntype: Opaque\nstringData:\n  a: b\n",
+    );
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Create from YAML")
+      .trigger("click");
     await flushPromises();
     expect(api.createSecretFromYaml).toHaveBeenCalledWith(
       "default",
-      "apiVersion: v1\nkind: Secret\nmetadata:\n  name: mine\ntype: Opaque\nstringData:\n  a: b\n"
+      "apiVersion: v1\nkind: Secret\nmetadata:\n  name: mine\ntype: Opaque\nstringData:\n  a: b\n",
     );
     expect(w.emitted("created")).toBeTruthy();
     w.unmount();
@@ -203,8 +230,14 @@ describe("SecretCreate — YAML surface", () => {
   it("keeps the YAML form open when creation is cancelled", async () => {
     api.createSecretFromYaml.mockResolvedValue(false);
     const w = await mountCreate("transparent");
-    await w.findAll('[role="tab"]').find((b) => b.text() === "YAML").trigger("click");
-    await w.findAll("button").find((b) => b.text() === "Create from YAML").trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((b) => b.text() === "YAML")
+      .trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Create from YAML")
+      .trigger("click");
     await flushPromises();
     expect(api.createSecretFromYaml).toHaveBeenCalled();
     expect(w.emitted("created")).toBeUndefined();
@@ -213,9 +246,15 @@ describe("SecretCreate — YAML surface", () => {
 
   it("reports empty YAML without calling the API", async () => {
     const w = await mountCreate("transparent");
-    await w.findAll('[role="tab"]').find((b) => b.text() === "YAML").trigger("click");
+    await w
+      .findAll('[role="tab"]')
+      .find((b) => b.text() === "YAML")
+      .trigger("click");
     await w.find("#secret-create-yaml").setValue("");
-    await w.findAll("button").find((b) => b.text() === "Create from YAML").trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Create from YAML")
+      .trigger("click");
     expect(w.find('[role="alert"]').text()).toContain("empty");
     expect(api.createSecretFromYaml).not.toHaveBeenCalled();
     w.unmount();

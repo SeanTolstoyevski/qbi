@@ -177,7 +177,9 @@ describe("PodList — action buttons", () => {
     await openActions(w);
     await findBtn(w, "Logs").trigger("click");
     await flushPromises();
-    expect(w.emitted("view-logs")).toEqual([[{ pod: "web-abc12", container: "web" }]]);
+    expect(w.emitted("view-logs")).toEqual([
+      [{ pod: "web-abc12", container: "web" }],
+    ]);
     w.unmount();
   });
 });
@@ -243,7 +245,9 @@ describe("PodList — filter and copy", () => {
 
   it("copy button copies the pod name", async () => {
     const w = await mountPodList();
-    const btn = w.findAll("button").find((b) => b.text().includes("Copy pod name"));
+    const btn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Copy pod name"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("web-abc12");

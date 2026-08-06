@@ -40,7 +40,7 @@ async function toggleAutoRefresh() {
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
 
-    <div class="card mb-3" style="max-width: 32rem;">
+    <div class="card mb-3" style="max-width: 32rem">
       <div class="card-body">
         <h3 class="card-title h6">Auto-refresh</h3>
         <p class="card-text text-body-secondary small mb-3">

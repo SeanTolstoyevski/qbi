@@ -50,7 +50,9 @@ async function open(name) {
   detailLoading.value = true;
   try {
     detail.value = await api.getConfigMap(state.namespace, name);
-    announce(`Config map ${name} opened with ${detail.value.entries.length} keys.`);
+    announce(
+      `Config map ${name} opened with ${detail.value.entries.length} keys.`,
+    );
   } catch (e) {
     error.value = String(e);
     announce(`Failed to open config map: ${error.value}`, "assertive");
@@ -72,7 +74,8 @@ watch(() => state.namespace, load, { immediate: true });
 
 useWatch("watch:configmaps", {
   reload: load,
-  summarize: (batch) => announce(watchAnnouncement("ConfigMap", "config maps", batch)),
+  summarize: (batch) =>
+    announce(watchAnnouncement("ConfigMap", "config maps", batch)),
 });
 
 defineExpose({ load });
@@ -106,7 +109,9 @@ defineExpose({ load });
 
     <div v-else class="row g-3">
       <div class="col-md-5 d-flex flex-column">
-        <label for="cm-filter" class="visually-hidden">Filter config maps</label>
+        <label for="cm-filter" class="visually-hidden"
+          >Filter config maps</label
+        >
         <input
           id="cm-filter"
           v-model="filter"
@@ -128,12 +133,15 @@ defineExpose({ load });
           @select="open"
         />
         <p id="cm-list-hint" class="visually-hidden">
-          Use the arrow keys to move through config maps and press Enter to open one.
+          Use the arrow keys to move through config maps and press Enter to open
+          one.
         </p>
       </div>
 
       <div class="col-md-7">
-        <div v-if="detailLoading" role="status" class="text-muted small">Loading…</div>
+        <div v-if="detailLoading" role="status" class="text-muted small">
+          Loading…
+        </div>
         <div v-else-if="detail" aria-live="polite">
           <h3 class="h6">{{ detail.name }}</h3>
           <dl>
@@ -154,17 +162,19 @@ defineExpose({ load });
                 </button>
               </dt>
               <dd class="mb-0 mt-1">
-                <code
-                  v-if="entry.isBinary"
-                  class="text-body-secondary"
-                  >{{ entry.value }}</code
-                >
-                <pre v-else class="mb-0 log-view" style="max-height: 20rem">{{ entry.value }}</pre>
+                <code v-if="entry.isBinary" class="text-body-secondary">{{
+                  entry.value
+                }}</code>
+                <pre v-else class="mb-0 log-view" style="max-height: 20rem">{{
+                  entry.value
+                }}</pre>
               </dd>
             </div>
           </dl>
         </div>
-        <p v-else class="text-muted small">Select a config map to view its contents.</p>
+        <p v-else class="text-muted small">
+          Select a config map to view its contents.
+        </p>
       </div>
     </div>
   </section>

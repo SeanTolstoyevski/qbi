@@ -22,7 +22,9 @@ import SecretCreate from "./SecretCreate.vue";
 const { state, announce } = useStore();
 
 const MODE_KEY = "qba.secretValueMode";
-const mode = ref(localStorage.getItem(MODE_KEY) === "base64" ? "base64" : "transparent");
+const mode = ref(
+  localStorage.getItem(MODE_KEY) === "base64" ? "base64" : "transparent",
+);
 
 function setMode(m) {
   if (mode.value === m) return;
@@ -35,7 +37,7 @@ function setMode(m) {
   announce(
     m === "base64"
       ? "Base64 mode. Values are shown and entered as raw base64."
-      : "Plain text mode. Values are shown and entered as text; QBI encodes them."
+      : "Plain text mode. Values are shown and entered as text; QBI encodes them.",
   );
 }
 
@@ -59,7 +61,10 @@ async function load() {
     secrets.value = list || [];
     // A refresh (manual or from a watch event) keeps the open detail panel if
     // the secret still exists, and closes it when the secret is gone.
-    if (detailName.value && !secrets.value.some((s) => s.name === detailName.value)) {
+    if (
+      detailName.value &&
+      !secrets.value.some((s) => s.name === detailName.value)
+    ) {
       detailName.value = null;
       selected.value = null;
     }
@@ -82,7 +87,7 @@ watch(
     selected.value = null;
     if (ns) await load();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const options = computed(() => {
@@ -183,7 +188,9 @@ defineExpose({ load });
           role="radio"
           :aria-checked="mode === 'transparent'"
           class="btn"
-          :class="mode === 'transparent' ? 'btn-secondary' : 'btn-outline-secondary'"
+          :class="
+            mode === 'transparent' ? 'btn-secondary' : 'btn-outline-secondary'
+          "
           @click="setMode('transparent')"
         >
           Plain text
@@ -201,9 +208,9 @@ defineExpose({ load });
       </div>
     </div>
     <p id="secret-mode-hint" class="visually-hidden">
-      In plain text mode values are shown and entered as text and encoded for you. In
-      base64 mode values are shown and entered as raw base64 and only validated when you
-      save.
+      In plain text mode values are shown and entered as text and encoded for
+      you. In base64 mode values are shown and entered as raw base64 and only
+      validated when you save.
     </p>
 
     <p v-if="!state.namespace" class="text-muted small">
@@ -217,7 +224,9 @@ defineExpose({ load });
 
     <div v-else class="row g-3">
       <div class="col-md-5 d-flex flex-column">
-        <label for="secret-filter" class="visually-hidden">Filter secrets</label>
+        <label for="secret-filter" class="visually-hidden"
+          >Filter secrets</label
+        >
         <input
           id="secret-filter"
           v-model="filter"
@@ -239,7 +248,8 @@ defineExpose({ load });
           @select="open"
         />
         <p id="secret-list-hint" class="visually-hidden">
-          Use the arrow keys to move through secrets and press Enter to open one.
+          Use the arrow keys to move through secrets and press Enter to open
+          one.
         </p>
       </div>
 

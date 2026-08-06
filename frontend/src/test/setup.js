@@ -25,7 +25,7 @@ const serviceProxy = new Proxy(
     get(_, method) {
       return vi.fn().mockResolvedValue(undefined);
     },
-  }
+  },
 );
 
 Object.assign(window, {

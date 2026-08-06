@@ -47,7 +47,6 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-// ── row helpers for repeating label/env/node-selector pairs ────────────────
 function addRow(rows) {
   rows.push({ key: "", value: "" });
 }
@@ -94,7 +93,6 @@ function buildPayload() {
   };
 }
 
-// ── validation (mirrors the backend so typos fail fast in the UI) ───────────
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // Kubernetes quantity: digits, optional decimal, optional unit suffix.
 const QUANTITY = /^\d+(\.\d+)?(n|u|m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$/;
@@ -105,7 +103,8 @@ function validate() {
   if (!f.image.trim()) return "Image is required.";
   if (Number(f.replicas) < 0) return "Replicas must be zero or more.";
   const port = Number(f.port);
-  if (port && (port < 1 || port > 65535)) return "Port must be between 1 and 65535.";
+  if (port && (port < 1 || port > 65535))
+    return "Port must be between 1 and 65535.";
   if (f.env.some((e) => e.key.trim() && !ENV_NAME.test(e.key.trim()))) {
     return "Environment variable names must start with a letter or underscore.";
   }
@@ -139,7 +138,10 @@ async function togglePreview() {
     return;
   }
   try {
-    preview.value = await api.renderDeploymentYaml(props.namespace, buildPayload());
+    preview.value = await api.renderDeploymentYaml(
+      props.namespace,
+      buildPayload(),
+    );
     previewOpen.value = true;
   } catch (e) {
     error.value = String(e);
@@ -185,7 +187,12 @@ async function submit() {
     @keydown="onKeydown"
   >
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="deploy-create-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
+      <h2
+        id="deploy-create-heading"
+        ref="headingEl"
+        class="h6 mb-0"
+        tabindex="-1"
+      >
         Create deployment
       </h2>
       <button
@@ -244,7 +251,11 @@ async function submit() {
       </div>
       <div class="col-12 col-md-2">
         <label for="dp-protocol" class="form-label mb-1 small">Protocol</label>
-        <select id="dp-protocol" v-model="form.protocol" class="form-select form-select-sm">
+        <select
+          id="dp-protocol"
+          v-model="form.protocol"
+          class="form-select form-select-sm"
+        >
           <option value="TCP">TCP</option>
           <option value="UDP">UDP</option>
         </select>
@@ -282,7 +293,9 @@ async function submit() {
           <legend class="h6 small text-body-secondary">Labels</legend>
           <div v-for="(row, i) in form.labels" :key="i" class="row g-2 mb-1">
             <div class="col-5">
-              <label class="visually-hidden" :for="`dp-label-key-${i}`">Label key</label>
+              <label class="visually-hidden" :for="`dp-label-key-${i}`"
+                >Label key</label
+              >
               <input
                 :id="`dp-label-key-${i}`"
                 v-model="row.key"
@@ -293,7 +306,9 @@ async function submit() {
               />
             </div>
             <div class="col-5">
-              <label class="visually-hidden" :for="`dp-label-value-${i}`">Label value</label>
+              <label class="visually-hidden" :for="`dp-label-value-${i}`"
+                >Label value</label
+              >
               <input
                 :id="`dp-label-value-${i}`"
                 v-model="row.value"
@@ -314,7 +329,11 @@ async function submit() {
               </button>
             </div>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="addRow(form.labels)">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="addRow(form.labels)"
+          >
             Add label
           </button>
         </fieldset>
@@ -327,10 +346,14 @@ async function submit() {
           <div class="mt-2 border rounded p-2">
             <!-- Environment -->
             <fieldset class="mb-3">
-              <legend class="h6 small text-body-secondary">Environment variables</legend>
+              <legend class="h6 small text-body-secondary">
+                Environment variables
+              </legend>
               <div v-for="(row, i) in form.env" :key="i" class="row g-2 mb-1">
                 <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-env-key-${i}`">Env var name</label>
+                  <label class="visually-hidden" :for="`dp-env-key-${i}`"
+                    >Env var name</label
+                  >
                   <input
                     :id="`dp-env-key-${i}`"
                     v-model="row.key"
@@ -341,7 +364,9 @@ async function submit() {
                   />
                 </div>
                 <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-env-value-${i}`">Env var value</label>
+                  <label class="visually-hidden" :for="`dp-env-value-${i}`"
+                    >Env var value</label
+                  >
                   <input
                     :id="`dp-env-value-${i}`"
                     v-model="row.value"
@@ -362,30 +387,72 @@ async function submit() {
                   </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" @click="addRow(form.env)">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                @click="addRow(form.env)"
+              >
                 Add variable
               </button>
             </fieldset>
 
             <!-- Resources -->
             <fieldset class="mb-3">
-              <legend class="h6 small text-body-secondary">Resources (Kubernetes quantities, e.g. 100m, 128Mi)</legend>
+              <legend class="h6 small text-body-secondary">
+                Resources (Kubernetes quantities, e.g. 100m, 128Mi)
+              </legend>
               <div class="row g-2">
                 <div class="col-6 col-md-3">
-                  <label for="dp-cpu-req" class="form-label mb-1 small">CPU request</label>
-                  <input id="dp-cpu-req" v-model="form.cpuRequest" type="text" class="form-control form-control-sm" placeholder="100m" autocomplete="off" />
+                  <label for="dp-cpu-req" class="form-label mb-1 small"
+                    >CPU request</label
+                  >
+                  <input
+                    id="dp-cpu-req"
+                    v-model="form.cpuRequest"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="100m"
+                    autocomplete="off"
+                  />
                 </div>
                 <div class="col-6 col-md-3">
-                  <label for="dp-mem-req" class="form-label mb-1 small">Memory request</label>
-                  <input id="dp-mem-req" v-model="form.memoryRequest" type="text" class="form-control form-control-sm" placeholder="128Mi" autocomplete="off" />
+                  <label for="dp-mem-req" class="form-label mb-1 small"
+                    >Memory request</label
+                  >
+                  <input
+                    id="dp-mem-req"
+                    v-model="form.memoryRequest"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="128Mi"
+                    autocomplete="off"
+                  />
                 </div>
                 <div class="col-6 col-md-3">
-                  <label for="dp-cpu-lim" class="form-label mb-1 small">CPU limit</label>
-                  <input id="dp-cpu-lim" v-model="form.cpuLimit" type="text" class="form-control form-control-sm" placeholder="500m" autocomplete="off" />
+                  <label for="dp-cpu-lim" class="form-label mb-1 small"
+                    >CPU limit</label
+                  >
+                  <input
+                    id="dp-cpu-lim"
+                    v-model="form.cpuLimit"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="500m"
+                    autocomplete="off"
+                  />
                 </div>
                 <div class="col-6 col-md-3">
-                  <label for="dp-mem-lim" class="form-label mb-1 small">Memory limit</label>
-                  <input id="dp-mem-lim" v-model="form.memoryLimit" type="text" class="form-control form-control-sm" placeholder="512Mi" autocomplete="off" />
+                  <label for="dp-mem-lim" class="form-label mb-1 small"
+                    >Memory limit</label
+                  >
+                  <input
+                    id="dp-mem-lim"
+                    v-model="form.memoryLimit"
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="512Mi"
+                    autocomplete="off"
+                  />
                 </div>
               </div>
             </fieldset>
@@ -393,8 +460,14 @@ async function submit() {
             <!-- Strategy / pull policy / placement -->
             <div class="row g-2 mb-3">
               <div class="col-6 col-md-4">
-                <label for="dp-pull" class="form-label mb-1 small">Image pull policy</label>
-                <select id="dp-pull" v-model="form.imagePullPolicy" class="form-select form-select-sm">
+                <label for="dp-pull" class="form-label mb-1 small"
+                  >Image pull policy</label
+                >
+                <select
+                  id="dp-pull"
+                  v-model="form.imagePullPolicy"
+                  class="form-select form-select-sm"
+                >
                   <option value="">Default (IfNotPresent)</option>
                   <option value="Always">Always</option>
                   <option value="IfNotPresent">IfNotPresent</option>
@@ -402,8 +475,14 @@ async function submit() {
                 </select>
               </div>
               <div class="col-6 col-md-4">
-                <label for="dp-strategy" class="form-label mb-1 small">Update strategy</label>
-                <select id="dp-strategy" v-model="form.updateStrategy" class="form-select form-select-sm">
+                <label for="dp-strategy" class="form-label mb-1 small"
+                  >Update strategy</label
+                >
+                <select
+                  id="dp-strategy"
+                  v-model="form.updateStrategy"
+                  class="form-select form-select-sm"
+                >
                   <option value="">Default (RollingUpdate)</option>
                   <option value="RollingUpdate">RollingUpdate</option>
                   <option value="Recreate">Recreate</option>
@@ -413,10 +492,18 @@ async function submit() {
 
             <!-- Node selector -->
             <fieldset>
-              <legend class="h6 small text-body-secondary">Node selector</legend>
-              <div v-for="(row, i) in form.nodeSelector" :key="i" class="row g-2 mb-1">
+              <legend class="h6 small text-body-secondary">
+                Node selector
+              </legend>
+              <div
+                v-for="(row, i) in form.nodeSelector"
+                :key="i"
+                class="row g-2 mb-1"
+              >
                 <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-node-key-${i}`">Node selector key</label>
+                  <label class="visually-hidden" :for="`dp-node-key-${i}`"
+                    >Node selector key</label
+                  >
                   <input
                     :id="`dp-node-key-${i}`"
                     v-model="row.key"
@@ -427,7 +514,9 @@ async function submit() {
                   />
                 </div>
                 <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-node-value-${i}`">Node selector value</label>
+                  <label class="visually-hidden" :for="`dp-node-value-${i}`"
+                    >Node selector value</label
+                  >
                   <input
                     :id="`dp-node-value-${i}`"
                     v-model="row.value"
@@ -448,7 +537,11 @@ async function submit() {
                   </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" @click="addRow(form.nodeSelector)">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary"
+                @click="addRow(form.nodeSelector)"
+              >
                 Add selector
               </button>
             </fieldset>
@@ -466,7 +559,9 @@ async function submit() {
         >
           {{ previewOpen ? "Hide preview" : "Preview YAML" }}
         </button>
-        <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">Create</button>
+        <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">
+          Create
+        </button>
         <button
           type="button"
           class="btn btn-sm btn-outline-secondary"
@@ -482,7 +577,11 @@ async function submit() {
       <div v-if="previewOpen" class="col-12">
         <div class="d-flex align-items-center justify-content-between mb-1">
           <span class="small fw-semibold">Preview YAML</span>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="copyPreview">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            @click="copyPreview"
+          >
             Copy
           </button>
         </div>
@@ -490,7 +589,7 @@ async function submit() {
           role="document"
           class="small font-monospace border rounded p-2 mb-0"
           style="max-height: 20rem; overflow: auto; white-space: pre"
-        >{{ preview }}</pre>
+          >{{ preview }}</pre>
       </div>
     </form>
   </section>

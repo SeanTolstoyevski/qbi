@@ -29,7 +29,9 @@ const emit = defineEmits(["add", "toggle-delete"]);
     >
       <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
         <div class="flex-grow-1">
-          <label :for="`secret-key-${row.id}`" class="form-label mb-1 small">Key</label>
+          <label :for="`secret-key-${row.id}`" class="form-label mb-1 small"
+            >Key</label
+          >
           <input
             :id="`secret-key-${row.id}`"
             v-model="row.key"
@@ -57,7 +59,9 @@ const emit = defineEmits(["add", "toggle-delete"]);
         </button>
       </div>
 
-      <label :for="`secret-val-${row.id}`" class="form-label mb-1 small">Value</label>
+      <label :for="`secret-val-${row.id}`" class="form-label mb-1 small"
+        >Value</label
+      >
       <textarea
         v-if="!row.isBinary || mode === 'base64'"
         :id="`secret-val-${row.id}`"
@@ -74,7 +78,11 @@ const emit = defineEmits(["add", "toggle-delete"]);
     </div>
 
     <div>
-      <button type="button" class="btn btn-sm btn-outline-secondary" @click="emit('add')">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="emit('add')"
+      >
         Add key
       </button>
     </div>

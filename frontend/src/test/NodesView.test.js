@@ -109,7 +109,9 @@ describe("NodesView — rendering", () => {
 
   it("degrades gracefully when metrics are unavailable", async () => {
     api.listNodes.mockResolvedValue(NODES);
-    api.listNodeMetrics.mockRejectedValue(new Error("metrics not available yet"));
+    api.listNodeMetrics.mockRejectedValue(
+      new Error("metrics not available yet"),
+    );
     const w = mount(NodesView, { attachTo: document.body });
     await flushPromises();
     expect(w.text()).toContain("Live CPU/memory usage unavailable");
@@ -146,7 +148,9 @@ describe("NodesView — filter", () => {
 describe("NodesView — copy", () => {
   it("copies the node name", async () => {
     const w = await mountNodes();
-    const btn = w.findAll("button").find((b) => b.text().includes("Copy node name"));
+    const btn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Copy node name"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("node-a");

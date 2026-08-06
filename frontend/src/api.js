@@ -10,7 +10,9 @@ function friendlyError(e) {
   if (/context deadline exceeded|deadline exceeded/.test(low)) {
     return "The request timed out. The cluster may be slow or unreachable.";
   }
-  if (/connection refused|no such host|network is unreachable|dial tcp/.test(low)) {
+  if (
+    /connection refused|no such host|network is unreachable|dial tcp/.test(low)
+  ) {
     return "Cannot reach the cluster. Check your connection.";
   }
   if (/not found|doesn't exist|does not exist/.test(low)) {
@@ -26,7 +28,7 @@ function service() {
   const svc = window.go?.main?.Service;
   if (!svc) {
     throw new Error(
-      "Wails bindings are not available. Run the app with `wails dev`."
+      "Wails bindings are not available. Run the app with `wails dev`.",
     );
   }
   // Wrap every Wails method once so all callers get friendly errors from this
@@ -80,27 +82,35 @@ export const api = {
   listServices: (namespace) => service().ListServices(namespace),
   createService: (namespace, spec) => service().CreateService(namespace, spec),
   deleteService: (namespace, name) => service().DeleteService(namespace, name),
-  renderServiceYaml: (namespace, spec) => service().RenderServiceYAML(namespace, spec),
+  renderServiceYaml: (namespace, spec) =>
+    service().RenderServiceYAML(namespace, spec),
   listIngresses: (namespace) => service().ListIngresses(namespace),
-  getIngressDetail: (namespace, name) => service().IngressDetail(namespace, name),
+  getIngressDetail: (namespace, name) =>
+    service().IngressDetail(namespace, name),
   deleteIngress: (namespace, name) => service().DeleteIngress(namespace, name),
   listIngressClasses: () => service().ListIngressClasses(),
-  renderIngressYaml: (namespace, spec) => service().RenderIngressYAML(namespace, spec),
+  renderIngressYaml: (namespace, spec) =>
+    service().RenderIngressYAML(namespace, spec),
   createIngress: (namespace, spec) => service().CreateIngress(namespace, spec),
   ingressEdit: (namespace, name) => service().IngressEdit(namespace, name),
-  updateIngress: (namespace, name, spec) => service().UpdateIngress(namespace, name, spec),
+  updateIngress: (namespace, name, spec) =>
+    service().UpdateIngress(namespace, name, spec),
   listEvents: (namespace) => service().ListEvents(namespace),
   history: (namespace, options) => service().History(namespace, options),
   listConfigMaps: (namespace) => service().ListConfigMaps(namespace),
   getConfigMap: (namespace, name) => service().GetConfigMap(namespace, name),
   listWorkloads: (namespace) => service().ListWorkloads(namespace),
-  createDeployment: (namespace, spec) => service().CreateDeployment(namespace, spec),
-  renderDeploymentYaml: (namespace, spec) => service().RenderDeploymentYAML(namespace, spec),
+  createDeployment: (namespace, spec) =>
+    service().CreateDeployment(namespace, spec),
+  renderDeploymentYaml: (namespace, spec) =>
+    service().RenderDeploymentYAML(namespace, spec),
   listJobs: (namespace) => service().ListJobs(namespace),
   listCronJobs: (namespace) => service().ListCronJobs(namespace),
-  getCronJobDetail: (namespace, name) => service().GetCronJobDetail(namespace, name),
+  getCronJobDetail: (namespace, name) =>
+    service().GetCronJobDetail(namespace, name),
   createCronJob: (namespace, spec) => service().CreateCronJob(namespace, spec),
-  updateCronJob: (namespace, name, update) => service().UpdateCronJob(namespace, name, update),
+  updateCronJob: (namespace, name, update) =>
+    service().UpdateCronJob(namespace, name, update),
   restartWorkload: (namespace, kind, name) =>
     service().RestartWorkload(namespace, kind, name),
   deleteWorkload: (namespace, kind, name) =>

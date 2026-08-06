@@ -115,7 +115,9 @@ describe("EventsView — copy", () => {
     const btn = w.findAll("button").find((b) => b.text().includes("Copy"));
     await btn.trigger("click");
     await flushPromises();
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("0/1 nodes are available");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "0/1 nodes are available",
+    );
     w.unmount();
   });
 });

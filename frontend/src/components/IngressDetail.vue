@@ -35,7 +35,7 @@ async function load() {
     announce(
       issues.length
         ? `Ingress ${props.name}: ${issues.length} issue${issues.length === 1 ? "" : "s"} found.`
-        : `Ingress ${props.name} looks healthy.`
+        : `Ingress ${props.name} looks healthy.`,
     );
   } catch (e) {
     error.value = String(e);
@@ -55,7 +55,10 @@ async function remove() {
     emit("deleted");
   } catch (e) {
     error.value = String(e);
-    announce(`Failed to delete ingress ${props.name}: ${error.value}`, "assertive");
+    announce(
+      `Failed to delete ingress ${props.name}: ${error.value}`,
+      "assertive",
+    );
   } finally {
     deleting.value = false;
   }
@@ -67,7 +70,8 @@ watch(yamlOpen, (open) => {
 
 watch(() => [props.namespace, props.name], load, { immediate: true });
 
-const labelPairs = (m) => Object.entries(m || {}).sort(([a], [b]) => a.localeCompare(b));
+const labelPairs = (m) =>
+  Object.entries(m || {}).sort(([a], [b]) => a.localeCompare(b));
 
 defineExpose({ load });
 </script>
@@ -142,7 +146,9 @@ defineExpose({ load });
 
     <template v-else>
       <p v-if="loading" class="text-muted small" role="status">Loading…</p>
-      <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
+      <p v-else-if="error" class="text-danger small" role="alert">
+        {{ error }}
+      </p>
 
       <template v-else-if="detail">
         <div class="ing-detail-body">
@@ -153,9 +159,15 @@ defineExpose({ load });
             </dd>
             <dt class="col-sm-4">Address</dt>
             <dd class="col-sm-8">
-              <template v-if="detail.ingress.addresses && detail.ingress.addresses.length">
+              <template
+                v-if="
+                  detail.ingress.addresses && detail.ingress.addresses.length
+                "
+              >
                 <ul class="list-unstyled mb-0">
-                  <li v-for="a in detail.ingress.addresses" :key="a"><code>{{ a }}</code></li>
+                  <li v-for="a in detail.ingress.addresses" :key="a">
+                    <code>{{ a }}</code>
+                  </li>
                 </ul>
               </template>
               <span v-else class="text-warning">not assigned yet</span>
@@ -172,14 +184,19 @@ defineExpose({ load });
           >
             <h3 class="h6">Issues</h3>
             <ul class="mb-0 small">
-              <li v-for="(iss, i) in detail.ingress.issues" :key="i">{{ iss }}</li>
+              <li v-for="(iss, i) in detail.ingress.issues" :key="i">
+                {{ iss }}
+              </li>
             </ul>
           </div>
 
           <template v-if="labelPairs(detail.ingress.annotations).length">
             <h3 class="h6 mt-3">Annotations</h3>
             <ul class="list-unstyled small mb-0">
-              <li v-for="[k, v] in labelPairs(detail.ingress.annotations)" :key="k">
+              <li
+                v-for="[k, v] in labelPairs(detail.ingress.annotations)"
+                :key="k"
+              >
                 <code>{{ k }}={{ v }}</code>
               </li>
             </ul>
@@ -189,7 +206,10 @@ defineExpose({ load });
             <h3 class="h6 mt-3">TLS</h3>
             <table class="table table-sm">
               <caption class="visually-hidden">
-                TLS hosts and certificates for ingress {{ name }}
+                TLS hosts and certificates for ingress
+                {{
+                  name
+                }}
               </caption>
               <thead>
                 <tr>
@@ -200,14 +220,25 @@ defineExpose({ load });
               </thead>
               <tbody>
                 <tr v-for="(t, ti) in detail.ingress.tls" :key="ti">
-                  <td><code>{{ (t.hosts || []).join(", ") || "(all hosts)" }}</code></td>
-                  <td><code>{{ t.secretName || "—" }}</code></td>
+                  <td>
+                    <code>{{
+                      (t.hosts || []).join(", ") || "(all hosts)"
+                    }}</code>
+                  </td>
+                  <td>
+                    <code>{{ t.secretName || "—" }}</code>
+                  </td>
                   <td>
                     <span
                       v-if="t.secretStatus === 'missing'"
                       class="text-danger fw-semibold"
-                    >secret missing</span>
-                    <span v-else-if="t.secretStatus === 'ok'" class="text-success">present</span>
+                      >secret missing</span
+                    >
+                    <span
+                      v-else-if="t.secretStatus === 'ok'"
+                      class="text-success"
+                      >present</span
+                    >
                     <span v-else class="text-body-secondary">not checked</span>
                   </td>
                 </tr>
@@ -216,13 +247,21 @@ defineExpose({ load });
           </template>
 
           <h3 class="h6 mt-3">Routing rules</h3>
-          <p v-if="!detail.ingress.rules.length && !detail.ingress.defaultBackend" class="text-muted small">
+          <p
+            v-if="
+              !detail.ingress.rules.length && !detail.ingress.defaultBackend
+            "
+            class="text-muted small"
+          >
             No routing rules defined — this ingress forwards no traffic.
           </p>
           <template v-else>
             <table class="table table-sm">
               <caption class="visually-hidden">
-                Host and path routing rules for ingress {{ name }}
+                Host and path routing rules for ingress
+                {{
+                  name
+                }}
               </caption>
               <thead>
                 <tr>
@@ -236,47 +275,82 @@ defineExpose({ load });
               <tbody>
                 <template v-for="(rule, ri) in detail.ingress.rules" :key="ri">
                   <tr v-for="(path, pi) in rule.paths" :key="ri + '-' + pi">
-                    <td><code>{{ rule.host }}</code></td>
-                    <td><code>{{ path.path || "/" }}</code></td>
+                    <td>
+                      <code>{{ rule.host }}</code>
+                    </td>
+                    <td>
+                      <code>{{ path.path || "/" }}</code>
+                    </td>
                     <td>{{ path.pathType || "—" }}</td>
                     <td>
-                      <code v-if="path.serviceName">{{ path.serviceName }}:{{ path.servicePort }}</code>
-                      <span v-else class="text-body-secondary">resource backend</span>
+                      <code v-if="path.serviceName"
+                        >{{ path.serviceName }}:{{ path.servicePort }}</code
+                      >
+                      <span v-else class="text-body-secondary"
+                        >resource backend</span
+                      >
                     </td>
                     <td>
                       <span
                         v-if="path.status === 'no-service'"
                         class="text-danger fw-semibold"
-                      >service missing</span>
+                        >service missing</span
+                      >
                       <span
                         v-else-if="path.status === 'no-endpoints'"
                         class="text-warning fw-semibold"
-                      >no ready endpoints</span>
-                      <span v-else-if="path.status === 'ok'" class="text-success">
+                        >no ready endpoints</span
+                      >
+                      <span
+                        v-else-if="path.status === 'ok'"
+                        class="text-success"
+                      >
                         ok ({{ path.readyEndpoints }} ready)
                       </span>
-                      <span v-else class="text-body-secondary">not checked</span>
+                      <span v-else class="text-body-secondary"
+                        >not checked</span
+                      >
                     </td>
                   </tr>
                 </template>
                 <tr v-if="detail.ingress.defaultBackend">
-                  <td colspan="2"><span class="text-body-secondary">default backend</span></td>
+                  <td colspan="2">
+                    <span class="text-body-secondary">default backend</span>
+                  </td>
                   <td>—</td>
                   <td>
-                    <code v-if="detail.ingress.defaultBackend.serviceName">{{ detail.ingress.defaultBackend.serviceName }}:{{ detail.ingress.defaultBackend.servicePort }}</code>
-                    <span v-else class="text-body-secondary">resource backend</span>
+                    <code v-if="detail.ingress.defaultBackend.serviceName"
+                      >{{ detail.ingress.defaultBackend.serviceName }}:{{
+                        detail.ingress.defaultBackend.servicePort
+                      }}</code
+                    >
+                    <span v-else class="text-body-secondary"
+                      >resource backend</span
+                    >
                   </td>
                   <td>
                     <span
-                      v-if="detail.ingress.defaultBackend.status === 'no-service'"
+                      v-if="
+                        detail.ingress.defaultBackend.status === 'no-service'
+                      "
                       class="text-danger fw-semibold"
-                    >service missing</span>
+                      >service missing</span
+                    >
                     <span
-                      v-else-if="detail.ingress.defaultBackend.status === 'no-endpoints'"
+                      v-else-if="
+                        detail.ingress.defaultBackend.status === 'no-endpoints'
+                      "
                       class="text-warning fw-semibold"
-                    >no ready endpoints</span>
-                    <span v-else-if="detail.ingress.defaultBackend.status === 'ok'" class="text-success">
-                      ok ({{ detail.ingress.defaultBackend.readyEndpoints }} ready)
+                      >no ready endpoints</span
+                    >
+                    <span
+                      v-else-if="detail.ingress.defaultBackend.status === 'ok'"
+                      class="text-success"
+                    >
+                      ok ({{
+                        detail.ingress.defaultBackend.readyEndpoints
+                      }}
+                      ready)
                     </span>
                     <span v-else class="text-body-secondary">not checked</span>
                   </td>
@@ -294,7 +368,10 @@ defineExpose({ load });
           </p>
           <table v-else class="table table-sm align-middle">
             <caption class="visually-hidden">
-              Events for ingress {{ name }}, most recent first
+              Events for ingress
+              {{
+                name
+              }}, most recent first
             </caption>
             <thead>
               <tr>
@@ -314,8 +391,13 @@ defineExpose({ load });
                 <td>
                   <span
                     class="badge"
-                    :class="e.type === 'Warning' ? 'text-bg-warning' : 'text-bg-secondary'"
-                  >{{ e.type }}</span>
+                    :class="
+                      e.type === 'Warning'
+                        ? 'text-bg-warning'
+                        : 'text-bg-secondary'
+                    "
+                    >{{ e.type }}</span
+                  >
                 </td>
                 <td>{{ e.reason }}</td>
                 <td>{{ e.message }}</td>

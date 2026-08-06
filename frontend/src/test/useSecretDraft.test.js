@@ -45,13 +45,23 @@ describe("isValidBase64", () => {
 describe("seedRows", () => {
   const entries = [
     { key: "user", value: "admin", base64: "YWRtaW4=", isBinary: false },
-    { key: "cert", value: "<11 bytes of binary data>", base64: "aGVsbG8gd29ybGQ=", isBinary: true },
+    {
+      key: "cert",
+      value: "<11 bytes of binary data>",
+      base64: "aGVsbG8gd29ybGQ=",
+      isBinary: true,
+    },
   ];
 
   it("seeds decoded values in transparent mode", () => {
     const rows = seedRows(entries, "transparent");
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ key: "user", value: "admin", isNew: false, deleted: false });
+    expect(rows[0]).toMatchObject({
+      key: "user",
+      value: "admin",
+      isNew: false,
+      deleted: false,
+    });
     expect(rows[1].value).toBe("<11 bytes of binary data>");
   });
 
@@ -74,11 +84,15 @@ describe("validateRows", () => {
   });
 
   it("rejects an empty key name", () => {
-    expect(validateRows([newRow({ key: "", value: "x" })], "transparent")).toMatch(/name/);
+    expect(
+      validateRows([newRow({ key: "", value: "x" })], "transparent"),
+    ).toMatch(/name/);
   });
 
   it("rejects keys with invalid characters", () => {
-    expect(validateRows([newRow({ key: "bad key!", value: "x" })], "transparent")).toMatch(/invalid/i);
+    expect(
+      validateRows([newRow({ key: "bad key!", value: "x" })], "transparent"),
+    ).toMatch(/invalid/i);
   });
 
   it("rejects duplicate keys", () => {
@@ -148,7 +162,11 @@ describe("buildChanges", () => {
     rows.push(newRow({ key: "fresh", value: "new" }));
     const changes = buildChanges(rows, original, "transparent");
     expect(changes).toContainEqual({ key: "keep", value: "", delete: true });
-    expect(changes).toContainEqual({ key: "fresh", value: "new", delete: false });
+    expect(changes).toContainEqual({
+      key: "fresh",
+      value: "new",
+      delete: false,
+    });
   });
 
   it("produces no changes when nothing differs", () => {

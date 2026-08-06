@@ -51,7 +51,9 @@ const compiled = computed(() => {
   if (!q) return { re: null, error: "" };
   const flags = caseSensitive.value ? "g" : "gi";
   try {
-    const source = useRegex.value ? q : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const source = useRegex.value
+      ? q
+      : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return { re: new RegExp(source, flags), error: "" };
   } catch (e) {
     return { re: null, error: String(e.message || e) };
@@ -77,7 +79,12 @@ const visibleLines = computed(() => {
     const text = lines.value[i];
     const hit = m ? lineMatches(text) : false;
     if (onlyMatches.value && m && !hit) continue;
-    out.push({ index: i, text, hit, segments: hit ? segmentize(text, m) : null });
+    out.push({
+      index: i,
+      text,
+      hit,
+      segments: hit ? segmentize(text, m) : null,
+    });
   }
   return out;
 });
@@ -87,7 +94,7 @@ const visibleLines = computed(() => {
 // With the "only matches" filter on, every visible line is a hit, so counting
 // hits is correct in both modes.
 const matchCount = computed(() =>
-  visibleLines.value.reduce((n, l) => n + (l.hit ? 1 : 0), 0)
+  visibleLines.value.reduce((n, l) => n + (l.hit ? 1 : 0), 0),
 );
 
 // Split a line into { text, hit } segments so matches can be wrapped in <mark>
@@ -98,7 +105,8 @@ function segmentize(text, regex) {
   regex.lastIndex = 0;
   let m;
   while ((m = regex.exec(text)) !== null) {
-    if (m.index > last) segs.push({ text: text.slice(last, m.index), hit: false });
+    if (m.index > last)
+      segs.push({ text: text.slice(last, m.index), hit: false });
     segs.push({ text: m[0], hit: true });
     last = m.index + m[0].length;
     if (m[0].length === 0) regex.lastIndex++; // guard against zero-width loops
@@ -115,14 +123,19 @@ const matchRows = computed(() =>
   visibleLines.value.reduce((acc, l, i) => {
     if (l.hit) acc.push(i);
     return acc;
-  }, [])
+  }, []),
 );
 
 function gotoMatch(step) {
   const rows = matchRows.value;
   if (rows.length === 0) return;
   let pos = rows.indexOf(currentMatch.value);
-  pos = pos === -1 ? (step > 0 ? 0 : rows.length - 1) : (pos + step + rows.length) % rows.length;
+  pos =
+    pos === -1
+      ? step > 0
+        ? 0
+        : rows.length - 1
+      : (pos + step + rows.length) % rows.length;
   currentMatch.value = rows[pos];
   autoScroll.value = false; // stop fighting the user while they navigate
   nextTick(() => {
@@ -208,7 +221,8 @@ function onLogKeydown(e) {
     return;
   }
 
-  const at = activeRow.value >= 0 && activeRow.value < len ? activeRow.value : -1;
+  const at =
+    activeRow.value >= 0 && activeRow.value < len ? activeRow.value : -1;
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
@@ -266,7 +280,7 @@ watch(
   () => visibleLines.value.length,
   (len) => {
     if (activeRow.value >= len) activeRow.value = len - 1;
-  }
+  },
 );
 
 // --- streaming lifecycle ---------------------------------------------------
@@ -284,11 +298,16 @@ async function start() {
   error.value = "";
   streaming.value = true;
   try {
-    streamKey = await api.startLogStream(props.namespace, props.pod, props.container, {
-      tailLines: tail.value,
-      timestamps: timestamps.value,
-      previous: previous.value,
-    });
+    streamKey = await api.startLogStream(
+      props.namespace,
+      props.pod,
+      props.container,
+      {
+        tailLines: tail.value,
+        timestamps: timestamps.value,
+        previous: previous.value,
+      },
+    );
 
     offLine = onEvent(`log:${streamKey}`, (line) => {
       lines.value.push(line);
@@ -344,7 +363,9 @@ function clear() {
 // so the saved file matches the on-screen investigation.
 function exportContent() {
   const source =
-    onlyMatches.value && matcher.value ? visibleLines.value.map((l) => l.text) : lines.value;
+    onlyMatches.value && matcher.value
+      ? visibleLines.value.map((l) => l.text)
+      : lines.value;
   return source.join("\n");
 }
 
@@ -375,7 +396,7 @@ async function copyAll() {
 watch(
   () => [props.namespace, props.pod, props.container],
   () => start(),
-  { immediate: true }
+  { immediate: true },
 );
 watch([tail, timestamps, previous], () => start());
 
@@ -410,10 +431,14 @@ function onSectionKeydown(e) {
     class="d-flex flex-column h-100"
     @keydown="onSectionKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2 gap-2 flex-wrap">
+    <div
+      class="d-flex align-items-center justify-content-between mb-2 gap-2 flex-wrap"
+    >
       <h2 id="log-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
         Logs: {{ pod }} / {{ container }}
-        <span v-if="streaming" class="badge text-bg-success ms-1" role="status">live</span>
+        <span v-if="streaming" class="badge text-bg-success ms-1" role="status"
+          >live</span
+        >
         <span v-else class="badge text-bg-secondary ms-1">stopped</span>
         <span v-if="previous" class="badge text-bg-warning ms-1">previous</span>
       </h2>
@@ -426,19 +451,40 @@ function onSectionKeydown(e) {
         >
           Stop
         </button>
-        <button v-else type="button" class="btn btn-sm btn-outline-success" @click="start">
+        <button
+          v-else
+          type="button"
+          class="btn btn-sm btn-outline-success"
+          @click="start"
+        >
           Restart
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="download">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="download"
+        >
           Save…
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="copyAll">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="copyAll"
+        >
           Copy
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="clear">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="clear"
+        >
           Clear
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="emit('close')">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="emit('close')"
+        >
           Close
         </button>
       </div>
@@ -447,7 +493,9 @@ function onSectionKeydown(e) {
     <!-- Search + match navigation -->
     <div class="row g-2 align-items-end mb-2">
       <div class="col-12 col-lg">
-        <label for="log-search" class="form-label mb-1 small">Search logs</label>
+        <label for="log-search" class="form-label mb-1 small"
+          >Search logs</label
+        >
         <div class="input-group input-group-sm">
           <input
             id="log-search"
@@ -486,7 +534,9 @@ function onSectionKeydown(e) {
           class="form-text mb-0"
           :class="{ 'text-danger': regexError }"
         >
-          <template v-if="regexError">Invalid pattern: {{ regexError }}</template>
+          <template v-if="regexError"
+            >Invalid pattern: {{ regexError }}</template
+          >
           <template v-else>{{ matchCount }} matching lines</template>
         </p>
       </div>
@@ -494,12 +544,24 @@ function onSectionKeydown(e) {
       <div class="col-auto">
         <div class="d-flex flex-wrap gap-3">
           <div class="form-check form-check-inline mb-0">
-            <input id="opt-regex" v-model="useRegex" class="form-check-input" type="checkbox" />
+            <input
+              id="opt-regex"
+              v-model="useRegex"
+              class="form-check-input"
+              type="checkbox"
+            />
             <label class="form-check-label small" for="opt-regex">Regex</label>
           </div>
           <div class="form-check form-check-inline mb-0">
-            <input id="opt-case" v-model="caseSensitive" class="form-check-input" type="checkbox" />
-            <label class="form-check-label small" for="opt-case">Match case</label>
+            <input
+              id="opt-case"
+              v-model="caseSensitive"
+              class="form-check-input"
+              type="checkbox"
+            />
+            <label class="form-check-label small" for="opt-case"
+              >Match case</label
+            >
           </div>
           <div class="form-check form-check-inline mb-0">
             <input
@@ -509,7 +571,9 @@ function onSectionKeydown(e) {
               type="checkbox"
               :disabled="!query"
             />
-            <label class="form-check-label small" for="opt-only">Only matches</label>
+            <label class="form-check-label small" for="opt-only"
+              >Only matches</label
+            >
           </div>
         </div>
       </div>
@@ -532,20 +596,44 @@ function onSectionKeydown(e) {
         </select>
       </div>
       <div class="form-check form-switch mb-0">
-        <input id="opt-ts" v-model="timestamps" class="form-check-input" type="checkbox" />
+        <input
+          id="opt-ts"
+          v-model="timestamps"
+          class="form-check-input"
+          type="checkbox"
+        />
         <label class="form-check-label small" for="opt-ts">Timestamps</label>
       </div>
       <div class="form-check form-switch mb-0">
-        <input id="opt-prev" v-model="previous" class="form-check-input" type="checkbox" />
-        <label class="form-check-label small" for="opt-prev">Previous (crashed) instance</label>
+        <input
+          id="opt-prev"
+          v-model="previous"
+          class="form-check-input"
+          type="checkbox"
+        />
+        <label class="form-check-label small" for="opt-prev"
+          >Previous (crashed) instance</label
+        >
       </div>
       <div class="form-check form-switch mb-0">
-        <input id="opt-wrap" v-model="wrap" class="form-check-input" type="checkbox" />
+        <input
+          id="opt-wrap"
+          v-model="wrap"
+          class="form-check-input"
+          type="checkbox"
+        />
         <label class="form-check-label small" for="opt-wrap">Wrap lines</label>
       </div>
       <div class="form-check form-switch mb-0">
-        <input id="opt-scroll" v-model="autoScroll" class="form-check-input" type="checkbox" />
-        <label class="form-check-label small" for="opt-scroll">Auto-scroll</label>
+        <input
+          id="opt-scroll"
+          v-model="autoScroll"
+          class="form-check-input"
+          type="checkbox"
+        />
+        <label class="form-check-label small" for="opt-scroll"
+          >Auto-scroll</label
+        >
       </div>
     </div>
 
@@ -591,7 +679,10 @@ function onSectionKeydown(e) {
         </template>
         <template v-else>{{ line.text }}</template>
       </div>
-      <div v-if="visibleLines.length === 0 && streaming" class="text-body-secondary">
+      <div
+        v-if="visibleLines.length === 0 && streaming"
+        class="text-body-secondary"
+      >
         Waiting for log output…
       </div>
       <div

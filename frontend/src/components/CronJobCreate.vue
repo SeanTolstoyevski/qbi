@@ -51,7 +51,8 @@ async function submit() {
     return;
   }
   if (!validSchedule(c.schedule)) {
-    error.value = "Schedule must be a 5-field cron expression, e.g. \"0 * * * *\".";
+    error.value =
+      'Schedule must be a 5-field cron expression, e.g. "0 * * * *".';
     return;
   }
   saving.value = true;
@@ -168,11 +169,7 @@ async function submit() {
             >Create suspended</label
           >
         </div>
-        <button
-          type="submit"
-          class="btn btn-sm btn-primary"
-          :disabled="saving"
-        >
+        <button type="submit" class="btn btn-sm btn-primary" :disabled="saving">
           Create
         </button>
         <button

@@ -36,7 +36,9 @@ const healthy = {
     class: "nginx",
     age: "2d",
     addresses: ["1.2.3.4", "lb.example.com"],
-    tls: [{ hosts: ["a.example.com"], secretName: "web-tls", secretStatus: "ok" }],
+    tls: [
+      { hosts: ["a.example.com"], secretName: "web-tls", secretStatus: "ok" },
+    ],
     rules: [
       {
         host: "a.example.com",
@@ -64,7 +66,13 @@ const broken = {
   ingress: {
     ...healthy.ingress,
     addresses: [],
-    tls: [{ hosts: ["a.example.com"], secretName: "missing-tls", secretStatus: "missing" }],
+    tls: [
+      {
+        hosts: ["a.example.com"],
+        secretName: "missing-tls",
+        secretStatus: "missing",
+      },
+    ],
     rules: [
       {
         host: "a.example.com",
@@ -82,8 +90,8 @@ const broken = {
     ],
     issues: [
       "No external address assigned yet. The load balancer may still be provisioning.",
-      "TLS secret \"missing-tls\" not found in this namespace (hosts: a.example.com).",
-      "Host a.example.com, path / routes to service \"gone\", which does not exist in this namespace.",
+      'TLS secret "missing-tls" not found in this namespace (hosts: a.example.com).',
+      'Host a.example.com, path / routes to service "gone", which does not exist in this namespace.',
     ],
   },
   events: [
@@ -102,7 +110,9 @@ beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
   setNamespace("default");
   vi.clearAllMocks();
-  api.getResourceYaml.mockResolvedValue("apiVersion: networking.k8s.io/v1\nkind: Ingress\n");
+  api.getResourceYaml.mockResolvedValue(
+    "apiVersion: networking.k8s.io/v1\nkind: Ingress\n",
+  );
 });
 
 function mountDetail(name = "web") {
@@ -183,7 +193,11 @@ describe("IngressDetail — actions", () => {
     await flushPromises();
     await findBtn(w, "YAML").trigger("click");
     await flushPromises();
-    expect(api.getResourceYaml).toHaveBeenCalledWith("default", "Ingress", "web");
+    expect(api.getResourceYaml).toHaveBeenCalledWith(
+      "default",
+      "Ingress",
+      "web",
+    );
     expect(w.text()).toContain("kind: Ingress");
     w.unmount();
   });

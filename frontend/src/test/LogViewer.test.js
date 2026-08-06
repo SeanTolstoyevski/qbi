@@ -161,7 +161,9 @@ describe("LogViewer — copying", () => {
     const w = await mountWithLines();
     await keydown(w, "c", { ctrlKey: true });
     await flushPromises();
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(LINES.join("\n"));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      LINES.join("\n"),
+    );
     w.unmount();
   });
 
@@ -169,7 +171,9 @@ describe("LogViewer — copying", () => {
     const w = await mountWithLines();
     await keydown(w, "a", { ctrlKey: true });
     await flushPromises();
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(LINES.join("\n"));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      LINES.join("\n"),
+    );
     w.unmount();
   });
 });

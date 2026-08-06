@@ -107,9 +107,7 @@ defineExpose({ loadContexts });
           <span class="text-body-secondary">
             ({{ sourceLabel[kubeconfig.source] || kubeconfig.source }})</span
           >
-          <span
-            v-if="!kubeconfig.exists"
-            class="badge text-bg-warning ms-1"
+          <span v-if="!kubeconfig.exists" class="badge text-bg-warning ms-1"
             >not found</span
           >
         </template>
@@ -117,10 +115,13 @@ defineExpose({ loadContexts });
       </p>
     </div>
 
-    <p v-if="kubeconfig && !kubeconfig.exists" class="mb-0 small text-body-secondary">
-      No readable kubeconfig yet. Choose one of your <code>.yml</code> files with
-      <strong>Open kubeconfig file…</strong> — this is the equivalent of setting
-      <code>KUBECONFIG</code> in the terminal.
+    <p
+      v-if="kubeconfig && !kubeconfig.exists"
+      class="mb-0 small text-body-secondary"
+    >
+      No readable kubeconfig yet. Choose one of your <code>.yml</code> files
+      with <strong>Open kubeconfig file…</strong> — this is the equivalent of
+      setting <code>KUBECONFIG</code> in the terminal.
     </p>
 
     <!-- Context selection + connect: only meaningful once a config is loaded. -->
@@ -130,7 +131,9 @@ defineExpose({ loadContexts });
       @submit.prevent="connect"
     >
       <div>
-        <label for="context-select" class="form-label mb-1">Cluster context</label>
+        <label for="context-select" class="form-label mb-1"
+          >Cluster context</label
+        >
         <select
           id="context-select"
           v-model="selected"
@@ -138,14 +141,20 @@ defineExpose({ loadContexts });
           :disabled="loading || contexts.length === 0"
           style="min-width: 16rem"
         >
-          <option v-if="contexts.length === 0" value="">No contexts found</option>
+          <option v-if="contexts.length === 0" value="">
+            No contexts found
+          </option>
           <option v-for="c in contexts" :key="c.name" :value="c.name">
             {{ c.name }}{{ c.current ? " (current)" : "" }}
           </option>
         </select>
       </div>
 
-      <button type="submit" class="btn btn-primary" :disabled="loading || !selected">
+      <button
+        type="submit"
+        class="btn btn-primary"
+        :disabled="loading || !selected"
+      >
         <span
           v-if="loading"
           class="spinner-border spinner-border-sm me-1"

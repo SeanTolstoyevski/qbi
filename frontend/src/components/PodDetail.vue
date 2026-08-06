@@ -70,11 +70,19 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
         Pod: {{ pod }}
       </h2>
       <div class="d-flex gap-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="load">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="load"
+        >
           <span class="visually-hidden">Refresh pod details</span>
           <span aria-hidden="true">⟳</span>
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="emit('close')">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          @click="emit('close')"
+        >
           Close
         </button>
       </div>
@@ -89,40 +97,64 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
         <dd class="col-sm-8">
           <span
             class="badge"
-            :class="detail.phase === 'Running' ? 'text-bg-success' : 'text-bg-secondary'"
+            :class="
+              detail.phase === 'Running'
+                ? 'text-bg-success'
+                : 'text-bg-secondary'
+            "
             >{{ detail.phase }}</span
           >
         </dd>
         <dt class="col-sm-4">Pod IP</dt>
-        <dd class="col-sm-8"><code>{{ detail.podIP || "—" }}</code></dd>
+        <dd class="col-sm-8">
+          <code>{{ detail.podIP || "—" }}</code>
+        </dd>
         <dt class="col-sm-4">Node</dt>
-        <dd class="col-sm-8"><code>{{ detail.node || "—" }}</code></dd>
+        <dd class="col-sm-8">
+          <code>{{ detail.node || "—" }}</code>
+        </dd>
         <dt class="col-sm-4">Host IP</dt>
-        <dd class="col-sm-8"><code>{{ detail.hostIP || "—" }}</code></dd>
+        <dd class="col-sm-8">
+          <code>{{ detail.hostIP || "—" }}</code>
+        </dd>
         <dt class="col-sm-4">Service account</dt>
-        <dd class="col-sm-8"><code>{{ detail.serviceAccount || "—" }}</code></dd>
+        <dd class="col-sm-8">
+          <code>{{ detail.serviceAccount || "—" }}</code>
+        </dd>
         <dt class="col-sm-4">QoS class</dt>
         <dd class="col-sm-8">{{ detail.qosClass || "—" }}</dd>
         <dt class="col-sm-4">CPU usage</dt>
         <dd class="col-sm-8">
           <template v-if="metrics">
             <code>{{ metrics.cpu || "—" }}</code>
-            <span v-if="metrics.cpuRequest || metrics.cpuLimit" class="text-body-secondary">
-              (request {{ metrics.cpuRequest || "—" }}, limit {{ metrics.cpuLimit || "—" }})
+            <span
+              v-if="metrics.cpuRequest || metrics.cpuLimit"
+              class="text-body-secondary"
+            >
+              (request {{ metrics.cpuRequest || "—" }}, limit
+              {{ metrics.cpuLimit || "—" }})
             </span>
           </template>
-          <span v-else-if="metricsError" class="text-body-secondary">metrics unavailable</span>
+          <span v-else-if="metricsError" class="text-body-secondary"
+            >metrics unavailable</span
+          >
           <template v-else>—</template>
         </dd>
         <dt class="col-sm-4">Memory usage</dt>
         <dd class="col-sm-8">
           <template v-if="metrics">
             <code>{{ metrics.memory || "—" }}</code>
-            <span v-if="metrics.memoryRequest || metrics.memoryLimit" class="text-body-secondary">
-              (request {{ metrics.memoryRequest || "—" }}, limit {{ metrics.memoryLimit || "—" }})
+            <span
+              v-if="metrics.memoryRequest || metrics.memoryLimit"
+              class="text-body-secondary"
+            >
+              (request {{ metrics.memoryRequest || "—" }}, limit
+              {{ metrics.memoryLimit || "—" }})
             </span>
           </template>
-          <span v-else-if="metricsError" class="text-body-secondary">metrics unavailable</span>
+          <span v-else-if="metricsError" class="text-body-secondary"
+            >metrics unavailable</span
+          >
           <template v-else>—</template>
         </dd>
         <dt class="col-sm-4">Age</dt>
@@ -149,7 +181,9 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
         </div>
         <dl class="row small mb-0 mt-1">
           <dt class="col-sm-4">Image</dt>
-          <dd class="col-sm-8"><code>{{ c.image }}</code></dd>
+          <dd class="col-sm-8">
+            <code>{{ c.image }}</code>
+          </dd>
           <dt class="col-sm-4">Restarts</dt>
           <dd class="col-sm-8">{{ c.restartCount }}</dd>
           <template v-if="c.stateReason">
@@ -166,7 +200,12 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
       <template v-if="detail.conditions && detail.conditions.length">
         <h3 class="h6 mt-3">Conditions</h3>
         <table class="table table-sm">
-          <caption class="visually-hidden">Pod conditions for {{ pod }}</caption>
+          <caption class="visually-hidden">
+            Pod conditions for
+            {{
+              pod
+            }}
+          </caption>
           <thead>
             <tr>
               <th scope="col">Type</th>

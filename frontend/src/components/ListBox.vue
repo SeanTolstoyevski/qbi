@@ -43,7 +43,7 @@ watch(
     const i = props.options.findIndex((o) => o.value === val);
     if (i >= 0) activeIndex.value = i;
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Clamp focus if the option list shrinks (e.g. after filtering).
@@ -51,7 +51,7 @@ watch(
   () => props.options.length,
   (len) => {
     if (activeIndex.value > len - 1) activeIndex.value = Math.max(0, len - 1);
-  }
+  },
 );
 
 function optionDomId(i) {
@@ -60,9 +60,7 @@ function optionDomId(i) {
 
 function focusOption(i) {
   nextTick(() => {
-    listRef.value
-      ?.querySelector(`[data-index="${i}"]`)
-      ?.focus();
+    listRef.value?.querySelector(`[data-index="${i}"]`)?.focus();
   });
 }
 
@@ -156,7 +154,11 @@ function onMenuBtnClick(e, i) {
   activeIndex.value = i;
   focusOption(i);
   const rect = e.currentTarget.getBoundingClientRect();
-  emit("context-action", { value: props.options[i].value, x: rect.left, y: rect.bottom });
+  emit("context-action", {
+    value: props.options[i].value,
+    x: rect.left,
+    y: rect.bottom,
+  });
 }
 
 defineExpose({ focusActive: () => focusOption(activeIndex.value) });

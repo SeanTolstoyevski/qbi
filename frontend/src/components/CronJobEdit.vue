@@ -39,16 +39,21 @@ function validSchedule(s) {
 async function submit() {
   error.value = "";
   if (!validSchedule(form.value.schedule)) {
-    error.value = "Schedule must be a 5-field cron expression, e.g. \"0 * * * *\".";
+    error.value =
+      'Schedule must be a 5-field cron expression, e.g. "0 * * * *".';
     return;
   }
   saving.value = true;
   try {
-    const applied = await api.updateCronJob(props.namespace, props.cronJob.name, {
-      schedule: form.value.schedule.trim(),
-      suspend: form.value.suspend,
-      concurrencyPolicy: form.value.concurrencyPolicy,
-    });
+    const applied = await api.updateCronJob(
+      props.namespace,
+      props.cronJob.name,
+      {
+        schedule: form.value.schedule.trim(),
+        suspend: form.value.suspend,
+        concurrencyPolicy: form.value.concurrencyPolicy,
+      },
+    );
     if (!applied) return; // user cancelled the confirmation — keep the form
     announce(`Cron job ${props.cronJob.name} updated.`);
     emit("saved");

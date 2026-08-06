@@ -60,7 +60,8 @@ function setConnection(context) {
   state.context = context;
   // Prefer the namespace the user last worked in for this context; fall back to
   // the context's default namespace from the kubeconfig.
-  state.namespace = recallNamespace(context?.name) || context?.namespace || null;
+  state.namespace =
+    recallNamespace(context?.name) || context?.namespace || null;
 }
 
 function setNamespace(name) {

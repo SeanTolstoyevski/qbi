@@ -53,10 +53,16 @@ const PodListStub = defineComponent({
       h("div", { class: "pod-list-stub" }, [
         h(
           "button",
-          { onClick: () => emit("view-logs", { pod: "web", container: "app" }) },
-          "open logs"
+          {
+            onClick: () => emit("view-logs", { pod: "web", container: "app" }),
+          },
+          "open logs",
         ),
-        h("button", { onClick: () => emit("view-details", "web") }, "open details"),
+        h(
+          "button",
+          { onClick: () => emit("view-details", "web") },
+          "open details",
+        ),
         h("button", { onClick: () => emit("view-yaml", "web") }, "open yaml"),
       ]);
   },
@@ -101,7 +107,9 @@ function mountApp() {
 
 // Click one of the PodList stub's panel-opening buttons by its visible label.
 function openPanel(w, label) {
-  const btn = w.findAll(".pod-list-stub button").find((b) => b.text() === label);
+  const btn = w
+    .findAll(".pod-list-stub button")
+    .find((b) => b.text() === label);
   return btn.trigger("click");
 }
 
@@ -116,7 +124,7 @@ describe("App — pod panels close on namespace switch", () => {
       "default",
       "web",
       "app",
-      expect.anything()
+      expect.anything(),
     );
 
     setNamespace("other");

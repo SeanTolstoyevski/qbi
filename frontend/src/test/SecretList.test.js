@@ -40,11 +40,27 @@ const PanelStub = defineComponent({
           "data-mode": props.mode || "",
         },
         [
-          h("button", { class: "stub-close", onClick: () => emit("close") }, "close"),
-          h("button", { class: "stub-updated", onClick: () => emit("updated") }, "updated"),
-          h("button", { class: "stub-deleted", onClick: () => emit("deleted") }, "deleted"),
-          h("button", { class: "stub-created", onClick: () => emit("created") }, "created"),
-        ]
+          h(
+            "button",
+            { class: "stub-close", onClick: () => emit("close") },
+            "close",
+          ),
+          h(
+            "button",
+            { class: "stub-updated", onClick: () => emit("updated") },
+            "updated",
+          ),
+          h(
+            "button",
+            { class: "stub-deleted", onClick: () => emit("deleted") },
+            "deleted",
+          ),
+          h(
+            "button",
+            { class: "stub-created", onClick: () => emit("created") },
+            "created",
+          ),
+        ],
       );
   },
 });
@@ -53,7 +69,12 @@ const stubs = { SecretDetail: PanelStub, SecretCreate: PanelStub };
 
 const SECRETS = [
   { name: "api-token", type: "Opaque", keys: ["token"], age: "2d" },
-  { name: "web-tls", type: "kubernetes.io/tls", keys: ["tls.crt", "tls.key"], age: "5h" },
+  {
+    name: "web-tls",
+    type: "kubernetes.io/tls",
+    keys: ["tls.crt", "tls.key"],
+    age: "5h",
+  },
 ];
 
 async function mountList(list = SECRETS) {
@@ -127,7 +148,10 @@ describe("SecretList — detail panel", () => {
     const w = await mountList();
     await selectSecret(w, "api-token");
     api.listSecrets.mockResolvedValue([SECRETS[1]]);
-    await w.findAll("button").find((b) => b.text().includes("Refresh")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh"))
+      .trigger("click");
     await flushPromises();
     expect(w.findComponent(PanelStub).exists()).toBe(false);
     w.unmount();
@@ -189,7 +213,10 @@ describe("SecretList — create panel", () => {
 describe("SecretList — value mode toggle", () => {
   it("defaults to plain text and persists a switch to base64", async () => {
     const w = await mountList();
-    await w.findAll('[role="radio"]').find((b) => b.text() === "Base64").trigger("click");
+    await w
+      .findAll('[role="radio"]')
+      .find((b) => b.text() === "Base64")
+      .trigger("click");
     expect(localStorage.getItem("qba.secretValueMode")).toBe("base64");
     w.unmount();
   });
@@ -204,7 +231,10 @@ describe("SecretList — value mode toggle", () => {
 
   it("passes the selected mode down to the open panel", async () => {
     const w = await mountList();
-    await w.findAll('[role="radio"]').find((b) => b.text() === "Base64").trigger("click");
+    await w
+      .findAll('[role="radio"]')
+      .find((b) => b.text() === "Base64")
+      .trigger("click");
     await selectSecret(w, "api-token");
     expect(w.findComponent(PanelStub).props("mode")).toBe("base64");
     w.unmount();

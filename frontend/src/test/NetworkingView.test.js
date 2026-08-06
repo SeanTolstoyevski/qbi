@@ -87,7 +87,13 @@ describe("NetworkingView — ingresses", () => {
     class: "nginx",
     age: "2d",
     addresses: ["1.2.3.4"],
-    tls: [{ hosts: ["a.example.com"], secretName: "web-tls", secretStatus: "missing" }],
+    tls: [
+      {
+        hosts: ["a.example.com"],
+        secretName: "web-tls",
+        secretStatus: "missing",
+      },
+    ],
     rules: [
       {
         host: "a.example.com",
@@ -104,8 +110,8 @@ describe("NetworkingView — ingresses", () => {
       },
     ],
     issues: [
-      "TLS secret \"web-tls\" not found in this namespace (hosts: a.example.com).",
-      "Host a.example.com, path / routes to service \"web\", which has no ready endpoints — requests will fail.",
+      'TLS secret "web-tls" not found in this namespace (hosts: a.example.com).',
+      'Host a.example.com, path / routes to service "web", which has no ready endpoints — requests will fail.',
     ],
   };
 
@@ -126,7 +132,11 @@ describe("NetworkingView — ingresses", () => {
     // Regression: a broken ingress with no rules must render the "none" note,
     // not throw on a null rules array.
     api.listIngresses.mockResolvedValue([
-      { ...brokenIngress, rules: [], issues: ["No routing rules defined: this ingress forwards no traffic."] },
+      {
+        ...brokenIngress,
+        rules: [],
+        issues: ["No routing rules defined: this ingress forwards no traffic."],
+      },
     ]);
     const w = mountView();
     await flushPromises();
@@ -180,7 +190,9 @@ describe("NetworkingView — ingresses", () => {
     await flushPromises();
     expect(w.text()).toContain("Ingress: web");
     // Delete inside the detail panel
-    const deleteBtn = w.findAll("button").find((b) => b.text().includes("Delete ingress"));
+    const deleteBtn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Delete ingress"));
     await deleteBtn.trigger("click");
     await flushPromises();
     expect(api.deleteIngress).toHaveBeenCalledWith("default", "web");
@@ -244,16 +256,22 @@ describe("NetworkingView — create service", () => {
         type: "NodePort",
         selector: { app: "gitea" },
         ports: [
-          { name: "", port: 3000, targetPort: "3000", protocol: "TCP", nodePort: 30080 },
+          {
+            name: "",
+            port: 3000,
+            targetPort: "3000",
+            protocol: "TCP",
+            nodePort: 30080,
+          },
         ],
-      })
+      }),
     );
     w.unmount();
   });
 
   it("renders a YAML preview from the form", async () => {
     api.renderServiceYaml.mockResolvedValue(
-      "apiVersion: v1\nkind: Service\nmetadata:\n  name: web\n"
+      "apiVersion: v1\nkind: Service\nmetadata:\n  name: web\n",
     );
     const w = mountView();
     await flushPromises();
@@ -265,7 +283,7 @@ describe("NetworkingView — create service", () => {
     await flushPromises();
     expect(api.renderServiceYaml).toHaveBeenCalledWith(
       "default",
-      expect.objectContaining({ name: "web" })
+      expect.objectContaining({ name: "web" }),
     );
     expect(w.text()).toContain("kind: Service");
     w.unmount();
@@ -310,7 +328,14 @@ const minimalIngress = {
     {
       host: "example.com",
       paths: [
-        { path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80", status: "ok", readyEndpoints: 1 },
+        {
+          path: "/",
+          pathType: "Prefix",
+          serviceName: "web",
+          servicePort: "80",
+          status: "ok",
+          readyEndpoints: 1,
+        },
       ],
     },
   ],
@@ -328,7 +353,12 @@ describe("NetworkingView — create/edit ingress", () => {
           {
             host: "example.com",
             paths: [
-              { path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80" },
+              {
+                path: "/",
+                pathType: "Prefix",
+                serviceName: "web",
+                servicePort: "80",
+              },
             ],
           },
         ],
@@ -444,7 +474,14 @@ describe("NetworkingView — focus returns to the trigger on close", () => {
         rules: [
           {
             host: "example.com",
-            paths: [{ path: "/", pathType: "Prefix", serviceName: "web", servicePort: "80" }],
+            paths: [
+              {
+                path: "/",
+                pathType: "Prefix",
+                serviceName: "web",
+                servicePort: "80",
+              },
+            ],
           },
         ],
         tls: [],

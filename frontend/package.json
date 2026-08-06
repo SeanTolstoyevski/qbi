@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write \"src/**/*.{js,vue}\" vite.config.js",
+    "format:check": "prettier --check \"src/**/*.{js,vue}\" vite.config.js"
   },
   "dependencies": {
     "bootstrap": "^5.3.3",
@@ -21,6 +23,7 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.11",
     "happy-dom": "^20.11.1",
+    "prettier": "^3.9.6",
     "vite": "^6.0.7",
     "vitest": "^4.1.10"
   }
