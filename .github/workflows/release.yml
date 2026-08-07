@@ -265,12 +265,7 @@ jobs:
 
       - name: Package release archives (zip)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends zip
           cd dist
-          # Create qbi-<version>-<platform>.zip from each staged artifact
-          # (binary, .exe or .app bundle) and remove the raw files so the
-          # release only receives the archives plus checksums.txt.
           for f in qbi-*; do
             [ -e "$f" ] || continue
             case "$f" in
