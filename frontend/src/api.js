@@ -127,6 +127,8 @@ export const api = {
   getSettings: () => service().GetSettings(),
   setAutoRefresh: (enabled) => service().SetAutoRefresh(enabled),
   setWatchNamespace: (namespace) => service().SetWatchNamespace(namespace),
+  version: () => service().Version(),
+  commit: () => service().Commit(),
 };
 
 // Subscribe to a Wails runtime event. Returns an unsubscribe function.

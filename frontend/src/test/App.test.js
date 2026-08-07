@@ -19,7 +19,10 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick, defineComponent, h } from "vue";
 
-const { listeners } = vi.hoisted(() => ({ listeners: {} }));
+const { listeners, nsFocusList } = vi.hoisted(() => ({
+  listeners: {},
+  nsFocusList: vi.fn(),
+}));
 
 vi.mock("../api.js", () => ({
   api: {
@@ -27,6 +30,8 @@ vi.mock("../api.js", () => ({
     stopLogStream: vi.fn(),
     saveLogs: vi.fn(),
     setWatchNamespace: vi.fn(),
+    version: vi.fn(),
+    commit: vi.fn(),
   },
   onEvent: (name, handler) => {
     listeners[name] = handler;
@@ -68,12 +73,24 @@ const PodListStub = defineComponent({
   },
 });
 
+// NamespaceList is stubbed as ready with a focusList spy so the Ctrl+E
+// shortcut test can verify App asks the list to take focus.
+const NamespaceListStub = defineComponent({
+  name: "NamespaceListStub",
+  setup() {
+    return { listReady: true, focusList: nsFocusList };
+  },
+  render() {
+    return h("div", { class: "ns-list-stub" }, "namespaces");
+  },
+});
+
 // Everything else is irrelevant to these tests — stub it so App renders
 // without pulling in cluster logic. LogViewer stays real so we can verify the
 // stream cleanup that runs when its panel is closed.
 const stubs = {
   ContextBar: true,
-  NamespaceList: true,
+  NamespaceList: NamespaceListStub,
   PodList: PodListStub,
   PodDetail: true,
   SecretList: true,
@@ -84,6 +101,7 @@ const stubs = {
   NodesView: true,
   YamlViewer: true,
   SettingsView: true,
+  AboutView: true,
 };
 
 beforeAll(() => {
@@ -175,6 +193,90 @@ describe("App — pod panels close on namespace switch", () => {
 
     expect(w.findComponent(LogViewer).exists()).toBe(false);
     expect(api.stopLogStream).toHaveBeenCalledWith("stream-1");
+    w.unmount();
+  });
+});
+
+describe("App — primary navigation", () => {
+  it("renders the four top-level screens and marks the active one", () => {
+    const w = mountApp();
+    const nav = w.find("nav[aria-label='Primary']");
+    expect(nav.exists()).toBe(true);
+    // Labels are lowercase in the DOM (text-capitalize styles them visually),
+    // matching the namespace sub-tab convention.
+    expect(nav.findAll("button").map((b) => b.text())).toEqual([
+      "cluster",
+      "namespace",
+      "settings",
+      "about",
+    ]);
+    // Namespace is the default section, so it carries the current marker.
+    const active = nav
+      .findAll("button")
+      .find((b) => b.text() === "namespace");
+    expect(active.attributes("aria-current")).toBe("page");
+    w.unmount();
+  });
+
+  it("switches screens on click, updates the marker and moves focus", async () => {
+    const w = mountApp();
+    const about = w
+      .find("nav[aria-label='Primary']")
+      .findAll("button")
+      .find((b) => b.text() === "about");
+    await about.trigger("click");
+    await nextTick();
+
+    expect(about.attributes("aria-current")).toBe("page");
+    expect(w.find("#section-heading-about").isVisible()).toBe(true);
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(false);
+    // View changes move focus to the revealed section heading.
+    expect(document.activeElement).toBe(
+      w.find("#section-heading-about").element,
+    );
+    w.unmount();
+  });
+});
+
+describe("App — screen shortcuts", () => {
+  it("Ctrl+1 switches to the Cluster section", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "1", ctrlKey: true }),
+    );
+    await nextTick();
+    expect(w.find("#section-heading-cluster").isVisible()).toBe(true);
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(false);
+    w.unmount();
+  });
+
+  it("Ctrl+4 switches to the About section", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "4", ctrlKey: true }),
+    );
+    await nextTick();
+    expect(w.find("#section-heading-about").isVisible()).toBe(true);
+    w.unmount();
+  });
+
+  it("ignores Ctrl+number combinations without a mapped section", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "9", ctrlKey: true }),
+    );
+    await nextTick();
+    // The default section (namespace) is untouched.
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(true);
+    w.unmount();
+  });
+
+  it("Ctrl+E asks the namespace list to take focus when it is ready", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "e", ctrlKey: true }),
+    );
+    expect(nsFocusList).toHaveBeenCalledTimes(1);
     w.unmount();
   });
 });

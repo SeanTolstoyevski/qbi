@@ -1,5 +1,12 @@
 <script setup>
-import { ref, computed, nextTick, watch } from "vue";
+import {
+  ref,
+  computed,
+  nextTick,
+  watch,
+  onMounted,
+  onUnmounted,
+} from "vue";
 import { useStore } from "./store.js";
 import { api } from "./api.js";
 import ContextBar from "./components/ContextBar.vue";
@@ -15,6 +22,7 @@ import NodesView from "./components/NodesView.vue";
 import YamlViewer from "./components/YamlViewer.vue";
 import LogViewer from "./components/LogViewer.vue";
 import SettingsView from "./components/SettingsView.vue";
+import AboutView from "./components/AboutView.vue";
 
 const { state } = useStore();
 
@@ -30,6 +38,7 @@ watch(
 const logTarget = ref(null); // { pod, container }
 const detailPod = ref(null); // pod name
 const yamlPod = ref(null); // pod name for YAML view
+const namespaceListRef = ref(null); // NamespaceList, for the Ctrl+E shortcut
 
 // A context (cluster) or namespace switch invalidates any open pod panels:
 // the pod names belong to the previous scope, so close them instead of
@@ -47,8 +56,13 @@ watch(
 // Top-level split: cluster-scoped resources vs namespace-scoped resources.
 // Persisted so the user lands back where they were on reconnect.
 const SECTION_KEY = "qba.section";
+// Persist any of the top-level sections (not just cluster/namespace) so a
+// reload drops the user back on Settings or About too.
+const savedSection = localStorage.getItem(SECTION_KEY);
 const section = ref(
-  localStorage.getItem(SECTION_KEY) === "cluster" ? "cluster" : "namespace",
+  ["cluster", "namespace", "settings", "about"].includes(savedSection)
+    ? savedSection
+    : "namespace",
 );
 
 function selectSection(name) {
@@ -73,8 +87,36 @@ const tabs = [
   "events",
 ];
 
-// Top-level tabs including settings (always visible, cluster-independent).
-const topTabs = ["cluster", "namespace", "settings"];
+// Top-level sections (always visible, cluster-independent).
+const topTabs = ["cluster", "namespace", "settings", "about"];
+
+// Screen shortcuts: Ctrl+1..4 jump straight to a top-level section (Cluster,
+// Namespace, Settings, About). App-level, so they work anywhere — including
+// before a connection is established. Meta is accepted too for macOS.
+const SECTION_SHORTCUTS = { "1": 0, "2": 1, "3": 2, "4": 3 };
+
+function onGlobalKeydown(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  // Ctrl+E: jump into the namespace list — but only when a connection is live
+  // and namespaces are actually listed, otherwise there is nothing to focus.
+  if (e.key === "e" || e.key === "E") {
+    const list = namespaceListRef.value;
+    if (list?.listReady) {
+      e.preventDefault();
+      list.focusList();
+    }
+    return;
+  }
+  const idx = SECTION_SHORTCUTS[e.key];
+  if (idx === undefined) return;
+  const name = topTabs[idx];
+  if (!name) return;
+  e.preventDefault();
+  selectSection(name);
+}
+
+onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
 
 const TAB_KEY = "qba.activeTab";
 const savedTab = localStorage.getItem(TAB_KEY);
@@ -153,8 +195,30 @@ const anyPodPanel = computed(
 
   <div class="app-shell">
     <header class="border-bottom bg-body-tertiary px-3 py-2">
-      <div class="d-flex align-items-center justify-content-between mb-2">
+      <div
+        class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"
+      >
         <h1 class="h5 mb-0">QBI</h1>
+
+        <!-- Primary navigation: the app's top-level screens. A nav landmark
+             (not a radiogroup) because these are distinct views, not options
+             within a group. aria-current marks the active screen. -->
+        <nav aria-label="Primary">
+          <ul class="nav nav-pills">
+            <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
+              <button
+                type="button"
+                class="nav-link text-capitalize"
+                :class="{ active: section === s }"
+                :aria-current="section === s ? 'page' : undefined"
+                :title="`${s[0].toUpperCase()}${s.slice(1)} (Ctrl+${idx + 1})`"
+                @click="selectSection(s)"
+              >
+                {{ s }}
+              </button>
+            </li>
+          </ul>
+        </nav>
       </div>
       <ContextBar />
     </header>
@@ -173,7 +237,7 @@ const anyPodPanel = computed(
       <div class="row g-3 h-100">
         <!-- Sidebar: namespaces -->
         <nav class="col-12 col-md-3 col-lg-2 h-100" aria-label="Namespaces">
-          <NamespaceList />
+          <NamespaceList ref="namespaceListRef" />
         </nav>
 
         <!-- Main content -->
@@ -181,91 +245,50 @@ const anyPodPanel = computed(
           id="main-content"
           class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
         >
-          <template v-if="!state.connected">
-            <div class="alert alert-info" role="status">
+          <!-- ── CLUSTER VIEW ─────────────────────────────────────────────── -->
+          <div v-show="section === 'cluster'">
+            <h2
+              id="section-heading-cluster"
+              class="visually-hidden"
+              tabindex="-1"
+            >
+              Cluster resources
+            </h2>
+            <div
+              v-if="!state.connected"
+              class="alert alert-info"
+              role="status"
+            >
               Select a kubeconfig file with
               <strong>Open kubeconfig file…</strong>, choose a context, then
               select <strong>Connect</strong> to begin.
             </div>
-          </template>
+            <NodesView v-else />
+          </div>
 
-          <template v-else>
-            <!-- Top-level Cluster / Namespace toggle. Uses a radiogroup so
-                 screen readers understand these are mutually exclusive views,
-                 not independent checkboxes. -->
-            <div
-              role="radiogroup"
-              aria-label="View scope"
-              class="btn-group mb-3"
+          <!-- ── SETTINGS ─────────────────────────────────────────────────── -->
+          <div v-show="section === 'settings'">
+            <h2
+              id="section-heading-settings"
+              class="visually-hidden"
+              tabindex="-1"
             >
-              <button
-                type="button"
-                role="radio"
-                :aria-checked="section === 'cluster'"
-                class="btn btn-sm"
-                :class="
-                  section === 'cluster'
-                    ? 'btn-secondary'
-                    : 'btn-outline-secondary'
-                "
-                @click="selectSection('cluster')"
-              >
-                Cluster
-              </button>
-              <button
-                type="button"
-                role="radio"
-                :aria-checked="section === 'namespace'"
-                class="btn btn-sm"
-                :class="
-                  section === 'namespace'
-                    ? 'btn-secondary'
-                    : 'btn-outline-secondary'
-                "
-                @click="selectSection('namespace')"
-              >
-                Namespace
-              </button>
-              <button
-                type="button"
-                role="radio"
-                :aria-checked="section === 'settings'"
-                class="btn btn-sm"
-                :class="
-                  section === 'settings'
-                    ? 'btn-secondary'
-                    : 'btn-outline-secondary'
-                "
-                @click="selectSection('settings')"
-              >
-                Settings
-              </button>
-            </div>
+              Settings
+            </h2>
+            <SettingsView />
+          </div>
 
-            <!-- ── CLUSTER VIEW ───────────────────────────────────────────── -->
-            <div v-show="section === 'cluster'">
-              <h2
-                id="section-heading-cluster"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                Cluster resources
-              </h2>
-              <NodesView />
-            </div>
-
-            <!-- ── SETTINGS ───────────────────────────────────────────────── -->
-            <div v-show="section === 'settings'">
-              <h2
-                id="section-heading-settings"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                Settings
-              </h2>
-              <SettingsView />
-            </div>
-
+          <!-- ── ABOUT ────────────────────────────────────────────────────── -->
+          <div v-show="section === 'about'">
+            <h2
+              id="section-heading-about"
+              class="visually-hidden"
+              tabindex="-1"
+            >
+              About
+            </h2>
+            <AboutView />
+          </div>
             <!-- ── NAMESPACE VIEW ─────────────────────────────────────────── -->
             <div v-show="section === 'namespace'">
               <h2
@@ -275,6 +298,16 @@ const anyPodPanel = computed(
               >
                 Namespace resources
               </h2>
+              <div
+                v-if="!state.connected"
+                class="alert alert-info"
+                role="status"
+              >
+                Select a kubeconfig file with
+                <strong>Open kubeconfig file…</strong>, choose a context, then
+                select <strong>Connect</strong> to begin.
+              </div>
+              <template v-else>
 
               <div
                 v-if="!state.namespace"
@@ -413,8 +446,8 @@ const anyPodPanel = computed(
                   <EventsView />
                 </div>
               </template>
-            </div>
-          </template>
+            </template>
+          </div>
         </main>
       </div>
     </div>

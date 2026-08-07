@@ -107,7 +107,25 @@ watch(
   { immediate: true },
 );
 
-defineExpose({ load });
+// True only when the namespace listbox is actually on screen and focusable:
+// connected, not loading/erroring, and at least one namespace matches the
+// filter. The Ctrl+E shortcut (App.vue) checks this before focusing.
+const listReady = computed(
+  () =>
+    state.connected &&
+    !loading.value &&
+    !error.value &&
+    namespaces.value.length > 0 &&
+    options.value.length > 0,
+);
+
+// Move focus into the namespace listbox (the active option). Callers should
+// check listReady first so this only runs when there is a list to land on.
+function focusList() {
+  listBoxRef.value?.focusActive();
+}
+
+defineExpose({ load, listReady, focusList });
 </script>
 
 <template>
