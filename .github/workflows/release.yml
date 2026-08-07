@@ -15,12 +15,7 @@ name: Release
 #     (QBI does not maintain old versions / backward releases).
 #   - Each platform is built on its native runner (Wails uses CGO and needs
 #     the platform's own toolchain/SDK; Go-only cross-compilation is not
-#     enough). macos-13 is the Intel runner; if GitHub retires it, build
-#     darwin/amd64 on macos-latest instead (macOS cross-arch builds work).
-#
-# To publish a release: bump VERSION, then commit / merge to the "release"
-# branch. A GitHub Release "v<VERSION>" is created automatically.
-
+#     enough). darwin/amd64 runs on the macos-15-intel runner; darwin/arm64 runs on macos-latest.
 on:
   push:
     branches: [release]
@@ -167,7 +162,7 @@ jobs:
             tags: ""
             binary: qbi.exe
           - name: darwin-amd64
-            os: macos-13
+            os: macos-15-intel
             platform: darwin/amd64
             tags: ""
             binary: qbi
@@ -228,19 +223,21 @@ jobs:
             test -f "build/bin/${{ matrix.binary }}"
           fi
 
-      - name: Package assets (zip)
+      # Stage the raw build output only. The zips are created later in the
+      # release job: uploading an already-zipped archive here would make the
+      # artifact download a zip containing another zip, and raw files next to
+      # the zips would end up as release assets as well.
+      - name: Stage build artifacts
         shell: pwsh
         run: |
           $base = "qbi-$env:VERSION-${{ matrix.name }}"
           New-Item -ItemType Directory -Force dist | Out-Null
           if ("${{ matrix.platform }}" -like "darwin/*") {
             Copy-Item -Recurse "build/bin/qbi.app" "dist/$base.app"
-            Compress-Archive -Path "dist/$base.app" -DestinationPath "dist/$base.zip"
           } else {
             $exe = ""
             if ("${{ matrix.binary }}" -eq "qbi.exe") { $exe = ".exe" }
             Copy-Item "build/bin/${{ matrix.binary }}" "dist/$base$exe"
-            Compress-Archive -Path "dist/$base$exe" -DestinationPath "dist/$base.zip"
           }
           Get-ChildItem dist | Select-Object Name, Length
 
@@ -266,13 +263,28 @@ jobs:
           pattern: qbi-*
           merge-multiple: true
 
-      - name: List assets
-        run: ls -la dist
+      - name: Package release archives (zip)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zip
+          cd dist
+          # Create qbi-<version>-<platform>.zip from each staged artifact
+          # (binary, .exe or .app bundle) and remove the raw files so the
+          # release only receives the archives plus checksums.txt.
+          for f in qbi-*; do
+            [ -e "$f" ] || continue
+            case "$f" in
+              *.zip) continue ;;
+              *.app) zip -r -q "${f%.app}.zip" "$f" && rm -rf "$f" ;;
+              *)     zip -r -q "${f%.exe}.zip" "$f" && rm -f "$f" ;;
+            esac
+          done
+          ls -la
 
       - name: Compute checksums for all assets
         run: |
           cd dist
-          sha256sum qbi-* > checksums.txt
+          sha256sum qbi-*.zip > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub release
