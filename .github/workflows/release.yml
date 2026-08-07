@@ -221,17 +221,27 @@ jobs:
 
       - name: Verify binary
         shell: bash
-        run: test -f "build/bin/${{ matrix.binary }}"
+        run: |
+          if [[ "${{ matrix.platform }}" == darwin/* ]]; then
+            test -x "build/bin/qbi.app/Contents/MacOS/qbi"
+          else
+            test -f "build/bin/${{ matrix.binary }}"
+          fi
 
       - name: Package assets (zip)
         shell: pwsh
         run: |
           $base = "qbi-$env:VERSION-${{ matrix.name }}"
-          $exe = ""
-          if ("${{ matrix.binary }}" -eq "qbi.exe") { $exe = ".exe" }
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item "build/bin/${{ matrix.binary }}" "dist/$base$exe"
-          Compress-Archive -Path "dist/$base$exe" -DestinationPath "dist/$base.zip"
+          if ("${{ matrix.platform }}" -like "darwin/*") {
+            Copy-Item -Recurse "build/bin/qbi.app" "dist/$base.app"
+            Compress-Archive -Path "dist/$base.app" -DestinationPath "dist/$base.zip"
+          } else {
+            $exe = ""
+            if ("${{ matrix.binary }}" -eq "qbi.exe") { $exe = ".exe" }
+            Copy-Item "build/bin/${{ matrix.binary }}" "dist/$base$exe"
+            Compress-Archive -Path "dist/$base$exe" -DestinationPath "dist/$base.zip"
+          }
           Get-ChildItem dist | Select-Object Name, Length
 
       - name: Upload build assets
