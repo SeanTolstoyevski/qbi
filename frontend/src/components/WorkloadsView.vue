@@ -1,8 +1,9 @@
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, watch, nextTick, onUnmounted } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
+import { useActionMenu } from "../useActionMenu.js";
 import YamlViewer from "./YamlViewer.vue";
 import LogViewer from "./LogViewer.vue";
 import CronJobCreate from "./CronJobCreate.vue";
@@ -41,72 +42,8 @@ const suspending = ref(""); // cron job name while a suspend/resume is in flight
 const createDeployOpen = ref(false); // Deployment create panel
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
-const menuOpen = ref(""); // key of the currently open action menu
-
-function openMenu(key) {
-  menuOpen.value = key;
-  nextTick(() =>
-    document
-      .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
-      ?.focus(),
-  );
-}
-
-function closeMenu(key, { skipFocus = false } = {}) {
-  menuOpen.value = "";
-  if (!skipFocus) {
-    nextTick(() => document.getElementById(`actions-btn-${key}`)?.focus());
-  }
-}
-
-function focusTriggerAndAct(key, fn) {
-  menuOpen.value = "";
-  const btn = document.getElementById(`actions-btn-${key}`);
-  btn?.focus();
-  nextTick(fn);
-}
-
-function onMenuKeydown(e, key) {
-  const menu = document.querySelector(`[data-menu="${key}"]`);
-  const items = Array.from(
-    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? [],
-  );
-  const idx = items.indexOf(document.activeElement);
-  switch (e.key) {
-    case "Escape":
-      e.preventDefault();
-      closeMenu(key);
-      break;
-    case "ArrowDown":
-      e.preventDefault();
-      items[(idx + 1) % items.length]?.focus();
-      break;
-    case "ArrowUp":
-      e.preventDefault();
-      items[(idx - 1 + items.length) % items.length]?.focus();
-      break;
-    case "Home":
-      e.preventDefault();
-      items[0]?.focus();
-      break;
-    case "End":
-      e.preventDefault();
-      items[items.length - 1]?.focus();
-      break;
-    case "Tab":
-      menuOpen.value = "";
-      break;
-  }
-}
-
-function onDocClick(e) {
-  if (!menuOpen.value) return;
-  const menu = document.querySelector(`[data-menu="${menuOpen.value}"]`);
-  const btn = document.getElementById(`actions-btn-${menuOpen.value}`);
-  if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
-    menuOpen.value = "";
-  }
-}
+const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
+  useActionMenu();
 
 async function load() {
   if (!state.namespace) return;
@@ -395,8 +332,6 @@ useWatch("watch:workloads", {
 });
 
 // Close the open action menu when the user clicks outside it.
-onMounted(() => document.addEventListener("click", onDocClick, true));
-onUnmounted(() => document.removeEventListener("click", onDocClick, true));
 
 defineExpose({ load });
 </script>

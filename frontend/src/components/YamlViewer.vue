@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import { copyToClipboard } from "../clipboard.js";
 
 const props = defineProps({
   namespace: { type: String, default: "" }, // empty for cluster-scoped
@@ -42,14 +43,6 @@ async function load() {
   }
 }
 
-async function copy() {
-  try {
-    await navigator.clipboard.writeText(yaml.value);
-    announce("YAML copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 load();
 </script>
@@ -69,7 +62,7 @@ load();
           type="button"
           class="btn btn-sm btn-outline-secondary"
           :disabled="loading || !yaml"
-          @click="copy"
+          @click="copyToClipboard(yaml.value, 'YAML')"
         >
           Copy
         </button>

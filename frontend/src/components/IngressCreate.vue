@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import { copyToClipboard } from "../clipboard.js";
+import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
 
 /*
  * Create/edit-ingress panel (Networking view). One component, two modes:
@@ -193,20 +195,7 @@ function addTls() {
 function removeTls(i) {
   form.value.tls.splice(i, 1);
 }
-function addRow(rows) {
-  rows.push({ key: "", value: "" });
-}
-function removeRow(rows, i) {
-  rows.splice(i, 1);
-}
 
-function rowsToMap(rows) {
-  const out = {};
-  for (const r of rows) {
-    if (r.key.trim()) out[r.key.trim()] = r.value;
-  }
-  return out;
-}
 
 // ── spec helpers ────────────────────────────────────────────────────────────
 function buildPayload() {
@@ -405,14 +394,6 @@ async function togglePreview() {
   }
 }
 
-async function copyPreview() {
-  try {
-    await navigator.clipboard.writeText(preview.value);
-    announce("YAML copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 async function submit() {
   error.value = "";
@@ -954,7 +935,7 @@ async function submit() {
             <button
               type="button"
               class="btn btn-sm btn-outline-secondary"
-              @click="copyPreview"
+              @click="copyToClipboard(preview.value, 'YAML')"
             >
               Copy
             </button>

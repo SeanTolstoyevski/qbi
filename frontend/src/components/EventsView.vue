@@ -2,6 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
+import { copyToClipboard } from "../clipboard.js";
 
 const { state, announce } = useStore();
 
@@ -44,14 +45,6 @@ const shown = computed(() => {
   });
 });
 
-async function copyText(text, label) {
-  try {
-    await navigator.clipboard.writeText(text);
-    announce(`${label} copied to clipboard.`);
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 watch(() => state.namespace, load, { immediate: true });
 
@@ -168,7 +161,7 @@ defineExpose({ load });
               <button
                 type="button"
                 class="btn btn-link btn-sm p-0 ms-1 align-baseline"
-                @click="copyText(e.message, 'Event message')"
+                @click="copyToClipboard(e.message, 'Event message')"
               >
                 Copy<span class="visually-hidden"> event message</span>
               </button>

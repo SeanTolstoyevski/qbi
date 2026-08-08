@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
+import { copyToClipboard } from "../clipboard.js";
 import ListBox from "./ListBox.vue";
 
 const { state, announce } = useStore();
@@ -61,14 +62,6 @@ async function open(name) {
   }
 }
 
-async function copyValue(value) {
-  try {
-    await navigator.clipboard.writeText(value);
-    announce("Value copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 watch(() => state.namespace, load, { immediate: true });
 
@@ -156,7 +149,7 @@ defineExpose({ load });
                   v-if="!entry.isBinary"
                   type="button"
                   class="btn btn-sm btn-outline-secondary"
-                  @click="copyValue(entry.value)"
+                  @click="copyToClipboard(entry.value, 'Value')"
                 >
                   Copy
                 </button>

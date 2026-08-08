@@ -1,8 +1,10 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
+import { useActionMenu } from "../useActionMenu.js";
+import { copyToClipboard } from "../clipboard.js";
 
 const { state, announce } = useStore();
 
@@ -18,72 +20,8 @@ const deleting = ref(""); // pod name currently being deleted
 const openingShell = ref(""); // pod name while terminal is launching
 const menuOpen = ref(""); // pod name whose action menu is open
 
-// ── menu helpers ───────────────────────────────────────────────────────────
-
-function openMenu(pod) {
-  menuOpen.value = pod.name;
-  nextTick(() =>
-    document
-      .querySelector(
-        `[data-menu="${pod.name}"] [role="menuitem"]:not(:disabled)`,
-      )
-      ?.focus(),
-  );
-}
-
-// closeMenu returns focus to the trigger button unless skipFocus is true
-// (used when the item's own action manages focus, e.g. a chooser row opens).
-function closeMenu(podName, { skipFocus = false } = {}) {
-  menuOpen.value = "";
-  if (!skipFocus) {
-    nextTick(() => document.getElementById(`actions-btn-${podName}`)?.focus());
-  }
-}
-
-// focusTriggerAndAct focuses the Actions button for a pod synchronously, then
-// executes the given action. This is critical for panels (YAML, Details, Logs)
-// that use useReturnFocus: it captures document.activeElement in onMounted, so
-// the trigger must already be focused before Vue mounts the panel.
-function focusTriggerAndAct(podName, fn) {
-  menuOpen.value = ""; // close menu without nextTick focus
-  const btn = document.getElementById(`actions-btn-${podName}`);
-  btn?.focus();
-  nextTick(fn);
-}
-
-function onMenuKeydown(e, pod) {
-  const menu = document.querySelector(`[data-menu="${pod.name}"]`);
-  const items = Array.from(
-    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? [],
-  );
-  const idx = items.indexOf(document.activeElement);
-  switch (e.key) {
-    case "Escape":
-      e.preventDefault();
-      closeMenu(pod.name);
-      break;
-    case "ArrowDown":
-      e.preventDefault();
-      items[(idx + 1) % items.length]?.focus();
-      break;
-    case "ArrowUp":
-      e.preventDefault();
-      items[(idx - 1 + items.length) % items.length]?.focus();
-      break;
-    case "Home":
-      e.preventDefault();
-      items[0]?.focus();
-      break;
-    case "End":
-      e.preventDefault();
-      items[items.length - 1]?.focus();
-      break;
-    case "Tab":
-      // Tab with no focus return — natural tab order takes over.
-      menuOpen.value = "";
-      break;
-  }
-}
+const { openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
+  useActionMenu(menuOpen);
 
 async function load() {
   if (!state.namespace) return;
@@ -118,14 +56,6 @@ const filtered = computed(() => {
   );
 });
 
-async function copyPodName(pod) {
-  try {
-    await navigator.clipboard.writeText(pod.name);
-    announce(`Pod ${pod.name} copied to clipboard.`);
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 // Opening logs: with a single container, stream it straight away; with several,
 // reveal an inline chooser and move focus to the first container button.
@@ -198,18 +128,6 @@ async function deletePod(pod) {
 
 watch(() => state.namespace, load, { immediate: true });
 
-// Close the open menu when the user clicks outside it.
-function onDocClick(e) {
-  if (!menuOpen.value) return;
-  const menu = document.querySelector(`[data-menu="${menuOpen.value}"]`);
-  const btn = document.getElementById(`actions-btn-${menuOpen.value}`);
-  if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
-    menuOpen.value = "";
-  }
-}
-
-onMounted(() => document.addEventListener("click", onDocClick, true));
-onUnmounted(() => document.removeEventListener("click", onDocClick, true));
 
 // Coalesce pod watch events into one reload + one announcement.
 useWatch("watch:pods", {
@@ -284,7 +202,7 @@ defineExpose({ load });
                   <button
                     type="button"
                     class="btn btn-link btn-sm p-0"
-                    @click="copyPodName(pod)"
+                    @click="copyToClipboard(pod.name, `Pod ${pod.name}`)"
                   >
                     Copy<span class="visually-hidden">
                       pod name {{ pod.name }}</span
@@ -319,7 +237,7 @@ defineExpose({ load });
                     @click.stop="
                       menuOpen === pod.name
                         ? closeMenu(pod.name)
-                        : openMenu(pod)
+                        : openMenu(pod.name)
                     "
                   >
                     Actions
@@ -333,7 +251,7 @@ defineExpose({ load });
                     :aria-label="`Actions for pod ${pod.name}`"
                     class="dropdown-menu show"
                     :data-menu="pod.name"
-                    @keydown="onMenuKeydown($event, pod)"
+                    @keydown="onMenuKeydown($event, pod.name)"
                   >
                     <li role="presentation">
                       <button

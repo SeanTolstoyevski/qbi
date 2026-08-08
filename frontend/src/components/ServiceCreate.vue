@@ -3,6 +3,8 @@ import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
+import { copyToClipboard } from "../clipboard.js";
 
 /*
  * Create-service panel (Networking view). A Service is a sibling of the
@@ -48,13 +50,7 @@ const showNodePort = computed(
   () => form.value.type === "NodePort" || form.value.type === "LoadBalancer",
 );
 
-// ── row helpers ─────────────────────────────────────────────────────────────
-function addRow(rows) {
-  rows.push({ key: "", value: "" });
-}
-function removeRow(rows, i) {
-  rows.splice(i, 1);
-}
+
 function addPort() {
   form.value.ports.push({
     name: "",
@@ -75,13 +71,6 @@ function removeExternalIP(i) {
 }
 
 // ── spec helpers ────────────────────────────────────────────────────────────
-function rowsToMap(rows) {
-  const out = {};
-  for (const r of rows) {
-    if (r.key.trim()) out[r.key.trim()] = r.value;
-  }
-  return out;
-}
 
 function buildPayload() {
   const f = form.value;
@@ -161,14 +150,6 @@ async function togglePreview() {
   }
 }
 
-async function copyPreview() {
-  try {
-    await navigator.clipboard.writeText(preview.value);
-    announce("YAML copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 async function submit() {
   error.value = "";
@@ -484,7 +465,7 @@ async function submit() {
           <button
             type="button"
             class="btn btn-sm btn-outline-secondary"
-            @click="copyPreview"
+            @click="copyToClipboard(preview.value, 'YAML')"
           >
             Copy
           </button>

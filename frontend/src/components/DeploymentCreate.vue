@@ -3,6 +3,8 @@ import { ref } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import { copyToClipboard } from "../clipboard.js";
+import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
 
 /*
  * Create-deployment panel. It is a helper that drafts a real Deployment
@@ -47,25 +49,12 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-function addRow(rows) {
-  rows.push({ key: "", value: "" });
-}
-function removeRow(rows, i) {
-  rows.splice(i, 1);
-}
 
 // ── spec helpers ────────────────────────────────────────────────────────────
 function split(s) {
   return s.trim() ? s.trim().split(/\s+/) : [];
 }
 
-function rowsToMap(rows) {
-  const out = {};
-  for (const r of rows) {
-    if (r.key.trim()) out[r.key.trim()] = r.value;
-  }
-  return out;
-}
 
 function buildPayload() {
   const f = form.value;
@@ -148,14 +137,6 @@ async function togglePreview() {
   }
 }
 
-async function copyPreview() {
-  try {
-    await navigator.clipboard.writeText(preview.value);
-    announce("YAML copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 async function submit() {
   error.value = "";
@@ -580,7 +561,7 @@ async function submit() {
           <button
             type="button"
             class="btn btn-sm btn-outline-secondary"
-            @click="copyPreview"
+            @click="copyToClipboard(preview.value, 'YAML')"
           >
             Copy
           </button>

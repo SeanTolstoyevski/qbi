@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
+import { copyToClipboard } from "../clipboard.js";
 import YamlViewer from "./YamlViewer.vue";
 
 const { state, announce } = useStore();
@@ -62,14 +63,6 @@ const filteredNodes = computed(() => {
   );
 });
 
-async function copyNodeName(n) {
-  try {
-    await navigator.clipboard.writeText(n.name);
-    announce(`Node ${n.name} copied to clipboard.`);
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 watch(() => state.connected, load, { immediate: true });
 
@@ -177,7 +170,7 @@ defineExpose({ load });
                   <button
                     type="button"
                     class="btn btn-link btn-sm p-0"
-                    @click="copyNodeName(n)"
+                    @click="copyToClipboard(n.name, `Node ${n.name}`)"
                   >
                     Copy<span class="visually-hidden">
                       node name {{ n.name }}</span

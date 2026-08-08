@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
+import { copyToClipboard } from "../clipboard.js";
 import {
   newRow,
   seedRows,
@@ -77,14 +78,6 @@ function toggleRevealAll() {
   announce(allRevealed.value ? "All values hidden." : "All values revealed.");
 }
 
-async function copyValue(value) {
-  try {
-    await navigator.clipboard.writeText(value);
-    announce("Value copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 // ── edit mode ──────────────────────────────────────────────────────────────
 const draft = ref([]);
@@ -233,14 +226,6 @@ async function applyYaml() {
   }
 }
 
-async function copyYaml() {
-  try {
-    await navigator.clipboard.writeText(yamlText.value);
-    announce("YAML copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 // ── shared ─────────────────────────────────────────────────────────────────
 async function loadDetail(silent) {
@@ -479,7 +464,7 @@ function onKeydown(e) {
                     v-if="isRevealable(entry)"
                     type="button"
                     class="btn btn-outline-secondary"
-                    @click="copyValue(displayValue(entry))"
+                    @click="copyToClipboard(displayValue(entry), 'Value')"
                   >
                     Copy
                   </button>
@@ -624,7 +609,7 @@ function onKeydown(e) {
             type="button"
             class="btn btn-sm btn-outline-secondary"
             :disabled="yamlSaving || yamlLoading"
-            @click="copyYaml"
+            @click="copyToClipboard(yamlText.value, 'YAML')"
           >
             Copy YAML
           </button>

@@ -3,6 +3,7 @@ import { ref, computed, watch, onBeforeUnmount, nextTick } from "vue";
 import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import { copyToClipboard } from "../clipboard.js";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -194,15 +195,10 @@ async function copyFocused() {
   const len = visibleLines.value.length;
   const row = activeRow.value;
   if (row < 0 || row >= len) {
-    await copyAll(); // nothing focused yet: fall back to copying everything
+    await copyAll();
     return;
   }
-  try {
-    await navigator.clipboard.writeText(visibleLines.value[row].text);
-    announce(`Copied line ${row + 1} of ${len}.`);
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
+  await copyToClipboard(visibleLines.value[row].text, `Line ${row + 1} of ${len}`);
 }
 
 function onLogKeydown(e) {
@@ -384,12 +380,7 @@ async function download() {
 }
 
 async function copyAll() {
-  try {
-    await navigator.clipboard.writeText(exportContent());
-    announce("Logs copied to clipboard.");
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
+  await copyToClipboard(exportContent(), "Logs");
 }
 
 // Restart when the target changes, or when stream-level options change.

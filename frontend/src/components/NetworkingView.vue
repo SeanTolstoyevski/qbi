@@ -1,8 +1,10 @@
 <script setup>
-import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, watch } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
+import { useActionMenu } from "../useActionMenu.js";
+import { copyToClipboard } from "../clipboard.js";
 import ServiceCreate from "./ServiceCreate.vue";
 import IngressDetail from "./IngressDetail.vue";
 import IngressCreate from "./IngressCreate.vue";
@@ -22,72 +24,8 @@ const detailRef = ref(null); // IngressDetail component instance (for reload)
 const deletingIng = ref(""); // ingress name while a deletion is in flight
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
-const menuOpen = ref(""); // key of the currently open action menu
-
-function openMenu(key) {
-  menuOpen.value = key;
-  nextTick(() =>
-    document
-      .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
-      ?.focus(),
-  );
-}
-
-function closeMenu(key, { skipFocus = false } = {}) {
-  menuOpen.value = "";
-  if (!skipFocus) {
-    nextTick(() => document.getElementById(`actions-btn-${key}`)?.focus());
-  }
-}
-
-function focusTriggerAndAct(key, fn) {
-  menuOpen.value = "";
-  const btn = document.getElementById(`actions-btn-${key}`);
-  btn?.focus();
-  nextTick(fn);
-}
-
-function onMenuKeydown(e, key) {
-  const menu = document.querySelector(`[data-menu="${key}"]`);
-  const items = Array.from(
-    menu?.querySelectorAll('[role="menuitem"]:not([disabled])') ?? [],
-  );
-  const idx = items.indexOf(document.activeElement);
-  switch (e.key) {
-    case "Escape":
-      e.preventDefault();
-      closeMenu(key);
-      break;
-    case "ArrowDown":
-      e.preventDefault();
-      items[(idx + 1) % items.length]?.focus();
-      break;
-    case "ArrowUp":
-      e.preventDefault();
-      items[(idx - 1 + items.length) % items.length]?.focus();
-      break;
-    case "Home":
-      e.preventDefault();
-      items[0]?.focus();
-      break;
-    case "End":
-      e.preventDefault();
-      items[items.length - 1]?.focus();
-      break;
-    case "Tab":
-      menuOpen.value = "";
-      break;
-  }
-}
-
-function onDocClick(e) {
-  if (!menuOpen.value) return;
-  const menu = document.querySelector(`[data-menu="${menuOpen.value}"]`);
-  const btn = document.getElementById(`actions-btn-${menuOpen.value}`);
-  if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
-    menuOpen.value = "";
-  }
-}
+const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
+  useActionMenu();
 
 // The create/edit panels are separate focus-managed screens (like the pod
 // panels); only one side panel is open at a time. Every panel receives its
@@ -248,14 +186,6 @@ async function load() {
   }
 }
 
-async function copy(text, label) {
-  try {
-    await navigator.clipboard.writeText(text);
-    announce(`${label} copied to clipboard.`);
-  } catch {
-    announce("Copy failed.", "assertive");
-  }
-}
 
 function portSummary(p) {
   const np = p.nodePort ? ` (nodePort ${p.nodePort})` : "";
@@ -291,8 +221,6 @@ useWatch("watch:ingresses", {
 });
 
 // Close the open action menu when the user clicks outside it.
-onMounted(() => document.addEventListener("click", onDocClick, true));
-onUnmounted(() => document.removeEventListener("click", onDocClick, true));
 
 defineExpose({ load });
 </script>
@@ -397,7 +325,7 @@ defineExpose({ load });
                   <button
                     type="button"
                     class="btn btn-link btn-sm p-0 ms-2 align-baseline"
-                    @click="copy(svc.dnsName, 'DNS name')"
+                    @click="copyToClipboard(svc.dnsName, 'DNS name')"
                   >
                     Copy
                   </button>
