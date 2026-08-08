@@ -312,7 +312,12 @@ function canScale(w) {
   return w.kind === "Deployment" || w.kind === "StatefulSet";
 }
 
-watch(() => state.namespace, load, { immediate: true });
+// Reload on namespace changes and on every (re)connect: reconnecting to the
+// same context leaves the namespace unchanged, so the epoch is what forces
+// the fresh load. load() itself guards on state.namespace.
+watch(() => [state.namespace, state.connectionEpoch], load, {
+  immediate: true,
+});
 
 // Workload watch events carry the concrete kind (Deployment/StatefulSet/
 // DaemonSet), so summarize per kind within the batch.

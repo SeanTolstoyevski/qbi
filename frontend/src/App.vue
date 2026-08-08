@@ -1,12 +1,5 @@
 <script setup>
-import {
-  ref,
-  computed,
-  nextTick,
-  watch,
-  onMounted,
-  onUnmounted,
-} from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useStore } from "./store.js";
 import { api } from "./api.js";
 import ContextBar from "./components/ContextBar.vue";
@@ -26,12 +19,10 @@ import AboutView from "./components/AboutView.vue";
 
 const { state } = useStore();
 
-// Notify the backend whenever the active namespace changes so it can
-// (re)start the appropriate Kubernetes watch streams.
 watch(
-  () => state.namespace,
-  (ns) => {
-    if (ns) api.setWatchNamespace(ns);
+  () => [state.namespace, state.connectionEpoch],
+  () => {
+    if (state.namespace) api.setWatchNamespace(state.namespace);
   },
 );
 
@@ -43,9 +34,13 @@ const namespaceListRef = ref(null); // NamespaceList, for the Ctrl+E shortcut
 // A context (cluster) or namespace switch invalidates any open pod panels:
 // the pod names belong to the previous scope, so close them instead of
 // showing stale data or erroring on a pod that doesn't exist in the new
-// namespace.
+// namespace. The getter returns a string (not an array — a fresh array
+// instance always differs, so the watcher would fire on every reconnect too)
+// so it fires only on a real scope change. Reconnecting to the same context
+// keeps the same key: the panels stay open and the connection epoch in their
+// :key remounts them with fresh data.
 watch(
-  () => [state.context?.name, state.namespace],
+  () => JSON.stringify([state.context?.name, state.namespace]),
   () => {
     logTarget.value = null;
     detailPod.value = null;
@@ -93,7 +88,7 @@ const topTabs = ["cluster", "namespace", "settings", "about"];
 // Screen shortcuts: Ctrl+1..4 jump straight to a top-level section (Cluster,
 // Namespace, Settings, About). App-level, so they work anywhere — including
 // before a connection is established. Meta is accepted too for macOS.
-const SECTION_SHORTCUTS = { "1": 0, "2": 1, "3": 2, "4": 3 };
+const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3 };
 
 function onGlobalKeydown(e) {
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -254,11 +249,7 @@ const anyPodPanel = computed(
             >
               Cluster resources
             </h2>
-            <div
-              v-if="!state.connected"
-              class="alert alert-info"
-              role="status"
-            >
+            <div v-if="!state.connected" class="alert alert-info" role="status">
               Select a kubeconfig file with
               <strong>Open kubeconfig file…</strong>, choose a context, then
               select <strong>Connect</strong> to begin.
@@ -289,26 +280,21 @@ const anyPodPanel = computed(
             </h2>
             <AboutView />
           </div>
-            <!-- ── NAMESPACE VIEW ─────────────────────────────────────────── -->
-            <div v-show="section === 'namespace'">
-              <h2
-                id="section-heading-namespace"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                Namespace resources
-              </h2>
-              <div
-                v-if="!state.connected"
-                class="alert alert-info"
-                role="status"
-              >
-                Select a kubeconfig file with
-                <strong>Open kubeconfig file…</strong>, choose a context, then
-                select <strong>Connect</strong> to begin.
-              </div>
-              <template v-else>
-
+          <!-- ── NAMESPACE VIEW ─────────────────────────────────────────── -->
+          <div v-show="section === 'namespace'">
+            <h2
+              id="section-heading-namespace"
+              class="visually-hidden"
+              tabindex="-1"
+            >
+              Namespace resources
+            </h2>
+            <div v-if="!state.connected" class="alert alert-info" role="status">
+              Select a kubeconfig file with
+              <strong>Open kubeconfig file…</strong>, choose a context, then
+              select <strong>Connect</strong> to begin.
+            </div>
+            <template v-else>
               <div
                 v-if="!state.namespace"
                 class="alert alert-secondary"
@@ -366,7 +352,7 @@ const anyPodPanel = computed(
                       style="min-height: 24rem"
                     >
                       <PodDetail
-                        :key="detailPod"
+                        :key="`${detailPod}:${state.connectionEpoch}`"
                         :namespace="state.namespace"
                         :pod="detailPod"
                         @close="closeDetails"
@@ -378,7 +364,7 @@ const anyPodPanel = computed(
                       style="min-height: 24rem"
                     >
                       <LogViewer
-                        :key="logKey"
+                        :key="`${logKey}:${state.connectionEpoch}`"
                         :namespace="state.namespace"
                         :pod="logTarget.pod"
                         :container="logTarget.container"
@@ -391,7 +377,7 @@ const anyPodPanel = computed(
                       style="min-height: 24rem"
                     >
                       <YamlViewer
-                        :key="yamlPod"
+                        :key="`${yamlPod}:${state.connectionEpoch}`"
                         :namespace="state.namespace"
                         kind="Pod"
                         :name="yamlPod"

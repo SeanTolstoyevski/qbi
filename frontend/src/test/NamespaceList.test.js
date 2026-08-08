@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import NamespaceList from "../components/NamespaceList.vue";
@@ -69,6 +68,21 @@ describe("NamespaceList - readiness and focus", () => {
     expect(w.find('[role="listbox"] [tabindex="0"]').element).toBe(
       document.activeElement,
     );
+    w.unmount();
+  });
+
+
+  it("reloads namespaces when reconnecting to the same context", async () => {
+    api.listNamespaces.mockResolvedValue(NS);
+    setConnection({ name: "test-ctx", namespace: "default" });
+    const w = await mountList();
+    expect(api.listNamespaces).toHaveBeenCalledTimes(1);
+
+    // Successful retry after a failed attempt: same context, same namespace.
+    setConnection({ name: "test-ctx", namespace: "default" });
+    await flushPromises();
+
+    expect(api.listNamespaces).toHaveBeenCalledTimes(2);
     w.unmount();
   });
 });

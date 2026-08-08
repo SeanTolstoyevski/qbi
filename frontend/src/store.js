@@ -37,6 +37,10 @@ const state = reactive({
   connected: false,
   context: null, // ContextInfo
   namespace: null, // string
+  // Monotonic counter bumped on every successful connect. Cluster-data
+  // components watch it so a reconnect to the same context still triggers a
+  // full reload, even though connected/context/namespace values don't change.
+  connectionEpoch: 0,
   // The most recent status message, mirrored into an aria-live region so
   // screen readers announce loading/errors without stealing focus.
   status: "",
@@ -47,7 +51,6 @@ const state = reactive({
 // announce mirrors a message to the shared aria-live region.
 // Use assertive only for errors that must interrupt.
 function announce(message, kind = "polite") {
-  // Reset first so identical consecutive messages are still re-announced.
   state.status = "";
   requestAnimationFrame(() => {
     state.statusKind = kind;
@@ -58,8 +61,9 @@ function announce(message, kind = "polite") {
 function setConnection(context) {
   state.connected = true;
   state.context = context;
-  // Prefer the namespace the user last worked in for this context; fall back to
-  // the context's default namespace from the kubeconfig.
+  // Every successful connect (including reconnects to the same context) bumps
+  // the epoch so cluster-data components reload instead of keeping stale data.
+  state.connectionEpoch += 1;
   state.namespace =
     recallNamespace(context?.name) || context?.namespace || null;
 }

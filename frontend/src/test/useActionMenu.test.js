@@ -6,9 +6,20 @@ import { useActionMenu } from "../useActionMenu.js";
 function makeComponent() {
   return defineComponent({
     setup() {
-      const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
-        useActionMenu();
-      return { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown };
+      const {
+        menuOpen,
+        openMenu,
+        closeMenu,
+        focusTriggerAndAct,
+        onMenuKeydown,
+      } = useActionMenu();
+      return {
+        menuOpen,
+        openMenu,
+        closeMenu,
+        focusTriggerAndAct,
+        onMenuKeydown,
+      };
     },
     template: `
       <div>

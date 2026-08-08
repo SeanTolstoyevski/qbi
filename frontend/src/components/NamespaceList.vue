@@ -100,16 +100,13 @@ async function removeFromMenu() {
 }
 
 watch(
-  () => state.connected && state.context?.name,
-  (val) => {
-    if (val) load();
+  () => [state.connected, state.context?.name, state.connectionEpoch],
+  ([connected, ctxName]) => {
+    if (connected && ctxName) load();
   },
   { immediate: true },
 );
 
-// True only when the namespace listbox is actually on screen and focusable:
-// connected, not loading/erroring, and at least one namespace matches the
-// filter. The Ctrl+E shortcut (App.vue) checks this before focusing.
 const listReady = computed(
   () =>
     state.connected &&

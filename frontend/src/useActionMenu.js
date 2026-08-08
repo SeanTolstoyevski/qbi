@@ -29,14 +29,11 @@ import { ref, onMounted, onUnmounted, nextTick } from "vue";
 export function useActionMenu(externalRef) {
   const menuOpen = externalRef || ref(""); // key of the currently open action menu
 
-
   function openMenu(key) {
     menuOpen.value = key;
     nextTick(() =>
       document
-        .querySelector(
-          `[data-menu="${key}"] [role="menuitem"]:not(:disabled)`,
-        )
+        .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
         ?.focus(),
     );
   }
@@ -49,9 +46,7 @@ export function useActionMenu(externalRef) {
   function closeMenu(key, { skipFocus = false } = {}) {
     menuOpen.value = "";
     if (!skipFocus) {
-      nextTick(() =>
-        document.getElementById(`actions-btn-${key}`)?.focus(),
-      );
+      nextTick(() => document.getElementById(`actions-btn-${key}`)?.focus());
     }
   }
 

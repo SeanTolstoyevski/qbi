@@ -49,12 +49,10 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-
 // ── spec helpers ────────────────────────────────────────────────────────────
 function split(s) {
   return s.trim() ? s.trim().split(/\s+/) : [];
 }
-
 
 function buildPayload() {
   const f = form.value;
@@ -136,7 +134,6 @@ async function togglePreview() {
     error.value = String(e);
   }
 }
-
 
 async function submit() {
   error.value = "";

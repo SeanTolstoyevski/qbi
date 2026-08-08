@@ -45,13 +45,19 @@ describe("removeRow", () => {
   });
 
   it("removes the first row", () => {
-    const rows = [{ key: "a", value: "1" }, { key: "b", value: "2" }];
+    const rows = [
+      { key: "a", value: "1" },
+      { key: "b", value: "2" },
+    ];
     removeRow(rows, 0);
     expect(rows).toEqual([{ key: "b", value: "2" }]);
   });
 
   it("removes the last row", () => {
-    const rows = [{ key: "a", value: "1" }, { key: "b", value: "2" }];
+    const rows = [
+      { key: "a", value: "1" },
+      { key: "b", value: "2" },
+    ];
     removeRow(rows, 1);
     expect(rows).toEqual([{ key: "a", value: "1" }]);
   });

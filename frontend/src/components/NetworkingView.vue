@@ -186,7 +186,6 @@ async function load() {
   }
 }
 
-
 function portSummary(p) {
   const np = p.nodePort ? ` (nodePort ${p.nodePort})` : "";
   const name = p.name ? `${p.name}: ` : "";
@@ -202,7 +201,19 @@ function selectorSummary(svc) {
     .join(", ");
 }
 
-watch(() => state.namespace, load, { immediate: true });
+// Reload on namespace changes and on every (re)connect: reconnecting to the
+// same context leaves the namespace unchanged, so the epoch is what forces
+// the fresh load. load() itself guards on state.namespace. An open inspected
+// ingress refreshes in place too (same mechanism as a watch event), so the
+// detail panel never shows data from the dead connection.
+watch(
+  () => [state.namespace, state.connectionEpoch],
+  async () => {
+    await load();
+    detailRef.value?.load?.();
+  },
+  { immediate: true },
+);
 
 useWatch("watch:services", {
   reload: load,

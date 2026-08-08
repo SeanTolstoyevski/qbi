@@ -50,7 +50,6 @@ const showNodePort = computed(
   () => form.value.type === "NodePort" || form.value.type === "LoadBalancer",
 );
 
-
 function addPort() {
   form.value.ports.push({
     name: "",
@@ -149,7 +148,6 @@ async function togglePreview() {
     error.value = String(e);
   }
 }
-
 
 async function submit() {
   error.value = "";

@@ -78,7 +78,6 @@ function toggleRevealAll() {
   announce(allRevealed.value ? "All values hidden." : "All values revealed.");
 }
 
-
 // ── edit mode ──────────────────────────────────────────────────────────────
 const draft = ref([]);
 const saving = ref(false);
@@ -225,7 +224,6 @@ async function applyYaml() {
     yamlSaving.value = false;
   }
 }
-
 
 // ── shared ─────────────────────────────────────────────────────────────────
 async function loadDetail(silent) {

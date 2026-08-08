@@ -198,7 +198,10 @@ async function copyFocused() {
     await copyAll();
     return;
   }
-  await copyToClipboard(visibleLines.value[row].text, `Line ${row + 1} of ${len}`);
+  await copyToClipboard(
+    visibleLines.value[row].text,
+    `Line ${row + 1} of ${len}`,
+  );
 }
 
 function onLogKeydown(e) {

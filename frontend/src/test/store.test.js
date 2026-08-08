@@ -75,6 +75,19 @@ describe("store — setConnection()", () => {
     setConnection({ name: "dev", namespace: "my-ns" });
     expect(state.namespace).toBe("my-ns");
   });
+
+  it("bumps the connection epoch on every successful connect", async () => {
+    const { state, setConnection } = await freshStore();
+    expect(state.connectionEpoch).toBe(0);
+
+    setConnection({ name: "prod", namespace: "default" });
+    expect(state.connectionEpoch).toBe(1);
+
+    // Reconnect to the SAME context with identical values must still bump:
+    // components watch the epoch so this is what forces them to reload.
+    setConnection({ name: "prod", namespace: "default" });
+    expect(state.connectionEpoch).toBe(2);
+  });
 });
 
 describe("store — setNamespace()", () => {

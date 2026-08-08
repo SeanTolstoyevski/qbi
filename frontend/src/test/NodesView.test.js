@@ -157,3 +157,16 @@ describe("NodesView — copy", () => {
     w.unmount();
   });
 });
+
+describe("NodesView — reload after reconnect", () => {
+  it("reloads nodes when reconnecting to the same context", async () => {
+    const w = await mountNodes();
+    expect(api.listNodes).toHaveBeenCalledTimes(1);
+
+    setConnection({ name: "test-ctx", namespace: "default" });
+    await flushPromises();
+
+    expect(api.listNodes).toHaveBeenCalledTimes(2);
+    w.unmount();
+  });
+});

@@ -63,8 +63,12 @@ const filteredNodes = computed(() => {
   );
 });
 
-
-watch(() => state.connected, load, { immediate: true });
+// Reload on connect and on every reconnect: reconnecting to the same context
+// leaves `state.connected` unchanged, so the epoch is what triggers the fresh
+// load. load() itself guards on state.connected.
+watch(() => [state.connected, state.connectionEpoch], load, {
+  immediate: true,
+});
 
 useWatch("watch:nodes", {
   reload: load,

@@ -108,7 +108,11 @@ async function submit() {
           v-model="form.concurrencyPolicy"
           class="form-select form-select-sm"
         >
-          <option v-for="p in CONCURRENCY_POLICIES" :key="p.value" :value="p.value">
+          <option
+            v-for="p in CONCURRENCY_POLICIES"
+            :key="p.value"
+            :value="p.value"
+          >
             {{ p.label }}
           </option>
         </select>

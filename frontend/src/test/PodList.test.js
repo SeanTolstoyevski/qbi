@@ -307,3 +307,19 @@ describe("PodList — namespace switch", () => {
     w.unmount();
   });
 });
+
+describe("PodList — reload after reconnect", () => {
+  it("reloads pods when reconnecting to the same context", async () => {
+    api.listPods.mockClear();
+    const w = await mountPodList();
+    expect(api.listPods).toHaveBeenCalledTimes(1);
+
+    // Successful retry after a failed attempt: same context, same namespace.
+    setConnection({ name: "test-ctx", namespace: "default" });
+    await nextTick();
+    await nextTick();
+
+    expect(api.listPods).toHaveBeenCalledTimes(2);
+    w.unmount();
+  });
+});

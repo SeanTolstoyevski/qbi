@@ -347,9 +347,7 @@ defineExpose({ load });
                       v-else-if="detail.ingress.defaultBackend.status === 'ok'"
                       class="text-success"
                     >
-                      ok ({{
-                        detail.ingress.defaultBackend.readyEndpoints
-                      }}
+                      ok ({{ detail.ingress.defaultBackend.readyEndpoints }}
                       ready)
                     </span>
                     <span v-else class="text-body-secondary">not checked</span>

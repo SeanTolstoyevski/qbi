@@ -77,14 +77,14 @@ async function load() {
   }
 }
 
-// A namespace switch invalidates every selection: names belong to the old
-// namespace, and the detail/create panels would query the wrong scope.
 watch(
-  () => state.namespace,
-  async (ns) => {
-    detailName.value = null;
-    creating.value = false;
-    selected.value = null;
+  () => [state.namespace, state.connectionEpoch],
+  async ([ns], prev) => {
+    if (ns !== prev?.[0]) {
+      detailName.value = null;
+      creating.value = false;
+      selected.value = null;
+    }
     if (ns) await load();
   },
   { immediate: true },
@@ -264,7 +264,7 @@ defineExpose({ load });
         />
         <SecretDetail
           v-else-if="detailName"
-          :key="detailName"
+          :key="`${detailName}:${state.connectionEpoch}`"
           :namespace="state.namespace"
           :name="detailName"
           :mode="mode"

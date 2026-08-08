@@ -260,4 +260,21 @@ describe("SecretList — namespace scoping", () => {
     expect(w.findComponent(PanelStub).exists()).toBe(false);
     w.unmount();
   });
+
+  // Regression: reconnecting to the SAME context (after a failed attempt) must
+  // reload the list without discarding the user's open panel — the epoch key
+  // remounts it with fresh data instead.
+  it("keeps the detail panel open when reconnecting to the same context", async () => {
+    const w = await mountList();
+    await selectSecret(w, "api-token");
+    expect(api.listSecrets).toHaveBeenCalledTimes(1);
+
+    // Successful retry after a failed attempt: same context, same namespace.
+    setConnection({ name: "test-ctx", namespace: "default" });
+    await flushPromises();
+
+    expect(api.listSecrets).toHaveBeenCalledTimes(2);
+    expect(w.findComponent(PanelStub).exists()).toBe(true);
+    w.unmount();
+  });
 });

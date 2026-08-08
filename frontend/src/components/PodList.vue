@@ -56,7 +56,6 @@ const filtered = computed(() => {
   );
 });
 
-
 // Opening logs: with a single container, stream it straight away; with several,
 // reveal an inline chooser and move focus to the first container button.
 function openLogs(pod) {
@@ -126,8 +125,12 @@ async function deletePod(pod) {
   }
 }
 
-watch(() => state.namespace, load, { immediate: true });
-
+// Reload on namespace changes and on every (re)connect: reconnecting to the
+// same context leaves the namespace unchanged, so the epoch is what forces
+// the fresh load. load() itself guards on state.namespace.
+watch(() => [state.namespace, state.connectionEpoch], load, {
+  immediate: true,
+});
 
 // Coalesce pod watch events into one reload + one announcement.
 useWatch("watch:pods", {

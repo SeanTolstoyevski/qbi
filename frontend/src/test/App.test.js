@@ -197,6 +197,32 @@ describe("App — pod panels close on namespace switch", () => {
   });
 });
 
+describe("App — reconnect reloads open pod panels", () => {
+  // Regression: after a failed connect the state is untouched; when the retry
+  // succeeds, setConnection runs again with identical values (same context,
+  // same namespace). An open log panel must restart its stream with fresh
+  // data instead of keeping the stream from the dead connection.
+  it("restarts an open log stream when reconnecting to the same context", async () => {
+    const w = mountApp();
+    await openPanel(w, "open logs");
+    await flushPromises(); // LogViewer mounts and starts the stream
+    expect(api.startLogStream).toHaveBeenCalledTimes(1);
+
+    // Successful retry after a failed attempt: same context, same namespace.
+    setConnection({ name: "test-ctx", namespace: "default" });
+    await nextTick();
+    await flushPromises();
+
+    // The panel remounts: the old stream is stopped and a fresh one starts.
+    expect(api.stopLogStream).toHaveBeenCalledWith("stream-1");
+    expect(api.startLogStream).toHaveBeenCalledTimes(2);
+    expect(w.findComponent(LogViewer).exists()).toBe(true);
+    // The backend watch streams restart against the fresh client too.
+    expect(api.setWatchNamespace).toHaveBeenCalledWith("default");
+    w.unmount();
+  });
+});
+
 describe("App — primary navigation", () => {
   it("renders the four top-level screens and marks the active one", () => {
     const w = mountApp();
@@ -211,9 +237,7 @@ describe("App — primary navigation", () => {
       "about",
     ]);
     // Namespace is the default section, so it carries the current marker.
-    const active = nav
-      .findAll("button")
-      .find((b) => b.text() === "namespace");
+    const active = nav.findAll("button").find((b) => b.text() === "namespace");
     expect(active.attributes("aria-current")).toBe("page");
     w.unmount();
   });

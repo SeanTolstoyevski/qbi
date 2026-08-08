@@ -43,7 +43,6 @@ async function load() {
   }
 }
 
-
 load();
 </script>
 
