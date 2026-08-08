@@ -124,20 +124,19 @@ npm test         # vitest: the frontend suite
 The Go tests in `internal/kube` run against a fake clientset (no cluster
 needed): `go test ./...`.
 
-## Keyboard
+## For LLM users
 
-The whole app is driven by the keyboard. The most useful patterns:
+If you use an LLM coding agent (Claude, Gemini, GitHub Copilot, Reasonix, …),
+run this once after cloning so every agent reads the same instructions:
 
-| Where | Keys | Action |
-| --- | --- | --- |
-| Lists (namespaces, config maps, secrets) | `↑` `↓`, `Home`/`End`, type letters | Move, jump, type-ahead |
-| Lists | `Enter` / `Space` | Select the focused item |
-| Tabs (namespace tabs, secret view modes) | `←` `→`, `Home`/`End` | Switch tab |
-| Row action menus | `↑` `↓`, `Home`/`End`, `Esc` | Navigate |
-| Log region | `↑` `↓`, `Home`/`End`, `PageUp`/`PageDown` | Move through lines |
-| Log region | `Ctrl+C` / `Ctrl+A` | Copy the focused line / copy all |
-| Log search | `Ctrl+F`, then `Enter` / `Shift+Enter` | Focus search, next / previous match |
-| Panels (detail, logs, create/edit forms) | `Esc` | Close; focus returns where you opened from |
+```bash
+./scripts/setup-symlinks.sh
+```
+
+It creates `AGENT.md`, `GEMINI.md`, `CLAUDE.md`, `.github/copilot-instructions.md` and `REASONIX.md`, each
+pointing to `.agent/agent.md`, a single source of truth. On Linux/macOS these
+are real symlinks; on Windows they fall back to copies when native symlinks
+aren't available.
 
 ## Architecture
 

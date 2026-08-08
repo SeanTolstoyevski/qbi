@@ -18,3 +18,8 @@ frontend/wailsjs/
 *.pem
 .reasonix/
 frontend/package.json.md5
+REASONIX.md
+AGENT.md
+CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
