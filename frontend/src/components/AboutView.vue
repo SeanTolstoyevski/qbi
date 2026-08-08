@@ -4,9 +4,6 @@ import { api } from "../api.js";
 
 const GITHUB_URL = "https://github.com/SeanTolstoyevski/qbi";
 
-// Version/commit come from the Go build (injected from the VERSION file at
-// release time via -ldflags; "dev"/"unknown" on local builds). Exposed here so
-// users can report exactly which build they are running.
 const version = ref("");
 const commit = ref("");
 const error = ref("");
@@ -20,9 +17,6 @@ onMounted(async () => {
   }
 });
 
-// Open the repository in the system browser. The Wails webview cannot leave
-// the app, so route through the runtime; fall back to plain navigation when
-// the runtime is unavailable (e.g. in tests or the Vite dev browser).
 function openGitHub(e) {
   if (window.runtime?.BrowserOpenURL) {
     e.preventDefault();

@@ -3,6 +3,11 @@ import { ref } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import {
+  validSchedule,
+  CONCURRENCY_POLICIES,
+  SCHEDULE_ERROR,
+} from "../cronJobHelpers.js";
 
 /*
  * Edit-cron-job panel. Like the other panels (pod detail, logs, YAML), it is
@@ -31,16 +36,12 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-// A cron schedule is exactly five whitespace-separated fields.
-function validSchedule(s) {
-  return /^(\S+\s+){4}\S+$/.test(s.trim());
-}
+// A cron schedule is exactly five whitespace-separated fields; validated in cronJobHelpers.js.
 
 async function submit() {
   error.value = "";
   if (!validSchedule(form.value.schedule)) {
-    error.value =
-      'Schedule must be a 5-field cron expression, e.g. "0 * * * *".';
+    error.value = SCHEDULE_ERROR;
     return;
   }
   saving.value = true;
@@ -107,9 +108,9 @@ async function submit() {
           v-model="form.concurrencyPolicy"
           class="form-select form-select-sm"
         >
-          <option value="Allow">Allow (may overlap)</option>
-          <option value="Forbid">Forbid (singleton)</option>
-          <option value="Replace">Replace (cancel running)</option>
+          <option v-for="p in CONCURRENCY_POLICIES" :key="p.value" :value="p.value">
+            {{ p.label }}
+          </option>
         </select>
       </div>
       <div class="col-12 col-md-3 d-flex align-items-end">
