@@ -68,7 +68,7 @@ function mountApp() {
 describe("App — primary navigation", () => {
   it("renders the four top-level screens and marks the active one", () => {
     const w = mountApp();
-    const nav = w.find("nav[aria-label='Primary']");
+    const nav = w.find("nav.header-nav");
     expect(nav.exists()).toBe(true);
     // Labels are lowercase in the DOM (text-capitalize styles them visually),
     // matching the namespace sub-tab convention.
@@ -87,7 +87,7 @@ describe("App — primary navigation", () => {
   it("switches screens on click, updates the marker and moves focus", async () => {
     const w = mountApp();
     const about = w
-      .find("nav[aria-label='Primary']")
+      .find("nav.header-nav")
       .findAll("button")
       .find((b) => b.text() === "about");
     await about.trigger("click");
