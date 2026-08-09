@@ -71,7 +71,6 @@ describe("NamespaceList - readiness and focus", () => {
     w.unmount();
   });
 
-
   it("reloads namespaces when reconnecting to the same context", async () => {
     api.listNamespaces.mockResolvedValue(NS);
     setConnection({ name: "test-ctx", namespace: "default" });

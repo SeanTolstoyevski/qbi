@@ -176,15 +176,9 @@ defineExpose({ load, listReady, focusList });
         @select="select"
         @context-action="openMenu"
       />
-
-      <p id="ns-list-hint" class="visually-hidden">
-        Use the arrow keys to move through namespaces and press Enter to select.
-        Press the application key or right-click for actions.
-      </p>
     </template>
   </section>
 
-  <!-- Context menu rendered at body level to avoid overflow clipping. -->
   <Teleport to="body">
     <div
       v-if="menuOpen"
