@@ -90,6 +90,13 @@ single high-contrast focus ring, `aria-live` announcements and
 `prefers-reduced-motion` support. Accessibility is a design constraint, not a
 bolt-on, but you don't need a screen reader to benefit from it.
 
+## Screenshots
+
+**Pod logs** - The streaming log viewer: search with live match count, tail
+and timestamps toggles, and desktop-style line navigation.
+
+![Pod log viewer](docs/images/pod_log_screen.png)
+
 ## Requirements
 
 - [Go](https://go.dev/dl/) 1.25+
