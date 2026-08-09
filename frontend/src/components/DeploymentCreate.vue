@@ -1,11 +1,13 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
-import { copyToClipboard } from "../clipboard.js";
-import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
+import { rowsToMap } from "../keyValueRows.js";
 import { splitCommand } from "../cronJobHelpers.js";
+import PanelHeader from "./PanelHeader.vue";
+import KeyValueFieldset from "./KeyValueFieldset.vue";
+import YamlPreview from "./YamlPreview.vue";
 import {
   validateName,
   qualifiedNameError,
@@ -49,10 +51,10 @@ const preview = ref("");
 const previewOpen = ref(false);
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -181,24 +183,13 @@ async function submit() {
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2
-        id="deploy-create-heading"
-        ref="headingEl"
-        class="h6 mb-0"
-        tabindex="-1"
-      >
-        Create deployment
-      </h2>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="deploy-create-heading"
+      title="Create deployment"
+      :disabled="saving"
+      @close="emit('close')"
+    />
 
     <form class="row g-2" @submit.prevent="submit">
       <div class="col-12 col-md-6">
@@ -284,54 +275,17 @@ async function submit() {
 
       <!-- Labels -->
       <div class="col-12">
-        <fieldset>
-          <legend class="h6 small text-body-secondary">Labels</legend>
-          <div v-for="(row, i) in form.labels" :key="i" class="row g-2 mb-1">
-            <div class="col-5">
-              <label class="visually-hidden" :for="`dp-label-key-${i}`"
-                >Label key</label
-              >
-              <input
-                :id="`dp-label-key-${i}`"
-                v-model="row.key"
-                type="text"
-                class="form-control form-control-sm"
-                placeholder="key"
-                autocomplete="off"
-              />
-            </div>
-            <div class="col-5">
-              <label class="visually-hidden" :for="`dp-label-value-${i}`"
-                >Label value</label
-              >
-              <input
-                :id="`dp-label-value-${i}`"
-                v-model="row.value"
-                type="text"
-                class="form-control form-control-sm"
-                placeholder="value"
-                autocomplete="off"
-              />
-            </div>
-            <div class="col-2">
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                :aria-label="`Remove label ${i + 1}`"
-                @click="removeRow(form.labels, i)"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="addRow(form.labels)"
-          >
-            Add label
-          </button>
-        </fieldset>
+        <KeyValueFieldset
+          :rows="form.labels"
+          legend="Labels"
+          id-prefix="dp-label"
+          key-placeholder="app"
+          value-placeholder="web"
+          add-label="Add label"
+          remove-label="label"
+          key-label="Label key"
+          val-label="Label value"
+        />
       </div>
 
       <!-- Advanced options -->
@@ -340,56 +294,18 @@ async function submit() {
           <summary class="small text-body-secondary">Advanced options</summary>
           <div class="mt-2 border rounded p-2">
             <!-- Environment -->
-            <fieldset class="mb-3">
-              <legend class="h6 small text-body-secondary">
-                Environment variables
-              </legend>
-              <div v-for="(row, i) in form.env" :key="i" class="row g-2 mb-1">
-                <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-env-key-${i}`"
-                    >Env var name</label
-                  >
-                  <input
-                    :id="`dp-env-key-${i}`"
-                    v-model="row.key"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="NAME"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-env-value-${i}`"
-                    >Env var value</label
-                  >
-                  <input
-                    :id="`dp-env-value-${i}`"
-                    v-model="row.value"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="value"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="col-2">
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary"
-                    :aria-label="`Remove env var ${i + 1}`"
-                    @click="removeRow(form.env, i)"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                @click="addRow(form.env)"
-              >
-                Add variable
-              </button>
-            </fieldset>
+            <KeyValueFieldset
+              class="mb-3"
+              :rows="form.env"
+              legend="Environment variables"
+              id-prefix="dp-env"
+              key-placeholder="NAME"
+              value-placeholder="value"
+              add-label="Add variable"
+              remove-label="env var"
+              key-label="Env var name"
+              val-label="Env var value"
+            />
 
             <!-- Resources -->
             <fieldset class="mb-3">
@@ -486,60 +402,15 @@ async function submit() {
             </div>
 
             <!-- Node selector -->
-            <fieldset>
-              <legend class="h6 small text-body-secondary">
-                Node selector
-              </legend>
-              <div
-                v-for="(row, i) in form.nodeSelector"
-                :key="i"
-                class="row g-2 mb-1"
-              >
-                <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-node-key-${i}`"
-                    >Node selector key</label
-                  >
-                  <input
-                    :id="`dp-node-key-${i}`"
-                    v-model="row.key"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="key"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="col-5">
-                  <label class="visually-hidden" :for="`dp-node-value-${i}`"
-                    >Node selector value</label
-                  >
-                  <input
-                    :id="`dp-node-value-${i}`"
-                    v-model="row.value"
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="value"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="col-2">
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary"
-                    :aria-label="`Remove node selector ${i + 1}`"
-                    @click="removeRow(form.nodeSelector, i)"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                @click="addRow(form.nodeSelector)"
-              >
-                Add selector
-              </button>
-            </fieldset>
+            <KeyValueFieldset
+              :rows="form.nodeSelector"
+              legend="Node selector"
+              id-prefix="dp-node"
+              add-label="Add selector"
+              remove-label="node selector"
+              key-label="Node selector key"
+              val-label="Node selector value"
+            />
           </div>
         </details>
       </div>
@@ -569,23 +440,7 @@ async function submit() {
       <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
       <!-- YAML preview: what will be created, and copyable for drafting -->
-      <div v-if="previewOpen" class="col-12">
-        <div class="d-flex align-items-center justify-content-between mb-1">
-          <span class="small fw-semibold">Preview YAML</span>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="copyToClipboard(preview.value, 'YAML')"
-          >
-            Copy
-          </button>
-        </div>
-        <pre
-          role="document"
-          class="small font-monospace border rounded p-2 mb-0"
-          style="max-height: 20rem; overflow: auto; white-space: pre"
-          >{{ preview }}</pre>
-      </div>
+      <YamlPreview :yaml="preview" :open="previewOpen" />
     </form>
   </section>
 </template>

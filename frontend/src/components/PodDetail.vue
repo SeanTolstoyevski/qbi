@@ -1,8 +1,9 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
+import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -17,12 +18,12 @@ const metrics = ref(null); // PodMetric: live CPU/memory usage
 const metricsError = ref("");
 const loading = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 // Return focus to the trigger button on close, land focus on the heading on
 // open, and close on Escape.
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -65,10 +66,12 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="pod-detail-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        Pod: {{ pod }}
-      </h2>
+    <PanelHeader
+      ref="header"
+      heading-id="pod-detail-heading"
+      :title="'Pod: ' + pod"
+      @close="emit('close')"
+    >
       <div class="d-flex gap-2">
         <button
           type="button"
@@ -78,15 +81,8 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
           <span class="visually-hidden">Refresh pod details</span>
           <span aria-hidden="true">⟳</span>
         </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="emit('close')"
-        >
-          Close
-        </button>
       </div>
-    </div>
+    </PanelHeader>
 
     <p v-if="loading" class="text-muted small" role="status">Loading…</p>
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>

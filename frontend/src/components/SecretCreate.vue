@@ -1,11 +1,12 @@
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, nextTick, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { newRow, validateRows, rowsToMap } from "../useSecretDraft.js";
 import SecretKeyRows from "./SecretKeyRows.vue";
 import { validateName } from "../kubeValidation.js";
+import PanelHeader from "./PanelHeader.vue";
 
 /*
  * Create-secret panel, opened from the "New secret" button in the tab
@@ -35,14 +36,14 @@ const form = ref({ name: "", type: "" });
 const draft = ref([newRow({ isNew: true })]);
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const yamlText = ref("");
 const yamlSaving = ref(false);
 const yamlError = ref("");
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -176,24 +177,13 @@ async function submitYaml() {
     class="h-100"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h3
-        id="secret-create-heading"
-        ref="headingEl"
-        class="h6 mb-0"
-        tabindex="-1"
-      >
-        New secret
-      </h3>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving || yamlSaving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="secret-create-heading"
+      title="New secret"
+      :disabled="saving || yamlSaving"
+      @close="emit('close')"
+    />
 
     <div
       role="tablist"

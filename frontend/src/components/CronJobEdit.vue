@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
@@ -8,6 +8,7 @@ import {
   CONCURRENCY_POLICIES,
   SCHEDULE_ERROR,
 } from "../cronJobHelpers.js";
+import PanelHeader from "./PanelHeader.vue";
 
 /*
  * Edit-cron-job panel. Like the other panels (pod detail, logs, YAML), it is
@@ -29,10 +30,10 @@ const form = ref({
 });
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -72,19 +73,13 @@ async function submit() {
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="cj-edit-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        Edit cron job: {{ cronJob.name }}
-      </h2>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="cj-edit-heading"
+      :title="`Edit cron job: ${cronJob.name}`"
+      :disabled="saving"
+      @close="emit('close')"
+    />
 
     <form class="row g-2" @submit.prevent="submit">
       <div class="col-12 col-md-5">

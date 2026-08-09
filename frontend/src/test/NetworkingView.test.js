@@ -243,7 +243,7 @@ describe("NetworkingView — create service", () => {
     await w.find("#svc-name").setValue("gitea");
     await w.find("#svc-type").setValue("NodePort");
     await w.find("#svc-sel-key-0").setValue("app");
-    await w.find("#svc-sel-value-0").setValue("gitea");
+    await w.find("#svc-sel-val-0").setValue("gitea");
     await w.find("#svc-port-0").setValue(3000);
     await w.find("#svc-target-0").setValue("3000");
     await w.find("#svc-nodeport-0").setValue(30080);

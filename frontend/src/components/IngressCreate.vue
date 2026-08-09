@@ -3,8 +3,10 @@ import { ref, computed, onMounted } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
-import { copyToClipboard } from "../clipboard.js";
-import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
+import { rowsToMap } from "../keyValueRows.js";
+import PanelHeader from "./PanelHeader.vue";
+import KeyValueFieldset from "./KeyValueFieldset.vue";
+import YamlPreview from "./YamlPreview.vue";
 import {
   DNS_LABEL_RE,
   DNS_SUBDOMAIN_RE,
@@ -77,10 +79,10 @@ const preview = ref("");
 const previewOpen = ref(false);
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   openerId: props.openerId,
   onClose: () => emit("close"),
 });
@@ -436,19 +438,13 @@ async function submit() {
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="ing-create-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        {{ isEdit ? `Edit ingress: ${ingressName}` : "Create ingress" }}
-      </h2>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="ing-create-heading"
+      :title="isEdit ? `Edit ingress: ${ingressName}` : 'Create ingress'"
+      :disabled="saving"
+      @close="emit('close')"
+    />
 
     <p v-if="loading" class="text-muted small" role="status">Loading…</p>
     <p v-else-if="loadError" class="text-danger small" role="alert">
@@ -783,114 +779,30 @@ async function submit() {
               Advanced options
             </summary>
             <div class="mt-2 border rounded p-2">
-              <fieldset>
-                <legend class="h6 small text-body-secondary">
-                  Annotations — controller configuration (e.g. nginx rewrite,
-                  cert-manager issuer)
-                </legend>
-                <div
-                  v-for="(row, i) in form.annotations"
-                  :key="i"
-                  class="row g-2 mb-1"
-                >
-                  <div class="col-5">
-                    <label class="visually-hidden" :for="`ing-ann-key-${i}`"
-                      >Annotation key</label
-                    >
-                    <input
-                      :id="`ing-ann-key-${i}`"
-                      v-model="row.key"
-                      type="text"
-                      class="form-control form-control-sm"
-                      placeholder="nginx.ingress.kubernetes.io/rewrite-target"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="col-5">
-                    <label class="visually-hidden" :for="`ing-ann-val-${i}`"
-                      >Annotation value</label
-                    >
-                    <input
-                      :id="`ing-ann-val-${i}`"
-                      v-model="row.value"
-                      type="text"
-                      class="form-control form-control-sm"
-                      placeholder="/"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="col-2">
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline-secondary"
-                      :aria-label="`Remove annotation ${i + 1}`"
-                      @click="removeRow(form.annotations, i)"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary"
-                  @click="addRow(form.annotations)"
-                >
-                  Add annotation
-                </button>
-              </fieldset>
+              <KeyValueFieldset
+                :rows="form.annotations"
+                legend="Annotations — controller configuration (e.g. nginx rewrite, cert-manager issuer)"
+                id-prefix="ing-ann"
+                key-placeholder="nginx.ingress.kubernetes.io/rewrite-target"
+                value-placeholder="/"
+                add-label="Add annotation"
+                remove-label="annotation"
+                key-label="Annotation key"
+                val-label="Annotation value"
+              />
 
-              <fieldset class="mt-3">
-                <legend class="h6 small text-body-secondary">Labels</legend>
-                <div
-                  v-for="(row, i) in form.labels"
-                  :key="i"
-                  class="row g-2 mb-1"
-                >
-                  <div class="col-5">
-                    <label class="visually-hidden" :for="`ing-label-key-${i}`"
-                      >Label key</label
-                    >
-                    <input
-                      :id="`ing-label-key-${i}`"
-                      v-model="row.key"
-                      type="text"
-                      class="form-control form-control-sm"
-                      placeholder="app"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="col-5">
-                    <label class="visually-hidden" :for="`ing-label-val-${i}`"
-                      >Label value</label
-                    >
-                    <input
-                      :id="`ing-label-val-${i}`"
-                      v-model="row.value"
-                      type="text"
-                      class="form-control form-control-sm"
-                      placeholder="web"
-                      autocomplete="off"
-                    />
-                  </div>
-                  <div class="col-2">
-                    <button
-                      type="button"
-                      class="btn btn-sm btn-outline-secondary"
-                      :aria-label="`Remove label ${i + 1}`"
-                      @click="removeRow(form.labels, i)"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary"
-                  @click="addRow(form.labels)"
-                >
-                  Add label
-                </button>
-              </fieldset>
+              <KeyValueFieldset
+                class="mt-3"
+                :rows="form.labels"
+                legend="Labels"
+                id-prefix="ing-label"
+                key-placeholder="app"
+                value-placeholder="web"
+                add-label="Add label"
+                remove-label="label"
+                key-label="Label key"
+                val-label="Label value"
+              />
             </div>
           </details>
         </div>
@@ -924,23 +836,7 @@ async function submit() {
         <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
         <!-- YAML preview -->
-        <div v-if="previewOpen" class="col-12">
-          <div class="d-flex align-items-center justify-content-between mb-1">
-            <span class="small fw-semibold">Preview YAML</span>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-secondary"
-              @click="copyToClipboard(preview.value, 'YAML')"
-            >
-              Copy
-            </button>
-          </div>
-          <pre
-            role="document"
-            class="small font-monospace border rounded p-2 mb-0"
-            style="max-height: 20rem; overflow: auto; white-space: pre"
-            >{{ preview }}</pre>
-        </div>
+        <YamlPreview :yaml="preview" :open="previewOpen" />
       </form>
     </template>
   </section>

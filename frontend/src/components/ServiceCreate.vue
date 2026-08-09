@@ -3,9 +3,11 @@ import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
-import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
-import { copyToClipboard } from "../clipboard.js";
+import { rowsToMap } from "../keyValueRows.js";
 import { validateName } from "../kubeValidation.js";
+import PanelHeader from "./PanelHeader.vue";
+import KeyValueFieldset from "./KeyValueFieldset.vue";
+import YamlPreview from "./YamlPreview.vue";
 
 /*
  * Create-service panel (Networking view). A Service is a sibling of the
@@ -37,10 +39,10 @@ const preview = ref("");
 const previewOpen = ref(false);
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   openerId: props.openerId,
   onClose: () => emit("close"),
 });
@@ -180,19 +182,13 @@ async function submit() {
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="svc-create-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        Create service
-      </h2>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="svc-create-heading"
+      title="Create service"
+      :disabled="saving"
+      @close="emit('close')"
+    />
 
     <form class="row g-2" @submit.prevent="submit">
       <div class="col-12 col-md-6">
@@ -220,56 +216,17 @@ async function submit() {
 
       <!-- Selector -->
       <div class="col-12">
-        <fieldset>
-          <legend class="h6 small text-body-secondary">
-            Selector — pods matching ALL these labels receive traffic
-          </legend>
-          <div v-for="(row, i) in form.selector" :key="i" class="row g-2 mb-1">
-            <div class="col-5">
-              <label class="visually-hidden" :for="`svc-sel-key-${i}`"
-                >Selector key</label
-              >
-              <input
-                :id="`svc-sel-key-${i}`"
-                v-model="row.key"
-                type="text"
-                class="form-control form-control-sm"
-                placeholder="app"
-                autocomplete="off"
-              />
-            </div>
-            <div class="col-5">
-              <label class="visually-hidden" :for="`svc-sel-value-${i}`"
-                >Selector value</label
-              >
-              <input
-                :id="`svc-sel-value-${i}`"
-                v-model="row.value"
-                type="text"
-                class="form-control form-control-sm"
-                placeholder="gitea"
-                autocomplete="off"
-              />
-            </div>
-            <div class="col-2">
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-secondary"
-                :aria-label="`Remove selector ${i + 1}`"
-                @click="removeRow(form.selector, i)"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="addRow(form.selector)"
-          >
-            Add selector
-          </button>
-        </fieldset>
+        <KeyValueFieldset
+          :rows="form.selector"
+          legend="Selector — pods matching ALL these labels receive traffic"
+          id-prefix="svc-sel"
+          key-placeholder="app"
+          value-placeholder="gitea"
+          add-label="Add selector"
+          remove-label="selector"
+          key-label="Selector key"
+          val-label="Selector value"
+        />
       </div>
 
       <!-- Ports -->
@@ -459,23 +416,7 @@ async function submit() {
       <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
       <!-- YAML preview -->
-      <div v-if="previewOpen" class="col-12">
-        <div class="d-flex align-items-center justify-content-between mb-1">
-          <span class="small fw-semibold">Preview YAML</span>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="copyToClipboard(preview.value, 'YAML')"
-          >
-            Copy
-          </button>
-        </div>
-        <pre
-          role="document"
-          class="small font-monospace border rounded p-2 mb-0"
-          style="max-height: 20rem; overflow: auto; white-space: pre"
-          >{{ preview }}</pre>
-      </div>
+      <YamlPreview :yaml="preview" :open="previewOpen" />
     </form>
   </section>
 </template>

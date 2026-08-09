@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { copyToClipboard } from "../clipboard.js";
+import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
   namespace: { type: String, default: "" }, // empty for cluster-scoped
@@ -17,10 +18,10 @@ const { announce } = useStore();
 const yaml = ref("");
 const loading = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -52,10 +53,12 @@ load();
     class="h-100 d-flex flex-column"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2 gap-2">
-      <h2 id="yaml-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        YAML: {{ kind }} / {{ name }}
-      </h2>
+    <PanelHeader
+      ref="header"
+      heading-id="yaml-heading"
+      :title="`YAML: ${kind} / ${name}`"
+      @close="emit('close')"
+    >
       <div class="d-flex gap-2">
         <button
           type="button"
@@ -73,15 +76,8 @@ load();
           <span class="visually-hidden">Refresh YAML</span>
           <span aria-hidden="true">⟳</span>
         </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="emit('close')"
-        >
-          Close
-        </button>
       </div>
-    </div>
+    </PanelHeader>
 
     <p v-if="loading" class="text-muted small" role="status">Loading…</p>
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>

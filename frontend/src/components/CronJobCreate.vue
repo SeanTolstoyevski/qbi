@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
@@ -10,6 +10,7 @@ import {
   SCHEDULE_ERROR,
 } from "../cronJobHelpers.js";
 import { validateName } from "../kubeValidation.js";
+import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -27,10 +28,10 @@ const form = ref({
 });
 const saving = ref(false);
 const error = ref("");
-const headingEl = ref(null);
+const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
-  focusTarget: headingEl,
+  focusTarget: computed(() => header.value?.headingEl),
   onClose: () => emit("close"),
 });
 
@@ -80,19 +81,13 @@ async function submit() {
     class="h-100 scroll-pane"
     @keydown="onKeydown"
   >
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="cj-create-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
-        Create cron job
-      </h2>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline-secondary"
-        :disabled="saving"
-        @click="emit('close')"
-      >
-        Close
-      </button>
-    </div>
+    <PanelHeader
+      ref="header"
+      heading-id="cj-create-heading"
+      title="Create cron job"
+      :disabled="saving"
+      @close="emit('close')"
+    />
 
     <form class="row g-2" @submit.prevent="submit">
       <div class="col-12 col-md-6">
