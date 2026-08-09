@@ -88,7 +88,7 @@ describe("SecretCreate — form validation", () => {
     const w = await mountCreate();
     await fill(w, { name: "" });
     await w.find("form").trigger("submit");
-    expect(w.find('[role="alert"]').text()).toContain("name is required");
+    expect(w.find('[role="alert"]').text()).toContain("Name is required");
     expect(api.createSecret).not.toHaveBeenCalled();
     w.unmount();
   });

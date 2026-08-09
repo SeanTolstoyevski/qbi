@@ -5,6 +5,7 @@ import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { newRow, validateRows, rowsToMap } from "../useSecretDraft.js";
 import SecretKeyRows from "./SecretKeyRows.vue";
+import { validateName } from "../kubeValidation.js";
 
 /*
  * Create-secret panel, opened from the "New secret" button in the tab
@@ -113,9 +114,10 @@ function toggleDelete(row) {
 async function submitForm() {
   error.value = "";
   const name = form.value.name.trim();
-  if (!name) {
-    error.value = "A name is required.";
-    announce(error.value, "assertive");
+  const nameErr = validateName(name);
+  if (nameErr) {
+    error.value = nameErr;
+    announce(nameErr, "assertive");
     return;
   }
   const err = validateRows(draft.value, props.mode);

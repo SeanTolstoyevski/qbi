@@ -5,6 +5,14 @@ import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { copyToClipboard } from "../clipboard.js";
 import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
+import {
+  DNS_LABEL_RE,
+  DNS_SUBDOMAIN_RE,
+  LABEL_VALUE_RE,
+  validateName,
+  qualifiedNameError,
+  labelValueError,
+} from "../kubeValidation.js";
 
 /*
  * Create/edit-ingress panel (Networking view). One component, two modes:
@@ -232,11 +240,7 @@ function buildPayload() {
 }
 
 // ── validation (mirrors the backend so typos fail fast in the UI) ───────────
-const DNS_LABEL_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
-const DNS_SUBDOMAIN_RE =
-  /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
 const PORT_NAME_RE = /^[a-z][a-z0-9-]*$/;
-const LABEL_VALUE_RE = /^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$/;
 
 function portError(port) {
   if (!port) return "Backend port is required (a number or a named port).";
@@ -280,29 +284,10 @@ function secretNameError(secret) {
   return "";
 }
 
-function qualifiedNameError(key) {
-  const parts = key.split("/");
-  if (parts.length > 2) return `Key "${key}" has too many "/" separators.`;
-  const name = parts[parts.length - 1];
-  if (!DNS_LABEL_RE.test(name) || name.length > 63) {
-    return `Key "${key}" is not a valid Kubernetes name.`;
-  }
-  if (parts.length === 2) {
-    const prefix = parts[0];
-    if (!DNS_SUBDOMAIN_RE.test(prefix) || prefix.length > 253) {
-      return `Key prefix "${prefix}" is not a valid DNS name.`;
-    }
-  }
-  return "";
-}
-
 function validate() {
   const f = form.value;
-  const name = f.name.trim();
-  if (!name) return "Name is required.";
-  if (!DNS_LABEL_RE.test(name) || name.length > 63) {
-    return "Name must be a lowercase DNS label (letters, digits and '-', up to 63 characters).";
-  }
+  const nameErr = validateName(f.name);
+  if (nameErr) return nameErr;
 
   if (f.rules.length === 0 && !f.defaultBackend.enabled) {
     return "An ingress needs at least one rule or a default backend.";
@@ -362,8 +347,20 @@ function validate() {
       const ke = qualifiedNameError(k);
       if (ke) return `Label: ${ke}`;
       if (!LABEL_VALUE_RE.test(r.value) || r.value.length > 63) {
-        return `Label "${k}": value must be up to 63 characters of letters, digits, '-', '_' or '.'.`;
+        return labelValueError(k, r.value);
       }
+    }
+  }
+  // Validate ingress class name when it's a custom value or the API errored.
+  if (
+    effectiveClass.value &&
+    (classChoice.value === "__custom__" || classesError.value)
+  ) {
+    if (
+      !DNS_SUBDOMAIN_RE.test(effectiveClass.value) ||
+      effectiveClass.value.length > 253
+    ) {
+      return `Ingress class "${effectiveClass.value}" is not a valid name.`;
     }
   }
   return "";

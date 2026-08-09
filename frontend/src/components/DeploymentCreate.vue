@@ -5,6 +5,13 @@ import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { copyToClipboard } from "../clipboard.js";
 import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
+import { splitCommand } from "../cronJobHelpers.js";
+import {
+  validateName,
+  qualifiedNameError,
+  labelValueError,
+  LABEL_VALUE_RE,
+} from "../kubeValidation.js";
 
 /*
  * Create-deployment panel. It is a helper that drafts a real Deployment
@@ -50,17 +57,14 @@ const { onKeydown } = useReturnFocus({
 });
 
 // ── spec helpers ────────────────────────────────────────────────────────────
-function split(s) {
-  return s.trim() ? s.trim().split(/\s+/) : [];
-}
 
 function buildPayload() {
   const f = form.value;
   return {
     name: f.name.trim(),
     image: f.image.trim(),
-    command: split(f.command),
-    args: split(f.args),
+    command: splitCommand(f.command),
+    args: splitCommand(f.args),
     replicas: Number(f.replicas) || 0,
     port: Number(f.port) || 0,
     protocol: f.protocol,
@@ -86,7 +90,8 @@ const QUANTITY = /^\d+(\.\d+)?(n|u|m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$/;
 
 function validate() {
   const f = form.value;
-  if (!f.name.trim()) return "Name is required.";
+  const nameErr = validateName(f.name);
+  if (nameErr) return nameErr;
   if (!f.image.trim()) return "Image is required.";
   if (Number(f.replicas) < 0) return "Replicas must be zero or more.";
   const port = Number(f.port);
@@ -104,6 +109,18 @@ function validate() {
   for (const [label, q] of quantities) {
     if (q.trim() && !QUANTITY.test(q.trim())) {
       return `Invalid ${label} "${q.trim()}". Use Kubernetes quantities, e.g. 100m, 128Mi.`;
+    }
+  }
+  // Validate label keys and values.
+  for (const r of f.labels) {
+    const k = r.key.trim();
+    if (k) {
+      const ke = qualifiedNameError(k);
+      if (ke) return `Label: ${ke}`;
+      if (r.value) {
+        const le = labelValueError(k, r.value);
+        if (le) return le;
+      }
     }
   }
   return "";

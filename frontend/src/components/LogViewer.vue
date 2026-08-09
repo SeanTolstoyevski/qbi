@@ -44,6 +44,18 @@ let offEnd = () => {};
 let offErr = () => {};
 
 const MAX_LINES = 20000; // cap memory for long-running streams
+const MAX_REGEX_LEN = 500; // guard against catastrophic backtracking (ReDoS)
+const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested quantifier
+
+function validateRegexSource(source) {
+  if (source.length > MAX_REGEX_LEN) {
+    return "Pattern is too long (max 500 characters).";
+  }
+  if (RE_NESTED_Q.test(source)) {
+    return "Pattern may hang the app — avoid nested quantifiers like (a+)+.";
+  }
+  return "";
+}
 
 // Compile the search query into a matcher, keeping any error separate. This is
 // a pure computed (no side effects) so it is safe to read during render.
@@ -51,6 +63,10 @@ const compiled = computed(() => {
   const q = query.value;
   if (!q) return { re: null, error: "" };
   const flags = caseSensitive.value ? "g" : "gi";
+  if (useRegex.value) {
+    const safetyError = validateRegexSource(q);
+    if (safetyError) return { re: null, error: safetyError };
+  }
   try {
     const source = useRegex.value
       ? q

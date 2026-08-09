@@ -9,6 +9,7 @@ import {
   CONCURRENCY_POLICIES,
   SCHEDULE_ERROR,
 } from "../cronJobHelpers.js";
+import { validateName } from "../kubeValidation.js";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -38,7 +39,13 @@ const { onKeydown } = useReturnFocus({
 async function submit() {
   const c = form.value;
   error.value = "";
-  if (!c.name || !c.schedule || !c.image) {
+  const nameErr = validateName(c.name);
+  if (nameErr) {
+    error.value = nameErr;
+    announce(nameErr, "assertive");
+    return;
+  }
+  if (!c.schedule || !c.image) {
     error.value = "Name, schedule and image are required.";
     return;
   }

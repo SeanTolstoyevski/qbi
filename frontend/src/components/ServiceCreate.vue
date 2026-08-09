@@ -5,6 +5,7 @@ import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { addRow, removeRow, rowsToMap } from "../keyValueRows.js";
 import { copyToClipboard } from "../clipboard.js";
+import { validateName } from "../kubeValidation.js";
 
 /*
  * Create-service panel (Networking view). A Service is a sibling of the
@@ -95,7 +96,8 @@ function buildPayload() {
 // ── validation (mirrors the backend so typos fail fast in the UI) ───────────
 function validate() {
   const f = form.value;
-  if (!f.name.trim()) return "Name is required.";
+  const nameErr = validateName(f.name);
+  if (nameErr) return nameErr;
   const ports = f.ports.filter((p) => p.port !== "" && p.port != null);
   if (ports.length === 0) return "At least one port is required.";
   for (const p of ports) {

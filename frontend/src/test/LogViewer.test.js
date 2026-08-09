@@ -8,6 +8,7 @@
  *   - Ctrl+C copies the focused line
  *   - Ctrl+C with nothing focused falls back to copying all
  *   - Ctrl+A copies all logs
+ *   - ReDoS protection: unsafe regex patterns are rejected
  *
  * The log stream is simulated by capturing the onEvent handlers from the
  * mocked api module and pushing lines through them.
@@ -174,6 +175,91 @@ describe("LogViewer — copying", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       LINES.join("\n"),
     );
+    w.unmount();
+  });
+});
+
+describe("LogViewer — ReDoS protection", () => {
+  it("shows error for regex with nested quantifiers like (a+)+", async () => {
+    const w = await mountLogViewer();
+    const search = w.find("#log-search");
+    const regexCheckbox = w.find("#opt-regex");
+
+    // Enable regex mode
+    await regexCheckbox.setValue(true);
+    // Type a classic ReDoS pattern
+    await search.setValue("(a+)+b");
+
+    await nextTick();
+    await flushPromises();
+
+    // The error message should appear
+    const status = w.find("#match-status");
+    expect(status.text()).toContain("Invalid pattern");
+    expect(status.text()).toContain("hang");
+
+    // The search input should show as invalid
+    expect(search.classes()).toContain("is-invalid");
+
+    w.unmount();
+  });
+
+  it("shows error for regex exceeding 500 characters", async () => {
+    const w = await mountLogViewer();
+    const search = w.find("#log-search");
+    const regexCheckbox = w.find("#opt-regex");
+
+    await regexCheckbox.setValue(true);
+    await search.setValue("a".repeat(501));
+
+    await nextTick();
+    await flushPromises();
+
+    const status = w.find("#match-status");
+    expect(status.text()).toContain("Invalid pattern");
+    expect(status.text()).toContain("500");
+
+    w.unmount();
+  });
+
+  it("does not block valid regex patterns", async () => {
+    const w = await mountLogViewer();
+    const search = w.find("#log-search");
+    const regexCheckbox = w.find("#opt-regex");
+
+    await regexCheckbox.setValue(true);
+    // A valid regex: match lines with "error" or "warn"
+    await search.setValue("error|warn");
+
+    await nextTick();
+    await flushPromises();
+
+    // Should NOT show an error
+    const status = w.find("#match-status");
+    expect(status.text()).not.toContain("Invalid pattern");
+    expect(status.text()).not.toContain("hang");
+
+    // Search input should NOT have the invalid class
+    expect(search.classes()).not.toContain("is-invalid");
+
+    w.unmount();
+  });
+
+  it("allows any pattern when regex mode is off (literal search)", async () => {
+    const w = await mountLogViewer();
+    const search = w.find("#log-search");
+
+    // Do NOT enable regex mode — this is a literal search
+    await search.setValue("(a+)+b");
+
+    await nextTick();
+    await flushPromises();
+
+    // Literal search escapes special chars; no error expected
+    const status = w.find("#match-status");
+    expect(status.text()).not.toContain("Invalid pattern");
+    expect(search.classes()).not.toContain("is-invalid");
+
     w.unmount();
   });
 });
