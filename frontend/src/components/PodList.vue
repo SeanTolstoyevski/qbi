@@ -178,7 +178,10 @@ defineExpose({ load });
       <p v-if="filtered.length === 0" class="text-muted small">
         No pods match “{{ filter }}”.
       </p>
-      <table v-if="filtered.length" class="table table-hover align-middle">
+      <!-- table-responsive: scroll wide tables inside their column instead of
+           spilling under the log/detail panel beside them. -->
+      <div v-if="filtered.length" class="table-responsive">
+      <table class="table table-hover align-middle">
         <caption class="visually-hidden">
           Pods in namespace
           {{
@@ -199,19 +202,40 @@ defineExpose({ load });
         <tbody>
           <template v-for="pod in filtered" :key="pod.name">
             <tr>
-              <th scope="row" class="fw-normal">
-                <span class="d-inline-flex align-items-center gap-2">
-                  {{ pod.name }}
-                  <button
-                    type="button"
-                    class="btn btn-link btn-sm p-0"
-                    @click="copyToClipboard(pod.name, `Pod ${pod.name}`)"
+              <th scope="row" class="fw-normal name-cell">
+                <span>{{ pod.name }}</span>
+                <button
+                  type="button"
+                  class="copy-inline"
+                  :aria-label="`Copy pod name ${pod.name}`"
+                  :title="`Copy ${pod.name}`"
+                  @click="copyToClipboard(pod.name, `Pod ${pod.name}`)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
                   >
-                    Copy<span class="visually-hidden">
-                      pod name {{ pod.name }}</span
-                    >
-                  </button>
-                </span>
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                    ></path>
+                  </svg>
+                </button>
               </th>
               <td>{{ pod.ready }}</td>
               <td>
@@ -384,6 +408,7 @@ defineExpose({ load });
           </template>
         </tbody>
       </table>
+      </div>
     </template>
   </section>
 </template>

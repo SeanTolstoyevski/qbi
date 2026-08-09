@@ -1,13 +1,3 @@
-/*
- * Tests for WorkloadsView.vue — the RBAC-resilient workload screen.
- *
- * The backend now returns a WorkloadsView payload { workloads, errors } so a
- * forbidden resource type (StatefulSets, DaemonSets) degrades to a warning
- * instead of failing the whole screen. We verify:
- *   - Workloads render from the new payload shape
- *   - Per-kind errors are shown alongside the readable workloads
- *   - Restart triggers api.restartWorkload
- */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
@@ -31,12 +21,12 @@ vi.mock("../api.js", () => ({
     updateCronJob: vi.fn(),
     createDeployment: vi.fn(),
     renderDeploymentYaml: vi.fn(),
-    // The embedded LogViewer needs these when a cron job log is opened.
+
     startLogStream: vi.fn().mockResolvedValue("stream-1"),
     stopLogStream: vi.fn().mockResolvedValue(undefined),
     saveLogs: vi.fn().mockResolvedValue(null),
   },
-  // WorkloadsView subscribes via useWatch on mount; provide a no-op subscriber.
+
   onEvent: vi.fn(() => () => {}),
 }));
 
@@ -45,7 +35,7 @@ const { setConnection, setNamespace } = useStore();
 beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
   setNamespace("default");
-  // Default: a well-formed but empty rollout digest.
+
   api.history.mockResolvedValue({ rollouts: [] });
 });
 

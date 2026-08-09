@@ -1,12 +1,3 @@
-/*
- * Accessibility-first styles.
- *
- * The goals here are: a strong visible focus indicator everywhere, respect for
- * the user's reduced-motion and contrast preferences, and a utility for
- * screen-reader-only text. We deliberately keep Bootstrap's defaults and only
- * add what improves keyboard and screen-reader usability.
- */
-
 :root {
   --qba-focus: #1a56db;
 }
@@ -18,8 +9,6 @@ body,
   margin: 0;
 }
 
-/* A single, consistent, high-contrast focus ring for every interactive
-   element. This is the most important a11y affordance for keyboard users. */
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible,
@@ -32,7 +21,6 @@ select:focus-visible {
   box-shadow: none !important;
 }
 
-/* Visually hide content while keeping it available to screen readers. */
 .visually-hidden-focusable:not(:focus):not(:focus-within) {
   position: absolute !important;
   width: 1px !important;
@@ -45,7 +33,6 @@ select:focus-visible {
   border: 0 !important;
 }
 
-/* Skip link becomes visible when focused. */
 .skip-link {
   position: absolute;
   left: 0.5rem;
@@ -58,7 +45,6 @@ select:focus-visible {
   transform: translateY(0);
 }
 
-/* Honour users who prefer less motion. */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
@@ -67,7 +53,6 @@ select:focus-visible {
   }
 }
 
-/* Log viewer: monospaced, scrollable, readable. */
 .log-view {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
@@ -84,13 +69,10 @@ select:focus-visible {
   min-height: 12rem;
 }
 
-/* The selected item in a list should be obvious without relying on colour
-   alone; we pair the Bootstrap active background with a left border. */
 .list-group-item.active {
   border-left: 4px solid #fff;
 }
 
-/* Layout helpers for the resizable-free two-pane view. */
 .app-shell {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -103,4 +85,106 @@ select:focus-visible {
 .scroll-pane {
   overflow-y: auto;
   height: 100%;
+}
+
+.grid-col {
+  min-width: 0;
+}
+
+:root {
+     as an error for paths and resource names. Override to a neutral gray. */
+  --bs-code-color: var(--bs-secondary-color);
+}
+
+.header-nav .nav-pills .nav-link {
+  padding: 0.3125rem 0.875rem;
+  font-size: 0.9rem;
+  border-radius: 999px;
+}
+
+   primary bar under the active tab is obvious at a glance and pairs colour
+   with a semibold weight, so it doesn't rely on colour alone. */
+.nav-tabs {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.nav-tabs .nav-link {
+  margin-bottom: -1px;
+  padding: 0.625rem 1rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--bs-secondary-color);
+  font-weight: 500;
+  transition: color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link:focus-visible {
+  color: var(--bs-body-color);
+  border-bottom-color: var(--bs-border-color);
+}
+.nav-tabs .nav-link.active,
+.nav-tabs .nav-link.active:hover,
+.nav-tabs .nav-link.active:focus-visible {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid var(--bs-primary);
+  color: var(--bs-primary);
+  font-weight: 600;
+}
+
+.kubeconfig-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.375rem; /* matches .btn height */
+  margin: 0;
+  padding: 0 0.75rem;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  font-size: 0.875rem;
+  color: var(--bs-body-color);
+  max-width: 100%;
+}
+
+.kubeconfig-chip code {
+  background: transparent;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 30rem;
+}
+
+.name-cell {
+  position: relative;
+  padding-right: 2rem;
+}
+.copy-inline {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out;
+}
+tbody tr:hover .copy-inline,
+.copy-inline:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  background-color: var(--bs-tertiary-bg);
+  color: var(--bs-primary);
+}
+.copy-inline:hover {
+  background-color: var(--bs-secondary-bg);
 }

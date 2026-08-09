@@ -1,5 +1,5 @@
 /*
- * Generic action-menu composable — keyboard navigation, focus management, and
+ * Generic action-menu composable. Keyboard navigation, focus management, and
  * click-outside dismissal for the dropdown action menus used across resource
  * list views (PodList, WorkloadsView, NetworkingView).
  *

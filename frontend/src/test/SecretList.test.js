@@ -1,15 +1,3 @@
-/*
- * Tests for SecretList.vue — the secrets tab container.
- *
- * The editor logic lives in SecretDetail/SecretCreate (covered by their own
- * tests); here we cover the list orchestration:
- *   - rendering the secret list, filtering it, and its empty/error states
- *   - selecting a secret opens the detail panel with the right props
- *   - the New secret button opens the create panel
- *   - the value-mode toggle (Plain text / Base64) persists and flows down
- *   - a namespace switch closes whatever panel is open (names are scoped)
- *   - closing / deleting a secret resets the right column
- */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";

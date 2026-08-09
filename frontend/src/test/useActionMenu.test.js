@@ -296,10 +296,6 @@ describe("useActionMenu — click outside", () => {
     const firstItem = menu?.querySelector('[role="menuitem"]');
     firstItem?.click();
 
-    // The menuitem's own handler calls closeMenu, so menuOpen should be ""
-    // But we're testing that the click-outside listener doesn't fire when
-    // clicking inside — the menu should still have been open before the
-    // handler ran. We just verify no error is thrown.
     expect(wrapper.vm.menuOpen).toBe("");
 
     wrapper.unmount();

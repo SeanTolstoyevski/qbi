@@ -82,8 +82,6 @@ load();
     <p v-if="loading" class="text-muted small" role="status">Loading…</p>
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-    <!-- role="document" lets screen readers browse the YAML content freely  -->
-    <!-- without inheriting application keyboard handling from the section.  -->
     <pre
       v-else-if="yaml"
       role="document"

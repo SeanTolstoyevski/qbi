@@ -53,8 +53,7 @@ const tabs = [
 const topTabs = ["cluster", "namespace", "settings", "about"];
 
 // Screen shortcuts: Ctrl+1..4 jump straight to a top-level section (Cluster,
-// Namespace, Settings, About). App-level, so they work anywhere — including
-// before a connection is established. Meta is accepted too for macOS.
+// Namespace, Settings, About).
 const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3 };
 
 function onGlobalKeydown(e) {
@@ -126,10 +125,7 @@ function onTabKeydown(e) {
       >
         <h1 class="h5 mb-0">QBI</h1>
 
-        <!-- Primary navigation: the app's top-level screens. A nav landmark
-             (not a radiogroup) because these are distinct views, not options
-             within a group. aria-current marks the active screen. -->
-        <nav aria-label="Primary">
+        <nav class="header-nav">
           <ul class="nav nav-pills">
             <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
               <button
@@ -149,8 +145,6 @@ function onTabKeydown(e) {
       <ContextBar />
     </header>
 
-    <!-- Global status region: loading/errors are announced here without moving
-         focus. Screen readers pick these up via aria-live. -->
     <div
       class="visually-hidden"
       :aria-live="state.statusKind"
@@ -161,17 +155,14 @@ function onTabKeydown(e) {
 
     <div class="app-body container-fluid py-3">
       <div class="row g-3 h-100">
-        <!-- Sidebar: namespaces -->
         <nav class="col-12 col-md-3 col-lg-2 h-100" aria-label="Namespaces">
           <NamespaceList ref="namespaceListRef" />
         </nav>
 
-        <!-- Main content -->
         <main
           id="main-content"
           class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
         >
-          <!-- ── CLUSTER VIEW ─────────────────────────────────────────────── -->
           <div v-show="section === 'cluster'">
             <h2
               id="section-heading-cluster"
@@ -188,7 +179,6 @@ function onTabKeydown(e) {
             <NodesView v-else />
           </div>
 
-          <!-- ── SETTINGS ─────────────────────────────────────────────────── -->
           <div v-show="section === 'settings'">
             <h2
               id="section-heading-settings"
@@ -200,7 +190,6 @@ function onTabKeydown(e) {
             <SettingsView />
           </div>
 
-          <!-- ── ABOUT ────────────────────────────────────────────────────── -->
           <div v-show="section === 'about'">
             <h2
               id="section-heading-about"
@@ -211,7 +200,6 @@ function onTabKeydown(e) {
             </h2>
             <AboutView />
           </div>
-          <!-- ── NAMESPACE VIEW ─────────────────────────────────────────── -->
           <div v-show="section === 'namespace'">
             <h2
               id="section-heading-namespace"

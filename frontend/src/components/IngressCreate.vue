@@ -409,7 +409,7 @@ async function submit() {
         props.ingressName,
         payload,
       );
-      if (!applied) return; // user cancelled the confirmation — keep the form
+      if (!applied) return;
       announce(`Ingress ${props.ingressName} updated.`);
       emit("saved");
     } else {
@@ -452,7 +452,6 @@ async function submit() {
     </p>
 
     <template v-else>
-      <!-- Unsupported constructs: loaded for edit, never dropped silently. -->
       <div
         v-if="unsupported.length"
         class="alert alert-warning py-2"
@@ -469,7 +468,6 @@ async function submit() {
       </div>
 
       <form class="row g-2" @submit.prevent="submit">
-        <!-- Name + class -->
         <div class="col-12 col-md-6">
           <label for="ing-create-name" class="form-label mb-1 small"
             >Name</label
@@ -529,7 +527,6 @@ async function submit() {
           </template>
         </div>
 
-        <!-- Rules -->
         <div class="col-12">
           <fieldset>
             <legend class="h6 small text-body-secondary">
@@ -661,7 +658,6 @@ async function submit() {
           </fieldset>
         </div>
 
-        <!-- TLS -->
         <div class="col-12">
           <fieldset>
             <legend class="h6 small text-body-secondary">
@@ -720,7 +716,6 @@ async function submit() {
           </fieldset>
         </div>
 
-        <!-- Default backend -->
         <div class="col-12">
           <fieldset>
             <legend class="h6 small text-body-secondary">
@@ -772,7 +767,6 @@ async function submit() {
           </fieldset>
         </div>
 
-        <!-- Advanced -->
         <div class="col-12">
           <details>
             <summary class="small text-body-secondary">
@@ -807,7 +801,6 @@ async function submit() {
           </details>
         </div>
 
-        <!-- Actions -->
         <div class="col-12 d-flex align-items-center gap-2">
           <button
             type="button"
@@ -835,7 +828,6 @@ async function submit() {
         </div>
         <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-        <!-- YAML preview -->
         <YamlPreview :yaml="preview" :open="previewOpen" />
       </form>
     </template>

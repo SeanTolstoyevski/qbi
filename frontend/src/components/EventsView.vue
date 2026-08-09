@@ -92,10 +92,6 @@ defineExpose({ load });
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
     <template v-else>
-      <!-- Events are a short-lived window: the API server drops them after
-           about an hour, so a quiet namespace legitimately shows nothing. The
-           honest empty state below says so instead of looking broken. Durable
-           change history (rollouts) lives in the Workloads view, not here. -->
       <h3 class="h6 text-body-secondary mb-1">Events</h3>
       <p class="text-body-secondary small mb-2">
         Kubernetes keeps events for about an hour; only recent activity is

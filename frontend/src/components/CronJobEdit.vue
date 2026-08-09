@@ -56,7 +56,7 @@ async function submit() {
         concurrencyPolicy: form.value.concurrencyPolicy,
       },
     );
-    if (!applied) return; // user cancelled the confirmation — keep the form
+    if (!applied) return; 
     announce(`Cron job ${props.cronJob.name} updated.`);
     emit("saved");
   } catch (e) {

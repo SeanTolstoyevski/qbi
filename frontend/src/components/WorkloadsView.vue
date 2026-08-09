@@ -373,15 +373,16 @@ defineExpose({ load });
       <div class="row g-3">
         <!-- Left: workload / job / cronjob tables -->
         <div
-          :class="
+          :class="[
             yamlTarget ||
-            logTarget ||
-            createOpen ||
-            editTarget ||
-            createDeployOpen
-              ? 'col-lg-7'
-              : 'col-12'
-          "
+              logTarget ||
+              createOpen ||
+              editTarget ||
+              createDeployOpen
+                ? 'col-lg-7'
+                : 'col-12',
+            'grid-col',
+          ]"
         >
           <!-- ── Deployments / StatefulSets / DaemonSets ── -->
           <div class="d-flex align-items-center justify-content-between mb-1">
@@ -600,7 +601,6 @@ defineExpose({ load });
             </table>
           </div>
 
-          <!-- ── Jobs ── -->
           <h3 class="h6 text-body-secondary mb-1">Jobs</h3>
           <p v-if="jobs.length === 0" class="text-muted small">None found.</p>
           <div v-else class="table-responsive mb-3">
@@ -663,7 +663,6 @@ defineExpose({ load });
             </table>
           </div>
 
-          <!-- ── CronJobs ── -->
           <div class="d-flex align-items-center justify-content-between mb-1">
             <h3 class="h6 text-body-secondary mb-0">Cron jobs</h3>
             <button
@@ -813,7 +812,6 @@ defineExpose({ load });
                       </div>
                     </td>
                   </tr>
-                  <!-- Container chooser for multi-container run logs -->
                   <tr v-if="cronLogChooser && cronLogChooser.cj === cj.name">
                     <td colspan="7">
                       <fieldset class="mb-0" :data-cj-log-group="cj.name">
@@ -840,11 +838,6 @@ defineExpose({ load });
             </table>
           </div>
 
-          <!-- ── Recent rollouts (durable) ────────────────────────────────
-               Events expire after ~1h, so the lasting answer to "which deploy
-               was triggered and when" is each Deployment's ReplicaSet
-               revision trail. The user decides the scope via the controls
-               below; the backend applies their choices and nothing else. -->
           <h3 class="h6 text-body-secondary mb-1 mt-3">Recent rollouts</h3>
 
           <div class="row g-2 align-items-end mb-2">
@@ -936,10 +929,6 @@ defineExpose({ load });
           </template>
         </div>
 
-        <!-- Right: YAML / log / create / edit panels. Every panel here follows
-             the same focus-managed architecture as the pod detail/log screens:
-             it takes focus on open and returns it to the triggering button on
-             close. -->
         <div
           v-if="
             yamlTarget ||
@@ -948,7 +937,7 @@ defineExpose({ load });
             editTarget ||
             createDeployOpen
           "
-          class="col-lg-5"
+          class="col-lg-5 grid-col"
           style="min-height: 24rem"
         >
           <div v-if="yamlTarget" class="mb-3">

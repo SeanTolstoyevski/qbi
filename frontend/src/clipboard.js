@@ -1,11 +1,3 @@
-/*
- * Shared clipboard helper — single choke-point for navigator.clipboard.writeText
- * with screen-reader announcements. Previously duplicated across 9+ components.
- *
- * Usage:
- *   import { copyToClipboard } from "../clipboard.js";
- *   await copyToClipboard(text, "Pod my-pod");
- */
 
 import { useStore } from "./store.js";
 

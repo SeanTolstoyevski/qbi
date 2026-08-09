@@ -82,8 +82,7 @@ async function connect() {
 
 onMounted(async () => {
   await refreshStatus();
-  // If a kubeconfig is already available (remembered file, env var or the
-  // default location), load its contexts immediately so the user can connect.
+
   if (kubeconfig.value?.exists) {
     await loadContexts();
   }
@@ -94,13 +93,12 @@ defineExpose({ loadContexts });
 
 <template>
   <div class="d-flex flex-column gap-2">
-    <!-- Kubeconfig source: the primary starting point. -->
     <div class="d-flex align-items-center gap-2 flex-wrap">
       <button type="button" class="btn btn-outline-primary" @click="pickFile">
         Open kubeconfig file…
       </button>
 
-      <p class="mb-0 small">
+      <p class="mb-0 kubeconfig-chip">
         <span class="text-body-secondary">Kubeconfig:</span>
         <template v-if="kubeconfig?.path">
           <code>{{ kubeconfig.path }}</code>
@@ -120,11 +118,10 @@ defineExpose({ loadContexts });
       class="mb-0 small text-body-secondary"
     >
       No readable kubeconfig yet. Choose one of your <code>.yml</code> files
-      with <strong>Open kubeconfig file…</strong> — this is the equivalent of
+      with <strong>Open kubeconfig file…</strong> this is the equivalent of
       setting <code>KUBECONFIG</code> in the terminal.
     </p>
 
-    <!-- Context selection + connect: only meaningful once a config is loaded. -->
     <form
       v-if="kubeconfig?.exists"
       class="d-flex align-items-end gap-2 flex-wrap"

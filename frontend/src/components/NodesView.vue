@@ -168,22 +168,45 @@ defineExpose({ load });
           </thead>
           <tbody>
             <tr v-for="n in filteredNodes" :key="n.name">
-              <th scope="row" class="fw-normal">
+              <th scope="row" class="fw-normal name-cell">
                 <span class="d-inline-flex align-items-center gap-2">
                   <code>{{ n.name }}</code>
-                  <button
-                    type="button"
-                    class="btn btn-link btn-sm p-0"
-                    @click="copyToClipboard(n.name, `Node ${n.name}`)"
-                  >
-                    Copy<span class="visually-hidden">
-                      node name {{ n.name }}</span
-                    >
-                  </button>
                 </span>
                 <div v-if="n.internalIP" class="small text-body-secondary">
                   {{ n.internalIP }}
                 </div>
+                <button
+                  type="button"
+                  class="copy-inline"
+                  :aria-label="`Copy node name ${n.name}`"
+                  :title="`Copy ${n.name}`"
+                  @click="copyToClipboard(n.name, `Node ${n.name}`)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                    ></path>
+                  </svg>
+                </button>
               </th>
               <td>
                 <span

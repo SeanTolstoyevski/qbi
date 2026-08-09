@@ -35,8 +35,6 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-// A cron schedule is exactly five whitespace-separated fields; validated in cronJobHelpers.js.
-
 async function submit() {
   const c = form.value;
   error.value = "";

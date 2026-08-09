@@ -247,7 +247,7 @@ describe("PodList — filter and copy", () => {
     const w = await mountPodList();
     const btn = w
       .findAll("button")
-      .find((b) => b.text().includes("Copy pod name"));
+      .find((b) => b.attributes("aria-label")?.includes("Copy pod name"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("web-abc12");

@@ -500,7 +500,6 @@ function onSectionKeydown(e) {
       </div>
     </div>
 
-    <!-- Search + match navigation -->
     <div class="row g-2 align-items-end mb-2">
       <div class="col-12 col-lg">
         <label for="log-search" class="form-label mb-1 small"
@@ -589,7 +588,7 @@ function onSectionKeydown(e) {
       </div>
     </div>
 
-    <!-- Stream + view options -->
+
     <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
       <div class="d-flex align-items-center gap-1">
         <label for="opt-tail" class="form-label mb-0 small">History</label>
@@ -649,14 +648,6 @@ function onSectionKeydown(e) {
 
     <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-    <p id="log-nav-hint" class="small text-body-secondary mb-1">
-      Log navigation: arrow keys move, Home/End jump, PageUp/PageDown page,
-      Ctrl+C copies the focused line, Ctrl+A copies all.
-    </p>
-
-    <!-- The log region is labelled, focusable and scrollable. It is not an
-         aria-live region: a fast stream would overwhelm a screen reader.
-         Status and match counts are announced separately, on demand. -->
     <div
       ref="logEl"
       class="log-view flex-grow-1"
@@ -664,8 +655,6 @@ function onSectionKeydown(e) {
       tabindex="0"
       role="log"
       aria-label="Log output"
-      aria-describedby="log-nav-hint"
-      title="Arrow keys: move · Home/End: jump · PageUp/PageDown: page · Ctrl+C: copy line · Ctrl+A: copy all"
       @keydown="onLogKeydown"
       @focus="onLogFocus"
     >
@@ -706,6 +695,11 @@ function onSectionKeydown(e) {
 </template>
 
 <style scoped>
+/* Cap the terminal so it stays a contained, internally-scrolling panel and
+   never grows into — or under — the resource table beside it. */
+.log-view {
+  max-height: calc(100vh - 20rem);
+}
 .log-line {
   display: block;
 }

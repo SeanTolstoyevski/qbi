@@ -14,8 +14,6 @@
 
 const KEY_RE = /^[A-Za-z0-9._-]+$/;
 
-// Standard base64: alphabet, then 0-2 padding '=' characters, length multiple
-// of 4. The empty string is valid (decodes to zero bytes).
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 
 export function isValidBase64(s) {

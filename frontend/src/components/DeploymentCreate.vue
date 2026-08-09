@@ -127,10 +127,6 @@ function validate() {
   }
   return "";
 }
-
-// ── actions ─────────────────────────────────────────────────────────────────
-// Preview renders the exact manifest via the backend, so what you see is what
-// gets created — and what you can copy for drafting YAML elsewhere.
 async function togglePreview() {
   error.value = "";
   const v = validate();
@@ -165,7 +161,7 @@ async function submit() {
   saving.value = true;
   try {
     const created = await api.createDeployment(props.namespace, buildPayload());
-    if (!created) return; // user cancelled the confirmation — keep the form
+    if (!created) return;
     announce(`Deployment ${form.value.name.trim()} created.`);
     emit("created");
   } catch (e) {
@@ -273,7 +269,6 @@ async function submit() {
         />
       </div>
 
-      <!-- Labels -->
       <div class="col-12">
         <KeyValueFieldset
           :rows="form.labels"
@@ -288,12 +283,10 @@ async function submit() {
         />
       </div>
 
-      <!-- Advanced options -->
       <div class="col-12">
         <details>
           <summary class="small text-body-secondary">Advanced options</summary>
           <div class="mt-2 border rounded p-2">
-            <!-- Environment -->
             <KeyValueFieldset
               class="mb-3"
               :rows="form.env"
@@ -307,7 +300,6 @@ async function submit() {
               val-label="Env var value"
             />
 
-            <!-- Resources -->
             <fieldset class="mb-3">
               <legend class="h6 small text-body-secondary">
                 Resources (Kubernetes quantities, e.g. 100m, 128Mi)
@@ -368,7 +360,6 @@ async function submit() {
               </div>
             </fieldset>
 
-            <!-- Strategy / pull policy / placement -->
             <div class="row g-2 mb-3">
               <div class="col-6 col-md-4">
                 <label for="dp-pull" class="form-label mb-1 small"
@@ -401,7 +392,6 @@ async function submit() {
               </div>
             </div>
 
-            <!-- Node selector -->
             <KeyValueFieldset
               :rows="form.nodeSelector"
               legend="Node selector"
@@ -415,7 +405,6 @@ async function submit() {
         </details>
       </div>
 
-      <!-- Actions -->
       <div class="col-12 d-flex align-items-center gap-2">
         <button
           type="button"
@@ -439,7 +428,6 @@ async function submit() {
       </div>
       <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-      <!-- YAML preview: what will be created, and copyable for drafting -->
       <YamlPreview :yaml="preview" :open="previewOpen" />
     </form>
   </section>

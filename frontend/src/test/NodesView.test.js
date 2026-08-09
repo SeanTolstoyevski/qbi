@@ -150,7 +150,7 @@ describe("NodesView — copy", () => {
     const w = await mountNodes();
     const btn = w
       .findAll("button")
-      .find((b) => b.text().includes("Copy node name"));
+      .find((b) => b.attributes("aria-label")?.includes("Copy node name"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("node-a");

@@ -1,10 +1,3 @@
-/*
- * Shared Kubernetes naming validation — used by create/edit forms to fail fast
- * in the UI instead of waiting for the API server to reject invalid names.
- *
- * These mirrors the upstream Kubernetes validation rules:
- *   https://kubernetes.io/docs/concepts/overview/working-with-objects/names/
- */
 
 /** Matches a DNS label: lowercase alphanumeric + '-', 1-63 chars. */
 export const DNS_LABEL_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;

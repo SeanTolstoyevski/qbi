@@ -42,8 +42,6 @@ function openGitHub(e) {
       <dd class="col-sm-9">{{ commit || "…" }}</dd>
     </dl>
 
-    <!-- The application description text will be added here by the user.
-         For now, link to the project's source on GitHub. -->
     <p class="mb-0">
       <a :href="GITHUB_URL" @click="openGitHub">
         SeanTolstoyevski/qbi on GitHub

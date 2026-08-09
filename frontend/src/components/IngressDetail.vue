@@ -172,8 +172,6 @@ defineExpose({ load });
             <dd class="col-sm-8">{{ detail.ingress.age }}</dd>
           </dl>
 
-          <!-- Issues are the heart of this view: plain-language problems a
-               screen reader can read one at a time. -->
           <div
             v-if="detail.ingress.issues && detail.ingress.issues.length"
             class="alert alert-warning py-2"

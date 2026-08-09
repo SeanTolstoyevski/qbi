@@ -62,14 +62,14 @@ const anyPodPanel = computed(
 
 <template>
   <div class="row g-3">
-    <div :class="anyPodPanel ? 'col-lg-6' : 'col-12'">
+    <div :class="[anyPodPanel ? 'col-lg-6' : 'col-12', 'grid-col']">
       <PodList
         @view-logs="openLogs"
         @view-details="openDetails"
         @view-yaml="openPodYaml"
       />
     </div>
-    <div v-if="detailPod" class="col-lg-6" style="min-height: 24rem">
+    <div v-if="detailPod" class="col-lg-6 grid-col" style="min-height: 24rem">
       <PodDetail
         :key="`${detailPod}:${state.connectionEpoch}`"
         :namespace="state.namespace"
@@ -77,7 +77,7 @@ const anyPodPanel = computed(
         @close="closeDetails"
       />
     </div>
-    <div v-if="logTarget" class="col-lg-6" style="min-height: 24rem">
+    <div v-if="logTarget" class="col-lg-6 grid-col" style="min-height: 24rem">
       <LogViewer
         :key="`${logKey}:${state.connectionEpoch}`"
         :namespace="state.namespace"
@@ -86,7 +86,7 @@ const anyPodPanel = computed(
         @close="closeLogs"
       />
     </div>
-    <div v-if="yamlPod" class="col-lg-6" style="min-height: 24rem">
+    <div v-if="yamlPod" class="col-lg-6 grid-col" style="min-height: 24rem">
       <YamlViewer
         :key="`${yamlPod}:${state.connectionEpoch}`"
         :namespace="state.namespace"
