@@ -2,7 +2,7 @@
 import { ref, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
-import { copyToClipboard } from "../clipboard.js";
+import InlineButton from "./InlineButton.vue";
 
 const { state, announce } = useStore();
 
@@ -158,13 +158,11 @@ defineExpose({ load });
             </td>
             <td>
               {{ e.message }}
-              <button
-                type="button"
-                class="btn btn-link btn-sm p-0 ms-1 align-baseline"
-                @click="copyToClipboard(e.message, 'Event message')"
-              >
-                Copy<span class="visually-hidden"> event message</span>
-              </button>
+              <InlineButton
+                variant="inline"
+                :copy-text="e.message"
+                announce="Event message"
+              />
             </td>
             <td class="small text-body-secondary">{{ e.component || "—" }}</td>
             <td>{{ e.count }}</td>

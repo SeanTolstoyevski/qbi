@@ -4,8 +4,7 @@ import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
-import { copyToClipboard } from "../clipboard.js";
-
+import InlineButton from "./InlineButton.vue";
 const { state, announce } = useStore();
 
 const emit = defineEmits(["view-logs", "view-details", "view-yaml"]);
@@ -181,233 +180,212 @@ defineExpose({ load });
       <!-- table-responsive: scroll wide tables inside their column instead of
            spilling under the log/detail panel beside them. -->
       <div v-if="filtered.length" class="table-responsive">
-      <table class="table table-hover align-middle">
-        <caption class="visually-hidden">
-          Pods in namespace
-          {{
-            state.namespace
-          }}
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Ready</th>
-            <th scope="col">Phase</th>
-            <th scope="col">Restarts</th>
-            <th scope="col">Age</th>
-            <th scope="col">Owner</th>
-            <th scope="col"><span class="visually-hidden">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="pod in filtered" :key="pod.name">
+        <table class="table table-hover align-middle">
+          <caption class="visually-hidden">
+            Pods in namespace
+            {{
+              state.namespace
+            }}
+          </caption>
+          <thead>
             <tr>
-              <th scope="row" class="fw-normal name-cell">
-                <span>{{ pod.name }}</span>
-                <button
-                  type="button"
-                  class="copy-inline"
-                  :aria-label="`Copy pod name ${pod.name}`"
-                  :title="`Copy ${pod.name}`"
-                  @click="copyToClipboard(pod.name, `Pod ${pod.name}`)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      x="9"
-                      y="9"
-                      width="13"
-                      height="13"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path
-                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                    ></path>
-                  </svg>
-                </button>
-              </th>
-              <td>{{ pod.ready }}</td>
-              <td>
-                <span
-                  class="badge"
-                  :class="
-                    pod.phase === 'Running'
-                      ? 'text-bg-success'
-                      : 'text-bg-secondary'
-                  "
-                  >{{ pod.phase }}</span
-                >
-              </td>
-              <td>{{ pod.restarts }}</td>
-              <td>{{ pod.age }}</td>
-              <td class="small text-body-secondary">{{ pod.owner || "—" }}</td>
-              <td>
-                <div class="dropdown">
-                  <button
-                    :id="`actions-btn-${pod.name}`"
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                    aria-haspopup="menu"
-                    :aria-expanded="menuOpen === pod.name"
-                    :aria-controls="`menu-${pod.name}`"
-                    @click.stop="
-                      menuOpen === pod.name
-                        ? closeMenu(pod.name)
-                        : openMenu(pod.name)
+              <th scope="col">Name</th>
+              <th scope="col">Ready</th>
+              <th scope="col">Phase</th>
+              <th scope="col">Restarts</th>
+              <th scope="col">Age</th>
+              <th scope="col">Owner</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="pod in filtered" :key="pod.name">
+              <tr>
+                <th scope="row" class="fw-normal name-cell">
+                  <span>{{ pod.name }}</span>
+                  <InlineButton
+                    :copy-text="pod.name"
+                    :announce="`Pod ${pod.name}`"
+                    :title="`Copy ${pod.name}`"
+                  />
+                </th>
+                <td>{{ pod.ready }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    :class="
+                      pod.phase === 'Running'
+                        ? 'text-bg-success'
+                        : 'text-bg-secondary'
                     "
+                    >{{ pod.phase }}</span
                   >
-                    Actions
-                    <span class="visually-hidden">for pod {{ pod.name }}</span>
-                  </button>
+                </td>
+                <td>{{ pod.restarts }}</td>
+                <td>{{ pod.age }}</td>
+                <td class="small text-body-secondary">
+                  {{ pod.owner || "-" }}
+                </td>
+                <td>
+                  <div class="dropdown">
+                    <button
+                      :id="`actions-btn-${pod.name}`"
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                      aria-haspopup="menu"
+                      :aria-expanded="menuOpen === pod.name"
+                      :aria-controls="`menu-${pod.name}`"
+                      @click.stop="
+                        menuOpen === pod.name
+                          ? closeMenu(pod.name)
+                          : openMenu(pod.name)
+                      "
+                    >
+                      Actions
+                      <span class="visually-hidden"
+                        >for pod {{ pod.name }}</span
+                      >
+                    </button>
 
-                  <ul
-                    v-if="menuOpen === pod.name"
-                    :id="`menu-${pod.name}`"
-                    role="menu"
-                    :aria-label="`Actions for pod ${pod.name}`"
-                    class="dropdown-menu show"
-                    :data-menu="pod.name"
-                    @keydown="onMenuKeydown($event, pod.name)"
-                  >
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="dropdown-item"
-                        @click="
-                          focusTriggerAndAct(pod.name, () =>
-                            emit('view-details', pod.name),
-                          )
-                        "
-                      >
-                        Details
-                      </button>
-                    </li>
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="dropdown-item"
-                        @click="
-                          focusTriggerAndAct(pod.name, () =>
-                            emit('view-yaml', pod.name),
-                          )
-                        "
-                      >
-                        YAML
-                      </button>
-                    </li>
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="dropdown-item"
-                        @click="
-                          focusTriggerAndAct(pod.name, () => openLogs(pod))
-                        "
-                      >
-                        Logs{{ pod.containers.length > 1 ? "\u2026" : "" }}
-                      </button>
-                    </li>
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="dropdown-item"
-                        :disabled="openingShell === pod.name"
-                        @click="
-                          focusTriggerAndAct(pod.name, () => openShell(pod))
-                        "
-                      >
-                        <span
-                          v-if="openingShell === pod.name"
-                          class="spinner-border spinner-border-sm me-1"
-                          aria-hidden="true"
-                        ></span>
-                        Shell{{ pod.containers.length > 1 ? "\u2026" : "" }}
-                      </button>
-                    </li>
-                    <li role="separator" class="dropdown-divider"></li>
-                    <li role="presentation">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        class="dropdown-item text-danger"
-                        :disabled="deleting === pod.name"
-                        @click="
-                          focusTriggerAndAct(pod.name, () => deletePod(pod))
-                        "
-                      >
-                        <span
-                          v-if="deleting === pod.name"
-                          class="spinner-border spinner-border-sm me-1"
-                          aria-hidden="true"
-                        ></span>
-                        Delete
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="pod.containers.length > 1 && expanded === pod.name">
-              <td :id="`containers-${pod.name}`" colspan="7">
-                <fieldset class="mb-0" :data-container-group="pod.name">
-                  <legend class="h6 small text-body-secondary">
-                    Choose a container to stream logs
-                  </legend>
-                  <div class="d-flex flex-wrap gap-2">
-                    <button
-                      v-for="c in pod.containers"
-                      :key="c"
-                      type="button"
-                      class="btn btn-sm btn-secondary"
-                      @click="
-                        focusTriggerAndAct(pod.name, () => viewLogs(pod, c))
-                      "
+                    <ul
+                      v-if="menuOpen === pod.name"
+                      :id="`menu-${pod.name}`"
+                      role="menu"
+                      :aria-label="`Actions for pod ${pod.name}`"
+                      class="dropdown-menu show"
+                      :data-menu="pod.name"
+                      @keydown="onMenuKeydown($event, pod.name)"
                     >
-                      {{ c }}
-                    </button>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          @click="
+                            focusTriggerAndAct(pod.name, () =>
+                              emit('view-details', pod.name),
+                            )
+                          "
+                        >
+                          Details
+                        </button>
+                      </li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          @click="
+                            focusTriggerAndAct(pod.name, () =>
+                              emit('view-yaml', pod.name),
+                            )
+                          "
+                        >
+                          YAML
+                        </button>
+                      </li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          @click="
+                            focusTriggerAndAct(pod.name, () => openLogs(pod))
+                          "
+                        >
+                          Logs{{ pod.containers.length > 1 ? "\u2026" : "" }}
+                        </button>
+                      </li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item"
+                          :disabled="openingShell === pod.name"
+                          @click="
+                            focusTriggerAndAct(pod.name, () => openShell(pod))
+                          "
+                        >
+                          <span
+                            v-if="openingShell === pod.name"
+                            class="spinner-border spinner-border-sm me-1"
+                            aria-hidden="true"
+                          ></span>
+                          Shell{{ pod.containers.length > 1 ? "\u2026" : "" }}
+                        </button>
+                      </li>
+                      <li role="separator" class="dropdown-divider"></li>
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item text-danger"
+                          :disabled="deleting === pod.name"
+                          @click="
+                            focusTriggerAndAct(pod.name, () => deletePod(pod))
+                          "
+                        >
+                          <span
+                            v-if="deleting === pod.name"
+                            class="spinner-border spinner-border-sm me-1"
+                            aria-hidden="true"
+                          ></span>
+                          Delete
+                        </button>
+                      </li>
+                    </ul>
                   </div>
-                </fieldset>
-              </td>
-            </tr>
-            <tr v-if="pod.containers.length > 1 && shellExpanded === pod.name">
-              <td :id="`shell-containers-${pod.name}`" colspan="7">
-                <fieldset class="mb-0" :data-shell-group="pod.name">
-                  <legend class="h6 small text-body-secondary">
-                    Choose a container to open a shell
-                  </legend>
-                  <div class="d-flex flex-wrap gap-2">
-                    <button
-                      v-for="c in pod.containers"
-                      :key="c"
-                      type="button"
-                      class="btn btn-sm btn-secondary"
-                      @click="
-                        focusTriggerAndAct(pod.name, () => execShell(pod, c))
-                      "
-                    >
-                      {{ c }}
-                    </button>
-                  </div>
-                </fieldset>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+                </td>
+              </tr>
+              <tr v-if="pod.containers.length > 1 && expanded === pod.name">
+                <td :id="`containers-${pod.name}`" colspan="7">
+                  <fieldset class="mb-0" :data-container-group="pod.name">
+                    <legend class="h6 small text-body-secondary">
+                      Choose a container to stream logs
+                    </legend>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button
+                        v-for="c in pod.containers"
+                        :key="c"
+                        type="button"
+                        class="btn btn-sm btn-secondary"
+                        @click="
+                          focusTriggerAndAct(pod.name, () => viewLogs(pod, c))
+                        "
+                      >
+                        {{ c }}
+                      </button>
+                    </div>
+                  </fieldset>
+                </td>
+              </tr>
+              <tr
+                v-if="pod.containers.length > 1 && shellExpanded === pod.name"
+              >
+                <td :id="`shell-containers-${pod.name}`" colspan="7">
+                  <fieldset class="mb-0" :data-shell-group="pod.name">
+                    <legend class="h6 small text-body-secondary">
+                      Choose a container to open a shell
+                    </legend>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button
+                        v-for="c in pod.containers"
+                        :key="c"
+                        type="button"
+                        class="btn btn-sm btn-secondary"
+                        @click="
+                          focusTriggerAndAct(pod.name, () => execShell(pod, c))
+                        "
+                      >
+                        {{ c }}
+                      </button>
+                    </div>
+                  </fieldset>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </template>
   </section>

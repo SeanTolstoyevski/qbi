@@ -12,7 +12,7 @@
  *   - Delete button calls api.deletePod and reloads on success
  *   - Delete button shows a spinner and is disabled while in-flight
  *   - Cancel (api.deletePod returns false) does not reload
- *   - Owner column shows controller name or "—" for bare pods
+ *   - Owner column shows controller name or "-" for bare pods
  */
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
@@ -31,7 +31,7 @@ vi.mock("../api.js", () => ({
 
 import { api } from "../api.js";
 import PodList from "../components/PodList.vue";
-// Import the store singleton that the component also uses — same module instance.
+// Import the store singleton that the component also uses - same module instance.
 import { useStore } from "../store.js";
 
 const { setConnection, setNamespace } = useStore();
@@ -110,7 +110,7 @@ async function openActions(wrapper) {
   await nextTick();
 }
 
-describe("PodList — rendering", () => {
+describe("PodList - rendering", () => {
   it("shows a row for every pod returned by the API", async () => {
     const w = await mountPodList();
     const rows = w.findAll("tbody tr");
@@ -127,10 +127,10 @@ describe("PodList — rendering", () => {
     w.unmount();
   });
 
-  it("shows '—' in the Owner column for bare pods", async () => {
+  it("shows '-' in the Owner column for bare pods", async () => {
     const w = await mountPodList();
     const cells = w.findAll("td");
-    const ownerCells = cells.filter((c) => c.text() === "—");
+    const ownerCells = cells.filter((c) => c.text() === "-");
     expect(ownerCells.length).toBeGreaterThanOrEqual(1);
     w.unmount();
   });
@@ -153,7 +153,7 @@ describe("PodList — rendering", () => {
   });
 });
 
-describe("PodList — action buttons", () => {
+describe("PodList - action buttons", () => {
   it("clicking Details emits view-details with the pod name", async () => {
     const w = await mountPodList();
     await openActions(w);
@@ -184,7 +184,7 @@ describe("PodList — action buttons", () => {
   });
 });
 
-describe("PodList — delete pod", () => {
+describe("PodList - delete pod", () => {
   it("calls api.deletePod with the correct namespace and pod name", async () => {
     api.deletePod.mockResolvedValue(true);
     const w = await mountPodList();
@@ -219,7 +219,7 @@ describe("PodList — delete pod", () => {
   });
 });
 
-describe("PodList — filter and copy", () => {
+describe("PodList - filter and copy", () => {
   it("filters pods by name", async () => {
     const w = await mountPodList();
     await w.find("#pod-filter").setValue("bare-pod");
@@ -247,7 +247,7 @@ describe("PodList — filter and copy", () => {
     const w = await mountPodList();
     const btn = w
       .findAll("button")
-      .find((b) => b.attributes("aria-label")?.includes("Copy pod name"));
+      .find((b) => b.classes().includes("copy-inline"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("web-abc12");
@@ -255,7 +255,7 @@ describe("PodList — filter and copy", () => {
   });
 });
 
-describe("PodList — namespace switch", () => {
+describe("PodList - namespace switch", () => {
   // Per-pod UI (container choosers, action menus) names pods that no longer
   // exist once the namespace changes, so it must close instead of pointing at
   // stale rows from the previous namespace.
@@ -308,7 +308,7 @@ describe("PodList — namespace switch", () => {
   });
 });
 
-describe("PodList — reload after reconnect", () => {
+describe("PodList - reload after reconnect", () => {
   it("reloads pods when reconnecting to the same context", async () => {
     api.listPods.mockClear();
     const w = await mountPodList();

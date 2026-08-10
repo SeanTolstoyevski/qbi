@@ -3,8 +3,8 @@ import { ref, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
-import { copyToClipboard } from "../clipboard.js";
 import ListBox from "./ListBox.vue";
+import InlineButton from "./InlineButton.vue";
 
 const { state, announce } = useStore();
 
@@ -142,18 +142,16 @@ defineExpose({ load });
             <div
               v-for="entry in detail.entries"
               :key="entry.key"
-              class="mb-3 border rounded p-2"
+              class="mb-3 border rounded p-2 hover-reveal"
             >
               <dt class="d-flex align-items-center justify-content-between">
                 <span>{{ entry.key }}</span>
-                <button
+                <InlineButton
                   v-if="!entry.isBinary"
-                  type="button"
-                  class="btn btn-sm btn-outline-secondary"
-                  @click="copyToClipboard(entry.value, 'Value')"
-                >
-                  Copy
-                </button>
+                  variant="inline"
+                  :copy-text="entry.value"
+                  announce="Value"
+                />
               </dt>
               <dd class="mb-0 mt-1">
                 <code v-if="entry.isBinary" class="text-body-secondary">{{

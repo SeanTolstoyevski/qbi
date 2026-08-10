@@ -1,4 +1,3 @@
-
 /** Matches a DNS label: lowercase alphanumeric + '-', 1-63 chars. */
 export const DNS_LABEL_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 

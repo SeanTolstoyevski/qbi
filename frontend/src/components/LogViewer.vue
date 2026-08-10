@@ -588,7 +588,6 @@ function onSectionKeydown(e) {
       </div>
     </div>
 
-
     <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
       <div class="d-flex align-items-center gap-1">
         <label for="opt-tail" class="form-label mb-0 small">History</label>

@@ -1,5 +1,5 @@
 /*
- * Tests for NodesView.vue — the cluster nodes table with metrics and filter.
+ * Tests for NodesView.vue - the cluster nodes table with metrics and filter.
  *
  * We cover:
  *   - Renders every node returned by the API
@@ -93,7 +93,7 @@ async function mountNodes(metrics = METRICS) {
   return w;
 }
 
-describe("NodesView — rendering", () => {
+describe("NodesView - rendering", () => {
   it("renders every node", async () => {
     const w = await mountNodes();
     expect(w.findAll("tbody tr")).toHaveLength(2);
@@ -120,7 +120,7 @@ describe("NodesView — rendering", () => {
   });
 });
 
-describe("NodesView — filter", () => {
+describe("NodesView - filter", () => {
   it("filters nodes by name", async () => {
     const w = await mountNodes();
     await w.find("#node-filter").setValue("node-b");
@@ -145,12 +145,12 @@ describe("NodesView — filter", () => {
   });
 });
 
-describe("NodesView — copy", () => {
+describe("NodesView - copy", () => {
   it("copies the node name", async () => {
     const w = await mountNodes();
     const btn = w
       .findAll("button")
-      .find((b) => b.attributes("aria-label")?.includes("Copy node name"));
+      .find((b) => b.classes().includes("copy-inline"));
     await btn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("node-a");
@@ -158,7 +158,7 @@ describe("NodesView — copy", () => {
   });
 });
 
-describe("NodesView — reload after reconnect", () => {
+describe("NodesView - reload after reconnect", () => {
   it("reloads nodes when reconnecting to the same context", async () => {
     const w = await mountNodes();
     expect(api.listNodes).toHaveBeenCalledTimes(1);

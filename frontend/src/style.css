@@ -107,6 +107,7 @@ select:focus-visible {
 .nav-tabs {
   border-bottom: 1px solid var(--bs-border-color);
 }
+
 .nav-tabs .nav-link {
   margin-bottom: -1px;
   padding: 0.625rem 1rem;
@@ -116,6 +117,7 @@ select:focus-visible {
   font-weight: 500;
   transition: color 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
+
 .nav-tabs .nav-link:hover,
 .nav-tabs .nav-link:focus-visible {
   color: var(--bs-body-color);
@@ -158,15 +160,18 @@ select:focus-visible {
 .name-cell {
   position: relative;
   padding-right: 2rem;
+  transition: padding-right 0.15s ease-in-out;
 }
+
+/* Row-level copy control (InlineButton.vue): a bare icon that appears only
+   when the row is hovered or the button gets keyboard focus. The text label
+   is hidden by default and revealed on focus-visible, so keyboard users get
+   an explicit word while rows stay visually clean. */
 .copy-inline {
-  position: absolute;
-  right: 0.375rem;
-  top: 50%;
-  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.25rem;
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
@@ -176,9 +181,30 @@ select:focus-visible {
   color: var(--bs-secondary-color);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out;
+  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out,
+    width 0.15s ease-in-out, padding 0.15s ease-in-out;
+}
+.copy-inline .inline-button-text {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  transition: max-width 0.15s ease-in-out;
+}
+/* cell variant: anchored to the right edge of a .name-cell */
+.name-cell > .copy-inline {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+/* inline variant: flows with the cell content (messages, DNS names) */
+.copy-inline--inline {
+  vertical-align: middle;
+  margin-left: 0.375rem;
 }
 tbody tr:hover .copy-inline,
+.hover-reveal:hover .copy-inline,
 .copy-inline:focus-visible {
   opacity: 1;
   pointer-events: auto;
@@ -187,4 +213,24 @@ tbody tr:hover .copy-inline,
 }
 .copy-inline:hover {
   background-color: var(--bs-secondary-bg);
+}
+/* Focus expands the button to show its text label; the name cell reserves
+   the extra width via :focus-within so the label never covers row content. */
+.copy-inline:focus-visible {
+  width: auto;
+  padding: 0 0.375rem;
+}
+.copy-inline:focus-visible .inline-button-text {
+  max-width: 6rem;
+}
+.name-cell:focus-within {
+  padding-right: 4.5rem;
+}
+/* Touch devices have no hover and often no Tab key, so the reveal-on-hover
+   pattern would hide the copy control forever; keep it always visible. */
+@media (hover: none) {
+  .copy-inline {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }

@@ -375,12 +375,12 @@ defineExpose({ load });
         <div
           :class="[
             yamlTarget ||
-              logTarget ||
-              createOpen ||
-              editTarget ||
-              createDeployOpen
-                ? 'col-lg-7'
-                : 'col-12',
+            logTarget ||
+            createOpen ||
+            editTarget ||
+            createDeployOpen
+              ? 'col-lg-7'
+              : 'col-12',
             'grid-col',
           ]"
         >

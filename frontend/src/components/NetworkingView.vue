@@ -4,10 +4,10 @@ import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
-import { copyToClipboard } from "../clipboard.js";
 import ServiceCreate from "./ServiceCreate.vue";
 import IngressDetail from "./IngressDetail.vue";
 import IngressCreate from "./IngressCreate.vue";
+import InlineButton from "./InlineButton.vue";
 
 const { state, announce } = useStore();
 
@@ -331,15 +331,13 @@ defineExpose({ load });
 
               <dl class="row mb-0 mt-1 small">
                 <dt class="col-sm-3">DNS name</dt>
-                <dd class="col-sm-9 mb-1">
+                <dd class="col-sm-9 mb-1 hover-reveal">
                   <code>{{ svc.dnsName }}</code>
-                  <button
-                    type="button"
-                    class="btn btn-link btn-sm p-0 ms-2 align-baseline"
-                    @click="copyToClipboard(svc.dnsName, 'DNS name')"
-                  >
-                    Copy
-                  </button>
+                  <InlineButton
+                    variant="inline"
+                    :copy-text="svc.dnsName"
+                    announce="DNS name"
+                  />
                 </dd>
 
                 <dt class="col-sm-3">Cluster IP</dt>

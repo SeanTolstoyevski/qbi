@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { copyToClipboard } from "../clipboard.js";
+import InlineButton from "./InlineButton.vue";
 import {
   newRow,
   seedRows,
@@ -448,9 +449,8 @@ function onKeydown(e) {
                 >
               </td>
               <td class="text-end">
-                <span class="btn-group btn-group-sm">
+                <span v-if="isRevealable(entry)" class="btn-group btn-group-sm">
                   <button
-                    v-if="isRevealable(entry)"
                     type="button"
                     class="btn btn-outline-secondary"
                     :aria-pressed="!!revealed[entry.key]"
@@ -458,15 +458,13 @@ function onKeydown(e) {
                   >
                     {{ revealed[entry.key] ? "Hide" : "Reveal" }}
                   </button>
-                  <button
-                    v-if="isRevealable(entry)"
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    @click="copyToClipboard(displayValue(entry), 'Value')"
-                  >
-                    Copy
-                  </button>
                 </span>
+                <InlineButton
+                  v-if="isRevealable(entry)"
+                  variant="inline"
+                  :copy-text="displayValue(entry)"
+                  announce="Value"
+                />
               </td>
             </tr>
           </tbody>
