@@ -173,8 +173,7 @@ func (h *redactHandler) redact(a slog.Attr, groups []string) slog.Attr {
 	if len(groups) > 0 {
 		key = strings.Join(append(append([]string{}, groups...), a.Key), ".")
 	}
-	// Sensitive keys are masked before the kind switch: a token passed as
-	// slog.Any or hidden inside a group must not leak either.
+
 	if h.masked(key) {
 		return slog.String(a.Key, "[redacted]")
 	}

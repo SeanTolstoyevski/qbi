@@ -1,5 +1,5 @@
 /*
- * Tests for api.js — the Wails wrapper with friendly error mapping.
+ * Tests for api.js - the Wails wrapper with friendly error mapping.
  *
  * The service() function wraps every Wails-bound method once so raw client-go
  * errors ("Forbidden", "context deadline exceeded") become short, actionable
@@ -7,7 +7,7 @@
  * assert the mapped messages.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { api } from "../api.js";
 
 // Install a fresh Service object with the given methods for one test.
@@ -19,7 +19,7 @@ beforeEach(() => {
   window.go.main.Service = {};
 });
 
-describe("api — friendly error mapping", () => {
+describe("api - friendly error mapping", () => {
   it("maps Forbidden to a permission message", async () => {
     installService({
       ListPods: () => Promise.reject(new Error("pods is forbidden")),
@@ -80,5 +80,12 @@ describe("api — friendly error mapping", () => {
   it("resolved values pass through unwrapped", async () => {
     installService({ ListPods: () => Promise.resolve([{ name: "p1" }]) });
     await expect(api.listPods("default")).resolves.toEqual([{ name: "p1" }]);
+  });
+
+  it("acknowledgeWelcome calls the bound AcknowledgeWelcome method", async () => {
+    const fn = vi.fn(() => Promise.resolve());
+    installService({ AcknowledgeWelcome: fn });
+    await api.acknowledgeWelcome();
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });

@@ -26,7 +26,6 @@ func TestRedactIPs(t *testing.T) {
 		{"endpoint https://192.168.1.10/healthz unreachable", true},
 		{"loopback ::1 refused", true},
 		{"pod on fd00:abcd::1:2 failed", true},
-		// Non-addresses must survive untouched.
 		{"12:30:45", false},
 		{"deployment v1.29.3 ready", false},
 		{"aa:bb:cc:dd:ee:ff", false},
@@ -45,8 +44,8 @@ func TestSameIPGetsStableHash(t *testing.T) {
 	if strings.Count(a, "ip#") != 2 {
 		t.Fatalf("both IPs should be hashed: %q", a)
 	}
-	first := a[strings.Index(a, "ip#"):strings.Index(a, "ip#")+11]
-	second := a[strings.LastIndex(a, "ip#"):strings.LastIndex(a, "ip#")+11]
+	first := a[strings.Index(a, "ip#") : strings.Index(a, "ip#")+11]
+	second := a[strings.LastIndex(a, "ip#") : strings.LastIndex(a, "ip#")+11]
 	if first != second {
 		t.Errorf("hash not stable: %q vs %q", first, second)
 	}
@@ -93,7 +92,6 @@ func TestExtraRedactKeys(t *testing.T) {
 }
 
 func TestRedactSensitiveKeysRegardlessOfKind(t *testing.T) {
-	// A token logged as Any or hidden in a group must be masked too.
 	out := logThrough(t,
 		slog.Any("token", map[string]any{"value": "sekret"}),
 		slog.Group("creds", slog.Any("password", "hunter2")),

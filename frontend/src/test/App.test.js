@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick, defineComponent, h } from "vue";
 
 const { nsFocusList } = vi.hoisted(() => ({
@@ -19,12 +19,15 @@ vi.mock("../api.js", () => ({
     setWatchNamespace: vi.fn(),
     version: vi.fn(),
     commit: vi.fn(),
+    getSettings: vi.fn(),
+    acknowledgeWelcome: vi.fn(),
   },
   onEvent: vi.fn(() => () => {}),
 }));
 
 import App from "../App.vue";
 import { useStore } from "../store.js";
+import { api } from "../api.js";
 
 const { setConnection, setNamespace } = useStore();
 
@@ -59,6 +62,10 @@ beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
   setNamespace("default");
   vi.clearAllMocks();
+  // Baseline for the first-launch check: the wizard was already completed, so
+  // App renders its normal shell unless a test overrides welcomeSeen.
+  api.getSettings.mockResolvedValue({ autoRefresh: false, welcomeSeen: true });
+  api.acknowledgeWelcome.mockResolvedValue();
 });
 
 function mountApp() {
@@ -143,6 +150,122 @@ describe("App — screen shortcuts", () => {
       new KeyboardEvent("keydown", { key: "e", ctrlKey: true }),
     );
     expect(nsFocusList).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});
+
+describe("App — welcome wizard", () => {
+  function wizardButton(w, text) {
+    return w.findAll("button").find((b) => b.text() === text);
+  }
+
+  async function completeWizard(w) {
+    await wizardButton(w, "Next").trigger("click");
+    await wizardButton(w, "Next").trigger("click");
+    await w.find("#welcome-acknowledge").setValue(true);
+    await wizardButton(w, "Get started").trigger("click");
+    await flushPromises();
+  }
+
+  it("shows the wizard on first launch and makes the app behind it inert", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: false,
+    });
+    const w = mountApp();
+    await flushPromises();
+    expect(w.find('[role="dialog"]').exists()).toBe(true);
+    // The shell behind the backdrop is removed from the tab order and the
+    // accessibility tree while the wizard is open.
+    expect(w.find(".app-root").attributes("inert")).toBeDefined();
+    expect(w.find(".app-root").attributes("aria-hidden")).toBe("true");
+    w.unmount();
+  });
+
+  it("completing the wizard persists the acknowledgment and reveals the app", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: false,
+    });
+    const w = mountApp();
+    await flushPromises();
+    await completeWizard(w);
+
+    expect(api.acknowledgeWelcome).toHaveBeenCalledTimes(1);
+    expect(w.find('[role="dialog"]').exists()).toBe(false);
+    expect(w.find(".app-root").attributes("inert")).toBeUndefined();
+    // Focus returns to the visible section heading.
+    expect(document.activeElement).toBe(
+      w.find("#section-heading-namespace").element,
+    );
+    w.unmount();
+  });
+
+  it("dismissing hides the wizard for this session without persisting", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: false,
+    });
+    const w = mountApp();
+    await flushPromises();
+    await w.find(".btn-close").trigger("click");
+    await flushPromises();
+
+    expect(w.find('[role="dialog"]').exists()).toBe(false);
+    expect(api.acknowledgeWelcome).not.toHaveBeenCalled();
+    expect(w.find(".app-root").attributes("inert")).toBeUndefined();
+    w.unmount();
+  });
+
+  it("keeps the wizard open and shows the error when saving the acknowledgment fails", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: false,
+    });
+    api.acknowledgeWelcome.mockRejectedValue(new Error("save failed"));
+    const w = mountApp();
+    await flushPromises();
+    await completeWizard(w);
+
+    expect(w.find('[role="dialog"]').exists()).toBe(true);
+    expect(w.find('[role="alert"]').text()).toContain("save failed");
+    w.unmount();
+  });
+
+  it("does not show the wizard after it has been acknowledged", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: true,
+    });
+    const w = mountApp();
+    await flushPromises();
+    expect(w.find('[role="dialog"]').exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("shows the wizard when settings cannot be read", async () => {
+    api.getSettings.mockRejectedValue(new Error("bindings unavailable"));
+    const w = mountApp();
+    await flushPromises();
+    expect(w.find('[role="dialog"]').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("ignores global screen shortcuts while the wizard is open", async () => {
+    api.getSettings.mockResolvedValue({
+      autoRefresh: false,
+      welcomeSeen: false,
+    });
+    const w = mountApp();
+    await flushPromises();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "1", ctrlKey: true }),
+    );
+    await nextTick();
+    // The shortcut must not switch the section behind the modal.
+    expect(w.find("#section-heading-cluster").isVisible()).toBe(false);
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(true);
+    expect(w.find('[role="dialog"]').exists()).toBe(true);
     w.unmount();
   });
 });

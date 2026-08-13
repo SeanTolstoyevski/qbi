@@ -120,7 +120,7 @@ The app persists a few preferences (kubeconfig path, auto-refresh) in a
 
 ## Logging
 
-QBI keeps its own logs so failures can be diagnosed after the fact — bad
+QBI keeps its own logs so failures can be diagnosed after the fact: bad
 YAML, kube edge cases, misconfigurations, crashes. They are **never
 telemetry**: the logging pipeline redacts anything sensitive before it
 reaches a destination, so a shared log cannot leak your cluster environment.
@@ -153,6 +153,9 @@ reaches a destination, so a shared log cannot leak your cluster environment.
   file. client-go's own logging (klog) goes through the same pipeline.
 - **Crash and frontend coverage:** panics are logged with a stack trace, and
   uncaught JavaScript errors are forwarded to the same redacted log.
+- **Review before sharing:** redaction is best-effort, so QBI may fail to mask
+  some critical data — always review a log before sharing it. When opening an
+  issue, attaching the log helps the developers diagnose the problem.
 
 ## Development
 

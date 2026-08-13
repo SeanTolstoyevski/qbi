@@ -251,7 +251,11 @@ defineExpose({ load });
         </table>
       </div>
 
-      <div v-if="yamlTarget" class="col-lg-4 grid-col" style="min-height: 24rem">
+      <div
+        v-if="yamlTarget"
+        class="col-lg-4 grid-col"
+        style="min-height: 24rem"
+      >
         <YamlViewer
           :key="yamlTarget"
           namespace=""

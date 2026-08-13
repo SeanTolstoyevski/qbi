@@ -29,8 +29,6 @@ func TestFileWriterAppends(t *testing.T) {
 
 func TestFileWriterSurvivesRotateFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "s.log")
-	// Occupy the backup path with a non-empty directory so os.Remove and
-	// os.Rename both fail — rotation must degrade to appending.
 	if err := os.MkdirAll(filepath.Join(path+".1", "blocker"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +39,6 @@ func TestFileWriterSurvivesRotateFailure(t *testing.T) {
 	if _, err := fw.Write(make([]byte, 400)); err != nil {
 		t.Fatal(err)
 	}
-	// This write overflows and rotation fails; the record must still land.
 	if _, err := fw.Write([]byte("keepme")); err != nil {
 		t.Fatalf("write after failed rotation: %v", err)
 	}
@@ -67,7 +64,6 @@ func TestFileWriterRotates(t *testing.T) {
 	if _, err := fw.Write(fill); err != nil {
 		t.Fatal(err)
 	}
-	// Overflow triggers rotation: old content moves to r.log.1.
 	tail := make([]byte, 300)
 	copy(tail, []byte("tail"))
 	if _, err := fw.Write(tail); err != nil {

@@ -3,6 +3,7 @@ import { ref, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useStore } from "./store.js";
 import { api } from "./api.js";
 import ContextBar from "./components/ContextBar.vue";
+import WelcomeWizard from "./components/WelcomeWizard.vue";
 import NamespaceList from "./components/NamespaceList.vue";
 import PodsView from "./components/PodsView.vue";
 import SecretList from "./components/SecretList.vue";
@@ -14,7 +15,49 @@ import NodesView from "./components/NodesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
-const { state } = useStore();
+const { state, announce } = useStore();
+
+// First-launch welcome wizard: shown until the user either completes it
+// (persisted via Service.AcknowledgeWelcome, never shown again) or dismisses
+// it for this session. While it is open, the app behind it is inert so the
+// wizard is the only thing a keyboard or screen-reader user can reach.
+const showWelcome = ref(false);
+const welcomeError = ref("");
+
+function focusSectionHeading() {
+  nextTick(() =>
+    document.getElementById(`section-heading-${section.value}`)?.focus(),
+  );
+}
+
+async function onWelcomeAcknowledged() {
+  welcomeError.value = "";
+  try {
+    await api.acknowledgeWelcome();
+    showWelcome.value = false;
+    announce("Welcome complete.");
+    focusSectionHeading();
+  } catch (e) {
+    // Keep the wizard open and surface the save failure inside the dialog.
+    welcomeError.value = String(e);
+  }
+}
+
+function onWelcomeDismissed() {
+  showWelcome.value = false;
+  focusSectionHeading();
+}
+
+onMounted(async () => {
+  try {
+    const s = await api.getSettings();
+    showWelcome.value = !s.welcomeSeen;
+  } catch {
+    // Settings unreadable (e.g. bindings unavailable): show the wizard rather
+    // than silently skip it — dismissal still works without the backend.
+    showWelcome.value = true;
+  }
+});
 
 watch(
   () => [state.namespace, state.connectionEpoch],
@@ -57,6 +100,7 @@ const topTabs = ["cluster", "namespace", "settings", "about"];
 const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3 };
 
 function onGlobalKeydown(e) {
+  if (showWelcome.value) return; // the wizard owns the keyboard while open
   if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
   if (e.key === "e" || e.key === "E") {
     const list = namespaceListRef.value;
@@ -114,201 +158,222 @@ function onTabKeydown(e) {
 </script>
 
 <template>
-  <a class="skip-link btn btn-primary" href="#main-content"
-    >Skip to main content</a
+  <div
+    class="app-root"
+    :inert="showWelcome || undefined"
+    :aria-hidden="showWelcome || undefined"
   >
-
-  <div class="app-shell">
-    <header class="border-bottom bg-body-tertiary px-3 py-2">
-      <div
-        class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"
-      >
-        <h1 class="h5 mb-0">QBI</h1>
-
-        <nav class="header-nav">
-          <ul class="nav nav-pills">
-            <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
-              <button
-                type="button"
-                class="nav-link text-capitalize"
-                :class="{ active: section === s }"
-                :aria-current="section === s ? 'page' : undefined"
-                :title="`${s[0].toUpperCase()}${s.slice(1)} (Ctrl+${idx + 1})`"
-                @click="selectSection(s)"
-              >
-                {{ s }}
-              </button>
-            </li>
-          </ul>
-        </nav>
-      </div>
-      <ContextBar />
-    </header>
-
-    <div
-      class="visually-hidden"
-      :aria-live="state.statusKind"
-      aria-atomic="true"
+    <a class="skip-link btn btn-primary" href="#main-content"
+      >Skip to main content</a
     >
-      {{ state.status }}
-    </div>
 
-    <div class="app-body container-fluid py-3">
-      <div class="row g-3 h-100">
-        <nav class="col-12 col-md-3 col-lg-2 h-100" aria-label="Namespaces">
-          <NamespaceList ref="namespaceListRef" />
-        </nav>
-
-        <main
-          id="main-content"
-          class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
+    <div class="app-shell">
+      <header class="border-bottom bg-body-tertiary px-3 py-2">
+        <div
+          class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"
         >
-          <div v-show="section === 'cluster'">
-            <h2
-              id="section-heading-cluster"
-              class="visually-hidden"
-              tabindex="-1"
-            >
-              Cluster resources
-            </h2>
-            <div v-if="!state.connected" class="alert alert-info" role="status">
-              Select a kubeconfig file with
-              <strong>Open kubeconfig file…</strong>, choose a context, then
-              select <strong>Connect</strong> to begin.
-            </div>
-            <NodesView v-else />
-          </div>
+          <h1 class="h5 mb-0">QBI</h1>
 
-          <div v-show="section === 'settings'">
-            <h2
-              id="section-heading-settings"
-              class="visually-hidden"
-              tabindex="-1"
-            >
-              Settings
-            </h2>
-            <SettingsView />
-          </div>
+          <nav class="header-nav">
+            <ul class="nav nav-pills">
+              <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
+                <button
+                  type="button"
+                  class="nav-link text-capitalize"
+                  :class="{ active: section === s }"
+                  :aria-current="section === s ? 'page' : undefined"
+                  :title="`${s[0].toUpperCase()}${s.slice(1)} (Ctrl+${idx + 1})`"
+                  @click="selectSection(s)"
+                >
+                  {{ s }}
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+        <ContextBar />
+      </header>
 
-          <div v-show="section === 'about'">
-            <h2
-              id="section-heading-about"
-              class="visually-hidden"
-              tabindex="-1"
-            >
-              About
-            </h2>
-            <AboutView />
-          </div>
-          <div v-show="section === 'namespace'">
-            <h2
-              id="section-heading-namespace"
-              class="visually-hidden"
-              tabindex="-1"
-            >
-              Namespace resources
-            </h2>
-            <div v-if="!state.connected" class="alert alert-info" role="status">
-              Select a kubeconfig file with
-              <strong>Open kubeconfig file…</strong>, choose a context, then
-              select <strong>Connect</strong> to begin.
-            </div>
-            <template v-else>
+      <div
+        class="visually-hidden"
+        :aria-live="state.statusKind"
+        aria-atomic="true"
+      >
+        {{ state.status }}
+      </div>
+
+      <div class="app-body container-fluid py-3">
+        <div class="row g-3 h-100">
+          <nav class="col-12 col-md-3 col-lg-2 h-100" aria-label="Namespaces">
+            <NamespaceList ref="namespaceListRef" />
+          </nav>
+
+          <main
+            id="main-content"
+            class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
+          >
+            <div v-show="section === 'cluster'">
+              <h2
+                id="section-heading-cluster"
+                class="visually-hidden"
+                tabindex="-1"
+              >
+                Cluster resources
+              </h2>
               <div
-                v-if="!state.namespace"
-                class="alert alert-secondary"
+                v-if="!state.connected"
+                class="alert alert-info"
                 role="status"
               >
-                Select a namespace from the list to view its pods, networking
-                and secrets.
+                Select a kubeconfig file with
+                <strong>Open kubeconfig file…</strong>, choose a context, then
+                select <strong>Connect</strong> to begin.
               </div>
+              <NodesView v-else />
+            </div>
 
+            <div v-show="section === 'settings'">
+              <h2
+                id="section-heading-settings"
+                class="visually-hidden"
+                tabindex="-1"
+              >
+                Settings
+              </h2>
+              <SettingsView />
+            </div>
+
+            <div v-show="section === 'about'">
+              <h2
+                id="section-heading-about"
+                class="visually-hidden"
+                tabindex="-1"
+              >
+                About
+              </h2>
+              <AboutView />
+            </div>
+            <div v-show="section === 'namespace'">
+              <h2
+                id="section-heading-namespace"
+                class="visually-hidden"
+                tabindex="-1"
+              >
+                Namespace resources
+              </h2>
+              <div
+                v-if="!state.connected"
+                class="alert alert-info"
+                role="status"
+              >
+                Select a kubeconfig file with
+                <strong>Open kubeconfig file…</strong>, choose a context, then
+                select <strong>Connect</strong> to begin.
+              </div>
               <template v-else>
-                <ul
-                  class="nav nav-tabs mb-3"
-                  role="tablist"
-                  @keydown="onTabKeydown"
+                <div
+                  v-if="!state.namespace"
+                  class="alert alert-secondary"
+                  role="status"
                 >
-                  <li
-                    v-for="t in tabs"
-                    :key="t"
-                    class="nav-item"
-                    role="presentation"
+                  Select a namespace from the list to view its pods, networking
+                  and secrets.
+                </div>
+
+                <template v-else>
+                  <ul
+                    class="nav nav-tabs mb-3"
+                    role="tablist"
+                    @keydown="onTabKeydown"
                   >
-                    <button
-                      :id="`tab-${t}`"
-                      class="nav-link text-capitalize"
-                      :class="{ active: activeTab === t }"
-                      type="button"
-                      role="tab"
-                      :tabindex="activeTab === t ? 0 : -1"
-                      :aria-selected="activeTab === t"
-                      :aria-controls="`panel-${t}`"
-                      @click="selectTab(t)"
+                    <li
+                      v-for="t in tabs"
+                      :key="t"
+                      class="nav-item"
+                      role="presentation"
                     >
-                      {{ t === "configmaps" ? "Config maps" : t }}
-                    </button>
-                  </li>
-                </ul>
+                      <button
+                        :id="`tab-${t}`"
+                        class="nav-link text-capitalize"
+                        :class="{ active: activeTab === t }"
+                        type="button"
+                        role="tab"
+                        :tabindex="activeTab === t ? 0 : -1"
+                        :aria-selected="activeTab === t"
+                        :aria-controls="`panel-${t}`"
+                        @click="selectTab(t)"
+                      >
+                        {{ t === "configmaps" ? "Config maps" : t }}
+                      </button>
+                    </li>
+                  </ul>
 
-                <div
-                  v-show="activeTab === 'pods'"
-                  id="panel-pods"
-                  role="tabpanel"
-                  aria-labelledby="tab-pods"
-                >
-                  <PodsView />
-                </div>
+                  <div
+                    v-show="activeTab === 'pods'"
+                    id="panel-pods"
+                    role="tabpanel"
+                    aria-labelledby="tab-pods"
+                  >
+                    <PodsView />
+                  </div>
 
-                <div
-                  v-show="activeTab === 'workloads'"
-                  id="panel-workloads"
-                  role="tabpanel"
-                  aria-labelledby="tab-workloads"
-                >
-                  <WorkloadsView />
-                </div>
+                  <div
+                    v-show="activeTab === 'workloads'"
+                    id="panel-workloads"
+                    role="tabpanel"
+                    aria-labelledby="tab-workloads"
+                  >
+                    <WorkloadsView />
+                  </div>
 
-                <div
-                  v-show="activeTab === 'networking'"
-                  id="panel-networking"
-                  role="tabpanel"
-                  aria-labelledby="tab-networking"
-                >
-                  <NetworkingView />
-                </div>
+                  <div
+                    v-show="activeTab === 'networking'"
+                    id="panel-networking"
+                    role="tabpanel"
+                    aria-labelledby="tab-networking"
+                  >
+                    <NetworkingView />
+                  </div>
 
-                <div
-                  v-show="activeTab === 'configmaps'"
-                  id="panel-configmaps"
-                  role="tabpanel"
-                  aria-labelledby="tab-configmaps"
-                >
-                  <ConfigMapList />
-                </div>
+                  <div
+                    v-show="activeTab === 'configmaps'"
+                    id="panel-configmaps"
+                    role="tabpanel"
+                    aria-labelledby="tab-configmaps"
+                  >
+                    <ConfigMapList />
+                  </div>
 
-                <div
-                  v-show="activeTab === 'secrets'"
-                  id="panel-secrets"
-                  role="tabpanel"
-                  aria-labelledby="tab-secrets"
-                >
-                  <SecretList />
-                </div>
+                  <div
+                    v-show="activeTab === 'secrets'"
+                    id="panel-secrets"
+                    role="tabpanel"
+                    aria-labelledby="tab-secrets"
+                  >
+                    <SecretList />
+                  </div>
 
-                <div
-                  v-show="activeTab === 'events'"
-                  id="panel-events"
-                  role="tabpanel"
-                  aria-labelledby="tab-events"
-                >
-                  <EventsView />
-                </div>
+                  <div
+                    v-show="activeTab === 'events'"
+                    id="panel-events"
+                    role="tabpanel"
+                    aria-labelledby="tab-events"
+                  >
+                    <EventsView />
+                  </div>
+                </template>
               </template>
-            </template>
-          </div>
-        </main>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   </div>
+
+  <WelcomeWizard
+    v-if="showWelcome"
+    :error="welcomeError"
+    @acknowledged="onWelcomeAcknowledged"
+    @dismiss="onWelcomeDismissed"
+  />
 </template>

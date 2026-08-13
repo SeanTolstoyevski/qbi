@@ -125,6 +125,7 @@ export const api = {
   saveLogs: (suggestedName, content) =>
     service().SaveLogs(suggestedName, content),
   getSettings: () => service().GetSettings(),
+  acknowledgeWelcome: () => service().AcknowledgeWelcome(),
   setAutoRefresh: (enabled) => service().SetAutoRefresh(enabled),
   setWatchNamespace: (namespace) => service().SetWatchNamespace(namespace),
   version: () => service().Version(),

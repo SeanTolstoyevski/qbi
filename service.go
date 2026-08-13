@@ -51,12 +51,27 @@ func (s *Service) Commit() string {
 // AppSettings is the settings payload exchanged with the frontend.
 type AppSettings struct {
 	AutoRefresh bool `json:"autoRefresh"`
+	WelcomeSeen bool `json:"welcomeSeen"`
 }
 
 // GetSettings returns the current persisted settings.
 func (s *Service) GetSettings() AppSettings {
 	st := loadSettings()
-	return AppSettings{AutoRefresh: st.AutoRefresh}
+	return AppSettings{AutoRefresh: st.AutoRefresh, WelcomeSeen: st.WelcomeSeen}
+}
+
+// AcknowledgeWelcome records that the user has read the first-launch welcome
+// wizard and accepted responsibility for cluster changes. The frontend calls
+// it when the wizard is completed; it is never shown again afterwards.
+// Merely closing the wizard does not call this — only the explicit
+// acknowledgment on the final step does.
+func (s *Service) AcknowledgeWelcome() error {
+	st := loadSettings()
+	st.WelcomeSeen = true
+	if err := saveSettings(st); err != nil {
+		return s.opErr("AcknowledgeWelcome", err)
+	}
+	return nil
 }
 
 // SetAutoRefresh persists the auto-refresh preference and starts or stops the
@@ -150,7 +165,11 @@ func (s *Service) SelectKubeconfig() (kube.KubeconfigStatus, error) {
 // the choice for future launches. An empty path restores default resolution.
 func (s *Service) SetKubeconfig(path string) (kube.KubeconfigStatus, error) {
 	s.app.kube.SetKubeconfigPath(path)
-	if err := saveSettings(settings{KubeconfigPath: path}); err != nil {
+	// Load-then-save: a fresh struct would silently wipe AutoRefresh and
+	// WelcomeSeen (e.g. acknowledging the wizard, then picking a kubeconfig).
+	st := loadSettings()
+	st.KubeconfigPath = path
+	if err := saveSettings(st); err != nil {
 		// Persisting is best-effort; the in-memory choice still applies.
 		slog.Warn("could not persist kubeconfig path", "error", err)
 	}

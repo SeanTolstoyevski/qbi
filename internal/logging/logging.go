@@ -228,7 +228,6 @@ func newOutputHandler(out Output, opts *slog.HandlerOptions) (slog.Handler, io.C
 	case "json":
 		newHandler = func(w io.Writer) slog.Handler { return slog.NewJSONHandler(w, opts) }
 	default:
-		// Unreachable after validate; kept so a future caller cannot panic.
 		return nil, nil, fmt.Errorf("log config: unknown format %q", out.Format)
 	}
 	switch out.Type {
@@ -241,7 +240,6 @@ func newOutputHandler(out Output, opts *slog.HandlerOptions) (slog.Handler, io.C
 		}
 		return newHandler(fw), fw, nil
 	default:
-		// Unreachable after validate; kept so a future caller cannot panic.
 		return nil, nil, fmt.Errorf("log config: unknown output type %q", out.Type)
 	}
 }

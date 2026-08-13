@@ -12,6 +12,10 @@ type settings struct {
 	// AutoRefresh enables background Kubernetes Watch streams so the UI
 	// updates automatically when cluster resources change.
 	AutoRefresh bool `json:"autoRefresh"`
+	// WelcomeSeen records that the user read the first-launch welcome wizard
+	// and acknowledged responsibility for changes they make. Once true the
+	// wizard is not shown again.
+	WelcomeSeen bool `json:"welcomeSeen"`
 }
 
 // settingsPath returns the location of the persisted settings file, creating no

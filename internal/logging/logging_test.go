@@ -50,7 +50,7 @@ func TestSetupFileOutputRedactsAndFilters(t *testing.T) {
 	defer closer.Close()
 
 	slog.Error("connect to 10.0.0.5 failed", "server", "https://10.0.0.5:6443", "cluster", "prod-eu")
-	slog.Debug("verbose", "x", "y") // below info level, must be filtered out
+	slog.Debug("verbose", "x", "y")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -194,7 +194,6 @@ func TestLoadFallsBackToBuiltInProfile(t *testing.T) {
 		wantProfile = DevProfile()
 	}
 
-	// Missing file.
 	t.Setenv("QBI_LOG_CONFIG", filepath.Join(t.TempDir(), "nope.json"))
 	if cfg, err := Load(); err == nil {
 		t.Error("missing config file must return an error")
@@ -202,7 +201,6 @@ func TestLoadFallsBackToBuiltInProfile(t *testing.T) {
 		t.Error("fallback config must still have outputs")
 	}
 
-	// Malformed file.
 	bad := filepath.Join(t.TempDir(), "bad.json")
 	os.WriteFile(bad, []byte("{not json"), 0o600)
 	t.Setenv("QBI_LOG_CONFIG", bad)
@@ -212,7 +210,6 @@ func TestLoadFallsBackToBuiltInProfile(t *testing.T) {
 		t.Error("fallback config must still have outputs")
 	}
 
-	// Valid JSON with invalid contents.
 	invalid := filepath.Join(t.TempDir(), "invalid.json")
 	os.WriteFile(invalid, []byte(`{"level": "loud", "outputs": [{"type": "pipe", "format": "text"}]}`), 0o600)
 	t.Setenv("QBI_LOG_CONFIG", invalid)
@@ -224,7 +221,6 @@ func TestLoadFallsBackToBuiltInProfile(t *testing.T) {
 		t.Errorf("fallback cfg = %+v, want built-in profile %+v", cfg, wantProfile)
 	}
 
-	// Invalid env level is ignored, not fatal.
 	valid := filepath.Join(t.TempDir(), "valid.json")
 	os.WriteFile(valid, []byte(`{"level": "info", "outputs": [{"type": "stdout", "format": "text"}]}`), 0o600)
 	t.Setenv("QBI_LOG_CONFIG", valid)
