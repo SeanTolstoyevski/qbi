@@ -1,0 +1,41 @@
+// Forwards uncaught frontend errors to the backend log so JS crashes can be
+// diagnosed together with backend failures. The backend applies the same
+// redaction as for its own logs, so no cluster data can leak.
+const MAX_FORWARDED = 100;
+let forwarded = 0;
+
+export function forwardError(level, message, stack) {
+  if (forwarded >= MAX_FORWARDED) return;
+  const svc = window.go?.main?.Service;
+  if (typeof svc?.LogFrontend !== "function") return;
+  forwarded += 1;
+  try {
+    Promise.resolve(
+      svc.LogFrontend(
+        level,
+        String(message ?? "").slice(0, 2000),
+        String(stack ?? "").slice(0, 4000),
+      ),
+    ).catch(() => {});
+  } catch {
+    // Error reporting must never take the app down with it.
+  }
+}
+
+export function initErrorForwarding() {
+  window.addEventListener("error", (e) => {
+    forwardError(
+      "error",
+      e.message,
+      e.error?.stack ?? `${e.filename}:${e.lineno}`,
+    );
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason;
+    forwardError(
+      "error",
+      reason instanceof Error ? reason.message : String(reason),
+      reason instanceof Error ? reason.stack : "",
+    );
+  });
+}

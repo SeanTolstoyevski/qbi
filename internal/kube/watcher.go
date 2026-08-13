@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -224,7 +225,7 @@ func (w *Watcher) Stop() {
 // clusterRV calls getResourceVersion and returns the result, returning "" on
 // error so that callers can still issue a Watch (which will then re-list from
 // the server's current state).
-func clusterRV(ctx context.Context, getResourceVersion func() (string, error)) (string, error) {
+func clusterRV(_ context.Context, getResourceVersion func() (string, error)) (string, error) {
 	return getResourceVersion()
 }
 
@@ -242,7 +243,7 @@ func (w *Watcher) runWatch(ctx context.Context, kind, namespace string, makeWatc
 
 		wi, err := makeWatch(ctx)
 		if err != nil {
-			// API unreachable — wait before retrying.
+			slog.Debug("watch setup failed, retrying", "kind", kind, "namespace", namespace, "error", err)
 			select {
 			case <-ctx.Done():
 				return
@@ -251,7 +252,6 @@ func (w *Watcher) runWatch(ctx context.Context, kind, namespace string, makeWatc
 			continue
 		}
 
-		// Drain events until the channel closes or context is cancelled.
 	drain:
 		for {
 			select {
@@ -280,14 +280,13 @@ func (w *Watcher) runWatch(ctx context.Context, kind, namespace string, makeWatc
 						Namespace: namespace,
 					})
 				case watch.Error:
-					// The server sent an error status; restart the watch.
+					slog.Debug("watch stream restarted", "kind", kind, "namespace", namespace)
 					wi.Stop()
 					break drain
 				}
 			}
 		}
 
-		// Brief pause before reconnecting to avoid hammering the API.
 		select {
 		case <-ctx.Done():
 			return

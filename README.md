@@ -118,6 +118,42 @@ wails build
 The app persists a few preferences (kubeconfig path, auto-refresh) in a
 `qbi/settings.json` file inside your OS user-config directory.
 
+## Logging
+
+QBI keeps its own logs so failures can be diagnosed after the fact — bad
+YAML, kube edge cases, misconfigurations, crashes. They are **never
+telemetry**: the logging pipeline redacts anything sensitive before it
+reaches a destination, so a shared log cannot leak your cluster environment.
+
+- **Where:** `<UserConfigDir>/qbi/logs/qbi.log` (e.g.
+  `%AppData%\qbi\logs\qbi.log` on Windows), rotating at 5 MB with one backup.
+  Timestamps are UTC. Under `wails dev`, logs also appear on stdout.
+- **Profiles:** development builds (`wails dev`) log everything at `debug`
+  level; production builds (`wails build`) log `info` and above. Both write
+  to the file above.
+- **Config override:** place a `logging.json` next to `settings.json` in
+  `<UserConfigDir>/qbi`, or point `QBI_LOG_CONFIG` at a config file;
+  `QBI_LOG_LEVEL` overrides just the level. An unreadable or invalid config
+  falls back to the built-in profile.
+
+  ```json
+  {
+    "level": "debug",
+    "outputs": [
+      { "type": "stdout", "format": "text" },
+      { "type": "file", "format": "json", "path": "logs/qbi.log" }
+    ]
+  }
+  ```
+
+- **Redaction is always on:** IP addresses anywhere in a record are replaced
+  by a stable short hash, and values under sensitive keys (`cluster`,
+  `context`, `server`, `host`, `kubeconfig`, `password`, `token`, `secret`,
+  …) are masked. Cluster names, endpoints and credentials never reach a log
+  file. client-go's own logging (klog) goes through the same pipeline.
+- **Crash and frontend coverage:** panics are logged with a stack trace, and
+  uncaught JavaScript errors are forwarded to the same redacted log.
+
 ## Development
 
 ```bash
@@ -153,8 +189,10 @@ app.go             App state + Wails runtime context
 service.go         The JS-bound API + log-stream and watch lifecycle
 settings.go        Persisted preferences (kubeconfig path, auto-refresh)
 internal/kube/     Kubernetes client-go wrapper (no Wails imports)
+internal/logging/  slog setup: dev/prod profiles, destinations, redaction
 frontend/          Vue 3 + Vite + Bootstrap 5
   src/api.js       Wraps the Wails bindings, maps errors to plain language
+  src/logging.js   Forwards uncaught JS errors to the backend log
   src/store.js     Small reactive store (connection, namespace, announcements)
   src/components/  One component per screen (list, detail, create forms…)
 ```

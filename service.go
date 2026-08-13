@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -64,7 +65,7 @@ func (s *Service) SetAutoRefresh(enabled bool) error {
 	st := loadSettings()
 	st.AutoRefresh = enabled
 	if err := saveSettings(st); err != nil {
-		return err
+		return s.opErr("SetAutoRefresh", err)
 	}
 	if !enabled {
 		s.watcher.Stop()
@@ -136,7 +137,7 @@ func (s *Service) SelectKubeconfig() (kube.KubeconfigStatus, error) {
 		},
 	})
 	if err != nil {
-		return kube.KubeconfigStatus{}, err
+		return kube.KubeconfigStatus{}, s.opErr("SelectKubeconfig", err)
 	}
 	if path == "" {
 		// User cancelled; report the current status without changes.
@@ -151,19 +152,21 @@ func (s *Service) SetKubeconfig(path string) (kube.KubeconfigStatus, error) {
 	s.app.kube.SetKubeconfigPath(path)
 	if err := saveSettings(settings{KubeconfigPath: path}); err != nil {
 		// Persisting is best-effort; the in-memory choice still applies.
-		runtime.LogWarningf(s.app.ctx, "could not persist kubeconfig path: %v", err)
+		slog.Warn("could not persist kubeconfig path", "error", err)
 	}
 	return s.app.kube.Status(), nil
 }
 
 // ListContexts returns every context in the user's kubeconfig.
 func (s *Service) ListContexts() ([]kube.ContextInfo, error) {
-	return s.app.kube.Contexts()
+	contexts, err := s.app.kube.Contexts()
+	return contexts, s.opErr("ListContexts", err)
 }
 
 // Connect activates the given context (empty selects the current-context).
 func (s *Service) Connect(contextName string) (kube.ContextInfo, error) {
-	return s.app.kube.Connect(contextName)
+	info, err := s.app.kube.Connect(contextName)
+	return info, s.opErr("Connect", err)
 }
 
 // opCtx returns a context bounded by a timeout for a single API operation, so
@@ -173,11 +176,47 @@ func (s *Service) opCtx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(s.app.ctx, 30*time.Second)
 }
 
+// opErr logs a failed service call and returns the error unchanged, so every
+// backend failure the frontend sees is also recorded for later debugging.
+// The logging package redacts sensitive values before they reach a log file.
+func (s *Service) opErr(op string, err error) error {
+	if err != nil {
+		slog.Error("service call failed", "op", op, "error", err)
+	}
+	return err
+}
+
+// LogFrontend records an error report from the frontend (uncaught JS
+// exceptions, unhandled promise rejections). It goes through the same
+// redacting pipeline as everything else, so it cannot leak cluster data.
+func (s *Service) LogFrontend(level, message, stack string) error {
+	lvl := slog.LevelError
+	switch strings.ToLower(level) {
+	case "error":
+	case "warn", "warning":
+		lvl = slog.LevelWarn
+	case "info":
+		lvl = slog.LevelInfo
+	default:
+		return fmt.Errorf("invalid log level %q", level)
+	}
+	// Truncate on rune boundaries: byte-slicing could split a UTF-8 char.
+	if r := []rune(message); len(r) > 8000 {
+		message = string(r[:8000])
+	}
+	if r := []rune(stack); len(r) > 8000 {
+		stack = string(r[:8000])
+	}
+	slog.Log(context.Background(), lvl, message, "source", "frontend", "stack", stack)
+	return nil
+}
+
 // ListNamespaces returns namespaces for the connected cluster.
 func (s *Service) ListNamespaces() ([]kube.NamespaceInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Namespaces(ctx)
+	ns, err := s.app.kube.Namespaces(ctx)
+	return ns, s.opErr("ListNamespaces", err)
 }
 
 // DeleteNamespace permanently removes a namespace and all of its contents after
@@ -192,12 +231,12 @@ func (s *Service) DeleteNamespace(name string) (bool, error) {
 		fmt.Sprintf("Permanently delete namespace %q and everything inside it?\n\nThis cannot be undone. All resources in the namespace will be removed.", name),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeleteNamespace", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeleteNamespace(ctx, name); err != nil {
-		return false, err
+		return false, s.opErr("DeleteNamespace", err)
 	}
 	return true, nil
 }
@@ -206,7 +245,8 @@ func (s *Service) DeleteNamespace(name string) (bool, error) {
 func (s *Service) ListPods(namespace string) ([]kube.PodInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Pods(ctx, namespace)
+	pods, err := s.app.kube.Pods(ctx, namespace)
+	return pods, s.opErr("ListPods", err)
 }
 
 // ListNodes returns the cluster's nodes with health and capacity summaries.
@@ -215,7 +255,8 @@ func (s *Service) ListPods(namespace string) ([]kube.PodInfo, error) {
 func (s *Service) ListNodes() ([]kube.NodeInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Nodes(ctx)
+	nodes, err := s.app.kube.Nodes(ctx)
+	return nodes, s.opErr("ListNodes", err)
 }
 
 // ListNodeMetrics returns live CPU/memory usage for every node plus a
@@ -224,7 +265,8 @@ func (s *Service) ListNodes() ([]kube.NodeInfo, error) {
 func (s *Service) ListNodeMetrics() (kube.NodeMetricsView, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.NodeMetricsView(ctx)
+	view, err := s.app.kube.NodeMetricsView(ctx)
+	return view, s.opErr("ListNodeMetrics", err)
 }
 
 // GetPodMetrics returns the live CPU/memory usage of a pod together with its
@@ -232,7 +274,8 @@ func (s *Service) ListNodeMetrics() (kube.NodeMetricsView, error) {
 func (s *Service) GetPodMetrics(namespace, pod string) (kube.PodMetric, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.PodMetrics(ctx, namespace, pod)
+	metrics, err := s.app.kube.PodMetrics(ctx, namespace, pod)
+	return metrics, s.opErr("GetPodMetrics", err)
 }
 
 // DeletePod removes a pod, causing its owning controller to recreate it.
@@ -246,7 +289,7 @@ func (s *Service) DeletePod(namespace, name string) (bool, error) {
 	defer cancelLookup()
 	info, err := s.app.kube.Pods(ctxLookup, namespace)
 	if err != nil {
-		return false, err
+		return false, s.opErr("DeletePod", err)
 	}
 	ownerLine := "This is a bare pod — it will be permanently removed."
 	for _, p := range info {
@@ -260,12 +303,12 @@ func (s *Service) DeletePod(namespace, name string) (bool, error) {
 		fmt.Sprintf("Delete pod %q in namespace %q?\n\n%s", name, namespace, ownerLine),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeletePod", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeletePod(ctx, namespace, name); err != nil {
-		return false, err
+		return false, s.opErr("DeletePod", err)
 	}
 	return true, nil
 }
@@ -274,7 +317,8 @@ func (s *Service) DeletePod(namespace, name string) (bool, error) {
 func (s *Service) ListJobs(namespace string) ([]kube.JobInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Jobs(ctx, namespace)
+	jobs, err := s.app.kube.Jobs(ctx, namespace)
+	return jobs, s.opErr("ListJobs", err)
 }
 
 // OpenShell launches the OS terminal with an interactive kubectl exec session
@@ -283,14 +327,15 @@ func (s *Service) ListJobs(namespace string) ([]kube.JobInfo, error) {
 // that qbi  is currently inspecting. container may be empty for single-container
 // pods; for multi-container pods the caller should pass the chosen container.
 func (s *Service) OpenShell(namespace, pod, container string) error {
-	return s.app.kube.OpenShell(namespace, pod, container)
+	return s.opErr("OpenShell", s.app.kube.OpenShell(namespace, pod, container))
 }
 
 // ListCronJobs returns CronJobs in a namespace.
 func (s *Service) ListCronJobs(namespace string) ([]kube.CronJobInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.CronJobs(ctx, namespace)
+	jobs, err := s.app.kube.CronJobs(ctx, namespace)
+	return jobs, s.opErr("ListCronJobs", err)
 }
 
 // GetCronJobDetail returns a CronJob with its recent runs and their pods, so
@@ -298,7 +343,8 @@ func (s *Service) ListCronJobs(namespace string) ([]kube.CronJobInfo, error) {
 func (s *Service) GetCronJobDetail(namespace, name string) (kube.CronJobDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.CronJobDetail(ctx, namespace, name)
+	detail, err := s.app.kube.CronJobDetail(ctx, namespace, name)
+	return detail, s.opErr("GetCronJobDetail", err)
 }
 
 // CreateCronJob creates a CronJob after an explicit confirmation. Returns
@@ -310,12 +356,12 @@ func (s *Service) CreateCronJob(namespace string, spec kube.CronJobCreate) (bool
 			spec.Name, namespace, spec.Schedule, spec.Image, cronPolicyLabel(spec.ConcurrencyPolicy)),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateCronJob", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateCronJob(ctx, namespace, spec); err != nil {
-		return false, err
+		return false, s.opErr("CreateCronJob", err)
 	}
 	return true, nil
 }
@@ -345,12 +391,12 @@ func (s *Service) UpdateCronJob(namespace, name string, upd kube.CronJobUpdate) 
 		fmt.Sprintf("Update cron job %q in namespace %q?\n\n%s", name, namespace, strings.Join(parts, " and ")),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("UpdateCronJob", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.UpdateCronJob(ctx, namespace, name, upd); err != nil {
-		return false, err
+		return false, s.opErr("UpdateCronJob", err)
 	}
 	return true, nil
 }
@@ -363,12 +409,12 @@ func (s *Service) ScaleWorkload(namespace, kind, name string, replicas int32) (b
 		fmt.Sprintf("Set %s %q in namespace %q to %d replica(s)?", kind, name, namespace, replicas),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("ScaleWorkload", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.ScaleWorkload(ctx, namespace, kind, name, replicas); err != nil {
-		return false, err
+		return false, s.opErr("ScaleWorkload", err)
 	}
 	return true, nil
 }
@@ -378,27 +424,31 @@ func (s *Service) ScaleWorkload(namespace, kind, name string, replicas int32) (b
 func (s *Service) GetResourceYAML(namespace, kind, name string) (string, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.ResourceYAML(ctx, namespace, kind, name)
+	yamlDoc, err := s.app.kube.ResourceYAML(ctx, namespace, kind, name)
+	return yamlDoc, s.opErr("GetResourceYAML", err)
 }
 
 // ListSecrets returns secret metadata (no values) in a namespace.
 func (s *Service) ListSecrets(namespace string) ([]kube.SecretInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Secrets(ctx, namespace)
+	secrets, err := s.app.kube.Secrets(ctx, namespace)
+	return secrets, s.opErr("ListSecrets", err)
 }
 
 // ListServices returns services (with DNS names and backing endpoints).
 func (s *Service) ListServices(namespace string) ([]kube.ServiceInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Services(ctx, namespace)
+	services, err := s.app.kube.Services(ctx, namespace)
+	return services, s.opErr("ListServices", err)
 }
 
 // RenderServiceYAML renders the manifest that CreateService would apply, so
 // the UI can preview the YAML before the user commits. Pure serialization.
 func (s *Service) RenderServiceYAML(namespace string, spec kube.ServiceCreate) (string, error) {
-	return s.app.kube.RenderServiceYAML(namespace, spec)
+	yamlDoc, err := s.app.kube.RenderServiceYAML(namespace, spec)
+	return yamlDoc, s.opErr("RenderServiceYAML", err)
 }
 
 // DeleteService permanently removes a Service after a native confirmation.
@@ -410,12 +460,12 @@ func (s *Service) DeleteService(namespace, name string) (bool, error) {
 		fmt.Sprintf("Permanently delete service %q in namespace %q?\n\nBacking pods are not affected; only the load-balancing entry is removed.", name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeleteService", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeleteService(ctx, namespace, name); err != nil {
-		return false, err
+		return false, s.opErr("DeleteService", err)
 	}
 	return true, nil
 }
@@ -430,12 +480,12 @@ func (s *Service) DeleteIngress(namespace, name string) (bool, error) {
 		fmt.Sprintf("Permanently delete ingress %q in namespace %q?\n\nThe routing rules are removed. The services and pods they pointed to keep running unchanged.", name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeleteIngress", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeleteIngress(ctx, namespace, name); err != nil {
-		return false, err
+		return false, s.opErr("DeleteIngress", err)
 	}
 	return true, nil
 }
@@ -449,12 +499,12 @@ func (s *Service) CreateService(namespace string, spec kube.ServiceCreate) (bool
 			spec.Name, namespace, svcTypeLabel(spec.Type), servicePortsSummary(spec.Ports)),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateService", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateService(ctx, namespace, spec); err != nil {
-		return false, err
+		return false, s.opErr("CreateService", err)
 	}
 	return true, nil
 }
@@ -488,7 +538,8 @@ func servicePortsSummary(ports []kube.ServicePortCreate) string {
 func (s *Service) ListIngresses(namespace string) ([]kube.IngressInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Ingresses(ctx, namespace)
+	ingresses, err := s.app.kube.Ingresses(ctx, namespace)
+	return ingresses, s.opErr("ListIngresses", err)
 }
 
 // IngressDetail returns one ingress with its TLS/backend health checks plus
@@ -497,7 +548,8 @@ func (s *Service) ListIngresses(namespace string) ([]kube.IngressInfo, error) {
 func (s *Service) IngressDetail(namespace, name string) (kube.IngressDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.IngressDetail(ctx, namespace, name)
+	detail, err := s.app.kube.IngressDetail(ctx, namespace, name)
+	return detail, s.opErr("IngressDetail", err)
 }
 
 // ListIngressClasses returns the cluster's ingress class names, so the form
@@ -506,13 +558,15 @@ func (s *Service) IngressDetail(namespace, name string) (kube.IngressDetail, err
 func (s *Service) ListIngressClasses() ([]string, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.IngressClasses(ctx)
+	classes, err := s.app.kube.IngressClasses(ctx)
+	return classes, s.opErr("ListIngressClasses", err)
 }
 
 // RenderIngressYAML renders the manifest that CreateIngress would apply, so
 // the UI can preview the YAML before the user commits. Pure serialization.
 func (s *Service) RenderIngressYAML(namespace string, spec kube.IngressCreate) (string, error) {
-	return s.app.kube.RenderIngressYAML(namespace, spec)
+	yamlDoc, err := s.app.kube.RenderIngressYAML(namespace, spec)
+	return yamlDoc, s.opErr("RenderIngressYAML", err)
 }
 
 // CreateIngress creates an Ingress after an explicit confirmation. Returns
@@ -525,12 +579,12 @@ func (s *Service) CreateIngress(namespace string, spec kube.IngressCreate) (bool
 			ingressHostsSummary(spec.Rules), ingressTLSSummary(spec.TLS)),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateIngress", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateIngress(ctx, namespace, spec); err != nil {
-		return false, err
+		return false, s.opErr("CreateIngress", err)
 	}
 	return true, nil
 }
@@ -541,7 +595,8 @@ func (s *Service) CreateIngress(namespace string, spec kube.IngressCreate) (bool
 func (s *Service) IngressEdit(namespace, name string) (kube.IngressEditSpec, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.IngressEditSpec(ctx, namespace, name)
+	specResult, err := s.app.kube.IngressEditSpec(ctx, namespace, name)
+	return specResult, s.opErr("IngressEdit", err)
 }
 
 // UpdateIngress replaces the form-owned fields (class, rules, TLS, default
@@ -553,12 +608,12 @@ func (s *Service) UpdateIngress(namespace, name string, spec kube.IngressCreate)
 		fmt.Sprintf("Replace the routing rules of ingress %q in namespace %q?\n\nThe form contents (rules, TLS, class, default backend, annotations, labels) replace the current values exactly as shown in the preview.", name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("UpdateIngress", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.UpdateIngress(ctx, namespace, name, spec); err != nil {
-		return false, err
+		return false, s.opErr("UpdateIngress", err)
 	}
 	return true, nil
 }
@@ -608,14 +663,16 @@ func plural(n int) string {
 func (s *Service) GetPod(namespace, name string) (kube.PodDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Pod(ctx, namespace, name)
+	detail, err := s.app.kube.Pod(ctx, namespace, name)
+	return detail, s.opErr("GetPod", err)
 }
 
 // ListEvents returns events in a namespace, most recent first.
 func (s *Service) ListEvents(namespace string) ([]kube.EventInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Events(ctx, namespace)
+	events, err := s.app.kube.Events(ctx, namespace)
+	return events, s.opErr("ListEvents", err)
 }
 
 // History returns durable activity in a namespace — Deployment rollout
@@ -626,21 +683,24 @@ func (s *Service) ListEvents(namespace string) ([]kube.EventInfo, error) {
 func (s *Service) History(namespace string, opts kube.HistoryOptions) (kube.NamespaceHistory, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.History(ctx, namespace, opts)
+	history, err := s.app.kube.History(ctx, namespace, opts)
+	return history, s.opErr("History", err)
 }
 
 // ListConfigMaps returns ConfigMap metadata (names and keys) in a namespace.
 func (s *Service) ListConfigMaps(namespace string) ([]kube.ConfigMapInfo, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.ConfigMaps(ctx, namespace)
+	maps, err := s.app.kube.ConfigMaps(ctx, namespace)
+	return maps, s.opErr("ListConfigMaps", err)
 }
 
 // GetConfigMap returns a single ConfigMap's full contents.
 func (s *Service) GetConfigMap(namespace, name string) (kube.ConfigMapDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.ConfigMap(ctx, namespace, name)
+	detail, err := s.app.kube.ConfigMap(ctx, namespace, name)
+	return detail, s.opErr("GetConfigMap", err)
 }
 
 // ListWorkloads returns Deployments, StatefulSets and DaemonSets in a
@@ -648,14 +708,16 @@ func (s *Service) GetConfigMap(namespace, name string) (kube.ConfigMapDetail, er
 func (s *Service) ListWorkloads(namespace string) (kube.WorkloadsView, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Workloads(ctx, namespace)
+	view, err := s.app.kube.Workloads(ctx, namespace)
+	return view, s.opErr("ListWorkloads", err)
 }
 
 // RenderDeploymentYAML renders the manifest that CreateDeployment would
 // apply, so the UI can preview the YAML before the user commits. Pure
 // serialization — no cluster call.
 func (s *Service) RenderDeploymentYAML(namespace string, spec kube.DeploymentCreate) (string, error) {
-	return s.app.kube.RenderDeploymentYAML(namespace, spec)
+	yamlDoc, err := s.app.kube.RenderDeploymentYAML(namespace, spec)
+	return yamlDoc, s.opErr("RenderDeploymentYAML", err)
 }
 
 // CreateDeployment creates a Deployment from the UI form spec after an
@@ -667,12 +729,12 @@ func (s *Service) CreateDeployment(namespace string, spec kube.DeploymentCreate)
 			spec.Name, namespace, spec.Image, spec.Replicas),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateDeployment", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateDeployment(ctx, namespace, spec); err != nil {
-		return false, err
+		return false, s.opErr("CreateDeployment", err)
 	}
 	return true, nil
 }
@@ -691,12 +753,12 @@ func (s *Service) DeleteWorkload(namespace, kind, name string) (bool, error) {
 		fmt.Sprintf("Permanently delete %s %q in namespace %q?\n\nAll of its pods will be terminated.%s", kind, name, namespace, extra),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeleteWorkload", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeleteWorkload(ctx, namespace, kind, name); err != nil {
-		return false, err
+		return false, s.opErr("DeleteWorkload", err)
 	}
 	return true, nil
 }
@@ -710,12 +772,12 @@ func (s *Service) RestartWorkload(namespace, kind, name string) (bool, error) {
 		fmt.Sprintf("Trigger a rolling restart of %s %q in namespace %q?\n\nPods will be replaced gradually according to the workload's update strategy.", kind, name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("RestartWorkload", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.RestartWorkload(ctx, namespace, kind, name); err != nil {
-		return false, err
+		return false, s.opErr("RestartWorkload", err)
 	}
 	return true, nil
 }
@@ -724,7 +786,8 @@ func (s *Service) RestartWorkload(namespace, kind, name string) (bool, error) {
 func (s *Service) GetSecret(namespace, name string) (kube.SecretDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.Secret(ctx, namespace, name)
+	detail, err := s.app.kube.Secret(ctx, namespace, name)
+	return detail, s.opErr("GetSecret", err)
 }
 
 // UpdateSecret applies a set of key changes (set or delete) to a secret and
@@ -734,7 +797,8 @@ func (s *Service) GetSecret(namespace, name string) (kube.SecretDetail, error) {
 func (s *Service) UpdateSecret(namespace, name string, changes []kube.SecretChange, mode string) (kube.SecretDetail, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.UpdateSecret(ctx, namespace, name, changes, mode)
+	detail, err := s.app.kube.UpdateSecret(ctx, namespace, name, changes, mode)
+	return detail, s.opErr("UpdateSecret", err)
 }
 
 // CreateSecret creates a secret from the form spec after an explicit
@@ -748,12 +812,12 @@ func (s *Service) CreateSecret(namespace string, spec kube.SecretCreate, mode st
 			spec.Name, namespace, secretTypeLabel(spec.Type), len(spec.Data)),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateSecret", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateSecret(ctx, namespace, spec, mode); err != nil {
-		return false, err
+		return false, s.opErr("CreateSecret", err)
 	}
 	return true, nil
 }
@@ -763,7 +827,8 @@ func (s *Service) CreateSecret(namespace string, spec kube.SecretCreate, mode st
 func (s *Service) GetSecretYAML(namespace, name string, transparent bool) (string, error) {
 	ctx, cancel := s.opCtx()
 	defer cancel()
-	return s.app.kube.SecretYAML(ctx, namespace, name, transparent)
+	yamlDoc, err := s.app.kube.SecretYAML(ctx, namespace, name, transparent)
+	return yamlDoc, s.opErr("GetSecretYAML", err)
 }
 
 // CreateSecretFromYAML creates a secret from a raw manifest after an explicit
@@ -772,19 +837,19 @@ func (s *Service) GetSecretYAML(namespace, name string, transparent bool) (strin
 func (s *Service) CreateSecretFromYAML(namespace, yaml string) (bool, error) {
 	spec, err := kube.ParseSecretYAML(yaml)
 	if err != nil {
-		return false, err
+		return false, s.opErr("CreateSecretFromYAML", err)
 	}
 	ok, err := s.confirm(
 		"Create secret from YAML",
 		fmt.Sprintf("Create secret %q in namespace %q from the YAML editor?", spec.Name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("CreateSecretFromYAML", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.CreateSecretFromYAML(ctx, namespace, yaml); err != nil {
-		return false, err
+		return false, s.opErr("CreateSecretFromYAML", err)
 	}
 	return true, nil
 }
@@ -795,19 +860,19 @@ func (s *Service) CreateSecretFromYAML(namespace, yaml string) (bool, error) {
 func (s *Service) UpdateSecretFromYAML(namespace, name, yaml string) (bool, error) {
 	spec, err := kube.ParseSecretYAML(yaml)
 	if err != nil {
-		return false, err
+		return false, s.opErr("UpdateSecretFromYAML", err)
 	}
 	ok, err := s.confirm(
 		"Replace secret from YAML",
 		fmt.Sprintf("Replace secret %q in namespace %q with the YAML editor contents?\n\nThe manifest has %d key(s). This is a full replace.", name, namespace, manifestKeyCount(spec)),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("UpdateSecretFromYAML", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.UpdateSecretYAML(ctx, namespace, name, yaml); err != nil {
-		return false, err
+		return false, s.opErr("UpdateSecretFromYAML", err)
 	}
 	return true, nil
 }
@@ -834,12 +899,12 @@ func (s *Service) DeleteSecret(namespace, name string) (bool, error) {
 		fmt.Sprintf("Permanently delete secret %q in namespace %q?\n\nThis cannot be undone.", name, namespace),
 	)
 	if err != nil || !ok {
-		return false, err
+		return false, s.opErr("DeleteSecret", err)
 	}
 	ctx, cancel := s.opCtx()
 	defer cancel()
 	if err := s.app.kube.DeleteSecret(ctx, namespace, name); err != nil {
-		return false, err
+		return false, s.opErr("DeleteSecret", err)
 	}
 	return true, nil
 }
@@ -924,7 +989,7 @@ func (s *Service) StartLogStream(namespace, pod, container string, opts LogStrea
 		delete(s.streams, key)
 		s.mu.Unlock()
 		cancel()
-		return "", err
+		return "", s.opErr("StartLogStream", err)
 	}
 
 	go func() {
@@ -943,6 +1008,7 @@ func (s *Service) StartLogStream(namespace, pod, container string, opts LogStrea
 			runtime.EventsEmit(s.app.ctx, "log:"+key, scanner.Text())
 		}
 		if err := scanner.Err(); err != nil && ctx.Err() == nil {
+			slog.Warn("log stream error", "key", key, "error", err)
 			runtime.EventsEmit(s.app.ctx, "log:error:"+key, err.Error())
 		}
 	}()
@@ -973,13 +1039,13 @@ func (s *Service) SaveLogs(suggestedName, content string) (string, error) {
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", s.opErr("SaveLogs", err)
 	}
 	if path == "" {
 		return "", nil // user cancelled
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		return "", err
+		return "", s.opErr("SaveLogs", err)
 	}
 	return path, nil
 }
