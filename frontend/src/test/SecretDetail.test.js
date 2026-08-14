@@ -369,6 +369,19 @@ describe("SecretDetail — YAML mode", () => {
     w.unmount();
   });
 
+  it("copies the manifest to the clipboard", async () => {
+    const w = await mountDetail("transparent");
+    await tab(w, "YAML").trigger("click");
+    await flushPromises();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Copy YAML")
+      .trigger("click");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(YAML_MANIFEST);
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalledWith("undefined");
+    w.unmount();
+  });
+
   it("rejects an empty manifest without calling the API", async () => {
     const w = await mountDetail();
     await tab(w, "YAML").trigger("click");

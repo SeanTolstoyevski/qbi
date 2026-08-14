@@ -64,7 +64,7 @@ load();
           type="button"
           class="btn btn-sm btn-outline-secondary"
           :disabled="loading || !yaml"
-          @click="copyToClipboard(yaml.value, 'YAML')"
+          @click="copyToClipboard(yaml, 'YAML')"
         >
           Copy
         </button>

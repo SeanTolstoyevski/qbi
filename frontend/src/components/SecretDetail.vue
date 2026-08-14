@@ -605,7 +605,7 @@ function onKeydown(e) {
             type="button"
             class="btn btn-sm btn-outline-secondary"
             :disabled="yamlSaving || yamlLoading"
-            @click="copyToClipboard(yamlText.value, 'YAML')"
+            @click="copyToClipboard(yamlText, 'YAML')"
           >
             Copy YAML
           </button>
