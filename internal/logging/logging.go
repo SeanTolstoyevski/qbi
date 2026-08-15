@@ -265,7 +265,7 @@ func parseLevel(s string) (slog.Level, error) {
 // dir), it falls back to the last two path segments, which still hides
 // usernames and drive letters.
 func modulePath(file string) string {
-	file = filepath.ToSlash(file)
+	file = strings.ReplaceAll(file, `\`, "/")
 	if i := strings.LastIndex(file, "/qbi/"); i >= 0 {
 		return file[i+1:]
 	}
