@@ -131,7 +131,6 @@ export const api = {
   buildInfo: () => service().BuildInfo(),
 };
 
-
 // Subscribe to a Wails runtime event. Returns an unsubscribe function.
 export function onEvent(name, handler) {
   const rt = window.runtime;
