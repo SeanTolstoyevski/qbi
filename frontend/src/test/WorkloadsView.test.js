@@ -45,6 +45,7 @@ const WL = [
     name: "web",
     namespace: "default",
     ready: "2/2",
+    replicas: 2,
     upToDate: 2,
     available: 2,
     images: ["nginx:1.27"],
@@ -200,6 +201,44 @@ describe("WorkloadsView - scale", () => {
     const w = await mountWithWorkloads();
     await openScaleRow(w);
     expect(w.find("#scale-web").element.value).toBe("2");
+    w.unmount();
+  });
+
+  it("moves focus to the scale input on open", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    expect(document.activeElement).toBe(w.find("#scale-web").element);
+    w.unmount();
+  });
+
+  it("prefills and refocuses the input on a second edit after scaling", async () => {
+    api.scaleWorkload.mockResolvedValue(true);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(5);
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], ready: "2/2", replicas: 5 }],
+      errors: [],
+    });
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(w.find("#scale-web").exists()).toBe(false);
+
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("5");
+    expect(document.activeElement).toBe(w.find("#scale-web").element);
+    w.unmount();
+  });
+
+  it("prefills a scale-to-zero input with 0, not the 1 fallback", async () => {
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], ready: "0/0", replicas: 0 }],
+      errors: [],
+    });
+    const w = mountView();
+    await flushPromises();
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("0");
     w.unmount();
   });
 

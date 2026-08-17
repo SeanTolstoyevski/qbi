@@ -46,6 +46,7 @@ func (c *Client) Workloads(ctx context.Context, namespace string) (WorkloadsView
 				Name:      d.Name,
 				Namespace: d.Namespace,
 				Ready:     fmt.Sprintf("%d/%d", d.Status.ReadyReplicas, d.Status.Replicas),
+				Replicas:  specReplicas(d.Spec.Replicas),
 				UpToDate:  d.Status.UpdatedReplicas,
 				Available: d.Status.AvailableReplicas,
 				Images:    containerImages(d.Spec.Template.Spec.Containers),
@@ -68,6 +69,7 @@ func (c *Client) Workloads(ctx context.Context, namespace string) (WorkloadsView
 				Name:      s.Name,
 				Namespace: s.Namespace,
 				Ready:     fmt.Sprintf("%d/%d", s.Status.ReadyReplicas, s.Status.Replicas),
+				Replicas:  specReplicas(s.Spec.Replicas),
 				UpToDate:  s.Status.UpdatedReplicas,
 				Available: s.Status.CurrentReplicas,
 				Images:    containerImages(s.Spec.Template.Spec.Containers),
@@ -90,6 +92,7 @@ func (c *Client) Workloads(ctx context.Context, namespace string) (WorkloadsView
 				Name:      d.Name,
 				Namespace: d.Namespace,
 				Ready:     fmt.Sprintf("%d/%d", d.Status.NumberReady, d.Status.DesiredNumberScheduled),
+				Replicas:  d.Status.DesiredNumberScheduled,
 				UpToDate:  d.Status.UpdatedNumberScheduled,
 				Available: d.Status.NumberAvailable,
 				Images:    containerImages(d.Spec.Template.Spec.Containers),
@@ -106,6 +109,15 @@ func (c *Client) Workloads(ctx context.Context, namespace string) (WorkloadsView
 		return view.Workloads[i].Name < view.Workloads[j].Name
 	})
 	return view, nil
+}
+
+// specReplicas reads the desired replica count, defaulting to 1 when unset
+// (the Kubernetes default for Deployments and StatefulSets).
+func specReplicas(r *int32) int32 {
+	if r == nil {
+		return 1
+	}
+	return *r
 }
 
 func containerImages(cs []corev1.Container) []string {

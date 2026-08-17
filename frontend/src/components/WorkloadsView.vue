@@ -288,8 +288,10 @@ async function removeWorkload(w) {
 }
 
 function openScale(w) {
-  scaleValue.value = Number(w.ready.split("/")[1] ?? w.ready) || 1;
+  scaleValue.value =
+    w.replicas ?? (Number(w.ready.split("/")[1] ?? w.ready) || 1);
   scaling.value = { kind: w.kind, name: w.name };
+  nextTick(() => document.getElementById(`scale-${w.name}`)?.focus());
 }
 
 function cancelScale() {
@@ -514,8 +516,7 @@ defineExpose({ load });
                             </button>
                           </li>
                           <li v-if="canScale(w)" role="presentation">
-                            <!-- Scale opens an inline row (not a panel), so we close the menu
-                                 and let the autofocus on the scale input take over. -->
+
                             <button
                               type="button"
                               role="menuitem"
@@ -603,7 +604,6 @@ defineExpose({ load });
                           min="0"
                           class="form-control form-control-sm"
                           style="width: 5rem"
-                          autofocus
                         />
                         <button type="submit" class="btn btn-sm btn-primary">
                           Apply
