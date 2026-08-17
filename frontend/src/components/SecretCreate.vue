@@ -38,6 +38,9 @@ const draft = ref([newRow({ isNew: true })]);
 const saving = ref(false);
 const error = ref("");
 const header = ref(null);
+const nameInput = ref(null);
+const yamlInput = ref(null);
+const keyRows = ref(null);
 
 const yamlText = ref("");
 const yamlSaving = ref(false);
@@ -99,9 +102,9 @@ function selectView(v) {
   view.value = v;
   if (v === "yaml" && yamlText.value === "") {
     yamlText.value = starterYaml();
-    nextTick(() => document.getElementById("secret-create-yaml")?.focus());
+    nextTick(() => yamlInput.value?.focus());
   } else if (v === "form") {
-    nextTick(() => document.getElementById("secret-create-name")?.focus());
+    nextTick(() => nameInput.value?.focus());
   }
 }
 
@@ -109,7 +112,7 @@ function selectView(v) {
 function addKey() {
   const row = newRow({ isNew: true });
   draft.value.push(row);
-  nextTick(() => document.getElementById(`secret-key-${row.id}`)?.focus());
+  nextTick(() => keyRows.value?.focusKey(row.id));
 }
 function toggleDelete(row) {
   row.deleted = !row.deleted;
@@ -236,6 +239,7 @@ async function submitYaml() {
           >
           <input
             id="secret-create-name"
+            ref="nameInput"
             v-model="form.name"
             type="text"
             class="form-control form-control-sm"
@@ -271,6 +275,7 @@ async function submitYaml() {
 
         <div class="col-12">
           <SecretKeyRows
+            ref="keyRows"
             :rows="draft"
             :mode="mode"
             :readonly-keys="false"
@@ -324,6 +329,7 @@ async function submitYaml() {
       </p>
       <textarea
         id="secret-create-yaml"
+        ref="yamlInput"
         v-model="yamlText"
         class="form-control font-monospace"
         rows="18"

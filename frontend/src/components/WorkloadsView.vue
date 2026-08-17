@@ -24,20 +24,17 @@ const restarting = ref(""); // "Kind/name" currently being restarted
 const deleting = ref(""); // "Kind/name" currently being deleted
 const scaling = ref(null); // { kind, name } while scale input is open
 const scaleValue = ref(1);
-let scaleInputEl = null; // DOM input while the scale row is open
+let scaleInputEl = null;
 
-// Function ref for the scale input. The row sits inside a v-for, where Vue
-// collects plain template refs into an array; a function ref receives the
-// element itself (and null on unmount), which is what focus needs.
 function setScaleInput(el) {
   scaleInputEl = el;
 }
+
 const yamlTarget = ref(null); // { kind, name }
 const rollouts = ref([]);
 const rolloutsTotal = ref(0);
 const rolloutsError = ref("");
-// The user chooses how much rollout history to see; the backend only applies
-// their choices (plus the project-wide list safety valve).
+
 const rolloutFilter = ref("");
 const maxDeployments = ref(100); // 0 = all
 const revisionsPerDeploy = ref(5); // 0 = all
@@ -64,6 +61,14 @@ const createOpen = ref(false);
 const editTarget = ref(null); // CronJobInfo being edited in the edit panel
 const suspending = ref(""); // cron job name while a suspend/resume is in flight
 const createDeployOpen = ref(false); // Deployment create panel
+const cjCreateBtn = ref(null);
+const deployCreateBtn = ref(null);
+const cronActionBtns = {};
+
+function setCronActionBtn(name, el) {
+  if (el) cronActionBtns[name] = el;
+  else delete cronActionBtns[name];
+}
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
 const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
@@ -73,9 +78,6 @@ async function load() {
   if (!state.namespace) return;
   loading.value = true;
   error.value = "";
-  // A namespace switch invalidates panels tied to a specific workload
-  // (YAML, inline scale row, cron job log/edit/create, action menus): they name
-  // resources that may not exist here.
   yamlTarget.value = null;
   scaling.value = null;
   logTarget.value = null;
@@ -142,9 +144,7 @@ onUnmounted(() => clearTimeout(rolloutTimer));
 // "Logs" resolves the newest run's pod and streams it with the shared viewer;
 // multi-container pods get an inline chooser, mirroring the pod flow.
 async function openCronLogs(cj) {
-  // Focus the trigger first so the LogViewer (via useReturnFocus) returns
-  // focus here when it closes — the same pattern PodList uses.
-  document.getElementById(`actions-btn-cj-${cj.name}`)?.focus();
+  cronActionBtns[cj.name]?.focus();
   try {
     const detail = await api.getCronJobDetail(state.namespace, cj.name);
     const run = detail?.runs?.find((r) => r.pods?.length);
@@ -187,7 +187,7 @@ function closeLogs() {
 
 // ── Deployment create panel ────────────────────────────────────────────────
 function openCreateDeploy() {
-  document.getElementById("deploy-create-btn")?.focus();
+  deployCreateBtn.value?.focus();
   createDeployOpen.value = true;
 }
 function closeCreateDeploy() {
@@ -203,9 +203,7 @@ async function onDeployCreated() {
 // panel architecture as pod detail/logs: the panel takes focus on open and
 // returns it to the button that opened it on close.
 function openCreate() {
-  // Focus the trigger before mounting the panel so useReturnFocus can return
-  // focus here on close (same pattern as PodList's focusTriggerAndAct).
-  document.getElementById("cj-create-btn")?.focus();
+  cjCreateBtn.value?.focus();
   createOpen.value = true;
 }
 function closeCreate() {
@@ -213,7 +211,7 @@ function closeCreate() {
 }
 
 function openEdit(cj) {
-  document.getElementById(`actions-btn-cj-${cj.name}`)?.focus();
+  cronActionBtns[cj.name]?.focus();
   editTarget.value = cj;
 }
 function closeEdit() {
@@ -423,6 +421,7 @@ defineExpose({ load });
             <h3 class="h6 text-body-secondary mb-0">Controllers</h3>
             <button
               id="deploy-create-btn"
+              ref="deployCreateBtn"
               type="button"
               class="btn btn-sm btn-outline-primary"
               :disabled="createDeployOpen"
@@ -695,6 +694,7 @@ defineExpose({ load });
             <h3 class="h6 text-body-secondary mb-0">Cron jobs</h3>
             <button
               id="cj-create-btn"
+              ref="cjCreateBtn"
               type="button"
               class="btn btn-sm btn-outline-primary"
               :disabled="createOpen"
@@ -753,6 +753,7 @@ defineExpose({ load });
                       <div class="dropdown">
                         <button
                           :id="`actions-btn-cj-${cj.name}`"
+                          :ref="(el) => setCronActionBtn(cj.name, el)"
                           type="button"
                           class="btn btn-sm btn-outline-secondary dropdown-toggle"
                           aria-haspopup="menu"

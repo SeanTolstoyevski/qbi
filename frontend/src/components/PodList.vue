@@ -19,6 +19,12 @@ const shellExpanded = ref(""); // pod name whose shell container chooser is open
 const deleting = ref(""); // pod name currently being deleted
 const openingShell = ref(""); // pod name while terminal is launching
 const menuOpen = ref(""); // pod name whose action menu is open
+const shellGroups = {};
+
+function setShellGroup(name, el) {
+  if (el) shellGroups[name] = el;
+  else delete shellGroups[name];
+}
 
 const { openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
   useActionMenu(menuOpen);
@@ -92,9 +98,7 @@ async function openShell(pod) {
     return;
   }
   shellExpanded.value = pod.name;
-  nextTick(() => {
-    document.querySelector(`[data-shell-group="${pod.name}"] button`)?.focus();
-  });
+  nextTick(() => shellGroups[pod.name]?.querySelector("button")?.focus());
 }
 
 async function execShell(pod, container) {
@@ -358,7 +362,11 @@ defineExpose({ load });
                 v-if="pod.containers.length > 1 && shellExpanded === pod.name"
               >
                 <td :id="`shell-containers-${pod.name}`" colspan="7">
-                  <fieldset class="mb-0" :data-shell-group="pod.name">
+                  <fieldset
+                    class="mb-0"
+                    :data-shell-group="pod.name"
+                    :ref="(el) => setShellGroup(pod.name, el)"
+                  >
                     <legend class="h6 small text-body-secondary">
                       Choose a container to open a shell
                     </legend>

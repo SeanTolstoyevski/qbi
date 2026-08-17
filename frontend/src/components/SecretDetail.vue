@@ -87,6 +87,7 @@ const editError = ref("");
 const changeSummary = ref({ added: 0, changed: 0, deleted: 0, list: [] });
 const confirmHeading = ref(null);
 const reviewBtn = ref(null);
+const keyRows = ref(null);
 
 function enterEdit() {
   if (!detail.value) return;
@@ -105,7 +106,7 @@ function cancelEdit() {
 function addKey() {
   const row = newRow({ isNew: true });
   draft.value.push(row);
-  nextTick(() => document.getElementById(`secret-key-${row.id}`)?.focus());
+  nextTick(() => keyRows.value?.focusKey(row.id));
 }
 
 function toggleDelete(row) {
@@ -496,6 +497,7 @@ function onKeydown(e) {
         </p>
 
         <SecretKeyRows
+          ref="keyRows"
           :rows="draft"
           :mode="mode"
           :readonly-keys="true"

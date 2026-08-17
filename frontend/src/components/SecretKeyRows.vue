@@ -17,6 +17,19 @@ defineProps({
   readonlyKeys: { type: Boolean, default: false },
 });
 const emit = defineEmits(["add", "toggle-delete"]);
+
+const keyInputs = {};
+
+function setKeyInput(id, el) {
+  if (el) keyInputs[id] = el;
+  else delete keyInputs[id];
+}
+
+defineExpose({
+  focusKey(id) {
+    keyInputs[id]?.focus();
+  },
+});
 </script>
 
 <template>
@@ -34,6 +47,7 @@ const emit = defineEmits(["add", "toggle-delete"]);
           >
           <input
             :id="`secret-key-${row.id}`"
+            :ref="(el) => setKeyInput(row.id, el)"
             v-model="row.key"
             type="text"
             class="form-control form-control-sm font-monospace"
