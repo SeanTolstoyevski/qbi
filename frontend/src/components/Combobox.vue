@@ -2,6 +2,8 @@
 import { ref, computed, useId, watch } from "vue";
 
 const props = defineProps({
+  // id forwarded to the <input>, so an external <label for> can point at it.
+  id: { type: String, default: "" },
   modelValue: { type: [String, Number], default: "" },
   options: { type: Array, required: true },
   readonly: { type: Boolean, default: false },
