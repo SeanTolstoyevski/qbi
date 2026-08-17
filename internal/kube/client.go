@@ -146,12 +146,15 @@ func (c *Client) Connect(contextName string) (ContextInfo, error) {
 		return ContextInfo{}, fmt.Errorf("create client: %w", err)
 	}
 
-	// The metrics client talks to the Metrics API (metrics-server), built from
-	// the same rest config. A missing metrics-server never fails Connect: the
-	// individual metrics calls surface that as an unavailable API instead.
 	metricsClient, err := metricsclient.NewForConfig(restConfig)
 	if err != nil {
 		return ContextInfo{}, fmt.Errorf("create metrics client: %w", err)
+	}
+
+	probeCtx, probeCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer probeCancel()
+	if err := clientset.CoreV1().RESTClient().Get().AbsPath("/version").Do(probeCtx).Error(); err != nil {
+		return ContextInfo{}, fmt.Errorf("cluster reachability check failed: %w", err)
 	}
 
 	current := contextName

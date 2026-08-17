@@ -13,12 +13,6 @@
 import { vi, beforeEach, afterEach } from "vitest";
 import { config } from "@vue/test-utils";
 
-// ---------------------------------------------------------------------------
-// Wails global stubs
-// Every api.js call goes through window.go.main.Service.<Method>. We install
-// a Proxy so any method called on it returns a resolved Promise by default.
-// Individual tests can override specific methods via vi.spyOn or mockApi().
-// ---------------------------------------------------------------------------
 const serviceProxy = new Proxy(
   {},
   {
@@ -37,28 +31,15 @@ Object.assign(window, {
   },
 });
 
-// ---------------------------------------------------------------------------
-// localStorage stub (happy-dom provides one but resetting it between tests
-// prevents store state from leaking).
-// ---------------------------------------------------------------------------
 beforeEach(() => {
   localStorage.clear();
 });
 
-// ---------------------------------------------------------------------------
-// Vue Test Utils global config — suppress the "extraneous non-props" warning
-// that fires when Bootstrap classes appear on component roots, keeping test
-// output clean so real failures stand out.
-// ---------------------------------------------------------------------------
 config.global.config.warnHandler = (msg) => {
   if (msg.includes("Extraneous non-props")) return;
   console.warn(msg);
 };
 
-// ---------------------------------------------------------------------------
-// Auto-restore all vi.spyOn / vi.fn mocks after each test so per-test setup
-// in individual files does not need explicit cleanup.
-// ---------------------------------------------------------------------------
 afterEach(() => {
   vi.restoreAllMocks();
 });

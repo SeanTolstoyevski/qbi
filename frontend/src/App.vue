@@ -62,7 +62,7 @@ onMounted(async () => {
 watch(
   () => [state.namespace, state.connectionEpoch],
   () => {
-    if (state.namespace) api.setWatchNamespace(state.namespace);
+    api.setWatchNamespace(state.namespace || "");
   },
 );
 
@@ -233,24 +233,12 @@ function onTabKeydown(e) {
             </div>
 
             <div v-show="section === 'settings'">
-              <h2
-                id="section-heading-settings"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                Settings
-              </h2>
+              <h2 id="section-heading-settings" tabindex="-1">Settings</h2>
               <SettingsView />
             </div>
 
             <div v-show="section === 'about'">
-              <h2
-                id="section-heading-about"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                About
-              </h2>
+              <h2 id="section-heading-about" tabindex="-1">About</h2>
               <AboutView />
             </div>
             <div v-show="section === 'namespace'">

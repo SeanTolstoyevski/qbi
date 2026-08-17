@@ -128,9 +128,9 @@ export const api = {
   acknowledgeWelcome: () => service().AcknowledgeWelcome(),
   setAutoRefresh: (enabled) => service().SetAutoRefresh(enabled),
   setWatchNamespace: (namespace) => service().SetWatchNamespace(namespace),
-  version: () => service().Version(),
-  commit: () => service().Commit(),
+  buildInfo: () => service().BuildInfo(),
 };
+
 
 // Subscribe to a Wails runtime event. Returns an unsubscribe function.
 export function onEvent(name, handler) {

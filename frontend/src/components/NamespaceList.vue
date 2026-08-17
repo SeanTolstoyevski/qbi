@@ -107,6 +107,15 @@ watch(
   { immediate: true },
 );
 
+// A failed reconnect tears the connection down; an open action menu must not
+// survive it — its Delete action would still hit the (now unverified) cluster.
+watch(
+  () => state.connected,
+  (connected) => {
+    if (!connected) closeMenu(false);
+  },
+);
+
 const listReady = computed(
   () =>
     state.connected &&

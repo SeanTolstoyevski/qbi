@@ -175,6 +175,112 @@ describe("WorkloadsView — delete workload", () => {
   });
 });
 
+describe("WorkloadsView — scale", () => {
+  async function mountWithWorkloads() {
+    api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
+    api.listJobs.mockResolvedValue([]);
+    api.listCronJobs.mockResolvedValue([]);
+    const w = mountView();
+    await flushPromises();
+    return w;
+  }
+
+  async function openScaleRow(w) {
+    await openActions(w);
+    await findBtn(w, "Scale").trigger("click");
+    await flushPromises();
+  }
+
+  it("prefills the scale input with the desired replica count", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("2");
+    w.unmount();
+  });
+
+  it("applies the scale via the API and reloads", async () => {
+    api.scaleWorkload.mockResolvedValue(true);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(5);
+    api.listWorkloads.mockClear();
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+      5,
+    );
+    expect(api.listWorkloads).toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("keeps the row open when the user cancels the confirmation", async () => {
+    api.scaleWorkload.mockResolvedValue(false);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    api.listWorkloads.mockClear();
+    await w.find("#scale-web").setValue(3);
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+      3,
+    );
+    expect(api.listWorkloads).not.toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("does not scale when the input is empty (invalid count)", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue("");
+    api.scaleWorkload.mockClear();
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).not.toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("shows the error when scaling fails", async () => {
+    api.scaleWorkload.mockRejectedValue(new Error("scaling forbidden"));
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(2);
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toContain("scaling forbidden");
+    w.unmount();
+  });
+
+  it("closes the scale row via Cancel", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await findBtn(w, "Cancel").trigger("click");
+    await flushPromises();
+    expect(w.find("#scale-web").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("hides the Scale item for DaemonSets", async () => {
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], kind: "DaemonSet", ready: "3/3" }],
+      errors: [],
+    });
+    const w = mountView();
+    await flushPromises();
+    await openActions(w);
+    expect(findBtn(w, "Scale")).toBeUndefined();
+    w.unmount();
+  });
+});
+
 describe("WorkloadsView — namespace switch", () => {
   // The inline scale row names a workload from the previous namespace; it
   // must close when the namespace changes instead of lingering over a
@@ -561,6 +667,24 @@ describe("WorkloadsView — deployment create", () => {
     await flushPromises();
     expect(api.createDeployment).not.toHaveBeenCalled();
     expect(w.text()).toContain("Name is required");
+    w.unmount();
+  });
+});
+
+describe("WorkloadsView — refresh button", () => {
+  it("reloads workloads, jobs and cron jobs via the refresh button", async () => {
+    api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
+    api.listJobs.mockResolvedValue([]);
+    api.listCronJobs.mockResolvedValue([]);
+    const w = mountView();
+    await flushPromises();
+    api.listWorkloads.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh workloads"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.listWorkloads).toHaveBeenCalledTimes(1);
     w.unmount();
   });
 });

@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 
-const { state, announce, setConnection } = useStore();
+const { state, announce, setConnection, clearConnection } = useStore();
 
 const kubeconfig = ref(null); // { path, source, exists }
 const contexts = ref([]);
@@ -73,6 +73,10 @@ async function connect() {
     setConnection(ctx);
     announce(`Connected to ${ctx.name}.`);
   } catch (e) {
+    // A failed connect/reconnect must not leave the UI pretending a previous
+    // connection still works: tear it down so every cluster-dependent view
+    // and action is inert until a connect actually succeeds.
+    clearConnection();
     error.value = String(e);
     announce(`Failed to connect: ${error.value}`, "assertive");
   } finally {

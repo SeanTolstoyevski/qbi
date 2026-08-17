@@ -68,6 +68,12 @@ function setConnection(context) {
     recallNamespace(context?.name) || context?.namespace || null;
 }
 
+function clearConnection() {
+  state.connected = false;
+  state.context = null;
+  state.namespace = null;
+}
+
 function setNamespace(name) {
   state.namespace = name;
   rememberNamespace(state.context?.name, name);
@@ -82,6 +88,7 @@ export function useStore() {
     state: readonly(state),
     announce,
     setConnection,
+    clearConnection,
     setNamespace,
     setAutoRefresh,
   };

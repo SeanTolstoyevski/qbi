@@ -1,14 +1,3 @@
-/*
- * Tests for SecretCreate.vue — the new-secret panel (form + YAML).
- *
- * We cover:
- *   - the form surface: name, type, add/remove key rows
- *   - validation: missing name, duplicate keys, invalid base64 in base64 mode
- *   - the create call, including the cancelled-confirmation path
- *   - the YAML surface: mode-aware starter templates and the create call
- *   - focus moves to the panel heading on open
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import SecretCreate from "../components/SecretCreate.vue";
@@ -20,8 +9,6 @@ vi.mock("../api.js", () => ({
 }));
 
 function rowInputs(w) {
-  // Rows are rendered by SecretKeyRows with id secret-key-<id> / secret-val-<id>.
-  // Scope to the form panel: the YAML panel keeps its own textarea in the DOM.
   const form = w.find("#secret-create-panel-form");
   const keys = form
     .findAll("input")
@@ -45,7 +32,7 @@ beforeEach(() => {
   api.createSecretFromYaml.mockResolvedValue(true);
 });
 
-describe("SecretCreate — focus and layout", () => {
+describe("SecretCreate - focus and layout", () => {
   it("moves focus to the panel heading on open", async () => {
     const w = await mountCreate();
     expect(document.activeElement?.id).toBe("secret-create-heading");
@@ -73,7 +60,7 @@ describe("SecretCreate — focus and layout", () => {
   });
 });
 
-describe("SecretCreate — form validation", () => {
+describe("SecretCreate - form validation", () => {
   async function fill(
     w,
     { name = "api-token", key = "user", value = "admin" } = {},
@@ -131,7 +118,7 @@ describe("SecretCreate — form validation", () => {
   });
 });
 
-describe("SecretCreate — create flow", () => {
+describe("SecretCreate - create flow", () => {
   it("creates with transparent values and emits created", async () => {
     const w = await mountCreate();
     await w.find("#secret-create-name").setValue("api-token");
@@ -178,7 +165,7 @@ describe("SecretCreate — create flow", () => {
   });
 });
 
-describe("SecretCreate — YAML surface", () => {
+describe("SecretCreate - YAML surface", () => {
   it("renders a stringData starter template in transparent mode", async () => {
     const w = await mountCreate("transparent");
     await w
@@ -257,6 +244,25 @@ describe("SecretCreate — YAML surface", () => {
       .trigger("click");
     expect(w.find('[role="alert"]').text()).toContain("empty");
     expect(api.createSecretFromYaml).not.toHaveBeenCalled();
+    w.unmount();
+  });
+});
+
+describe("SecretCreate - close paths", () => {
+  it("emits close from Cancel, the panel Close button and Escape", async () => {
+    const w = await mountCreate();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Cancel")
+      .trigger("click");
+    expect(w.emitted("close")).toHaveLength(1);
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Close")
+      .trigger("click");
+    expect(w.emitted("close")).toHaveLength(2);
+    await w.trigger("keydown", { key: "Escape" });
+    expect(w.emitted("close")).toHaveLength(3);
     w.unmount();
   });
 });

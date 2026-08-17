@@ -90,6 +90,29 @@ describe("store — setConnection()", () => {
   });
 });
 
+describe("store — clearConnection()", () => {
+  it("tears down connected state so no cluster view stays alive", async () => {
+    const { state, setConnection, setNamespace, clearConnection } =
+      await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    setNamespace("kube-system");
+    expect(state.connected).toBe(true);
+
+    clearConnection();
+    expect(state.connected).toBe(false);
+    expect(state.context).toBeNull();
+    expect(state.namespace).toBeNull();
+  });
+
+  it("leaves the connection epoch untouched (only successful connects bump it)", async () => {
+    const { state, setConnection, clearConnection } = await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    const epoch = state.connectionEpoch;
+    clearConnection();
+    expect(state.connectionEpoch).toBe(epoch);
+  });
+});
+
 describe("store — setNamespace()", () => {
   it("updates state.namespace", async () => {
     const { state, setConnection, setNamespace } = await freshStore();

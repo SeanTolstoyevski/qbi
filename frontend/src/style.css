@@ -117,8 +117,9 @@ select:focus-visible {
   min-width: 0;
 }
 
+/* Bootstrap's --bs-code-color is a red that reads
+   as an error for paths and resource names. Override to a neutral gray. */
 :root {
-     as an error for paths and resource names. Override to a neutral gray. */
   --bs-code-color: var(--bs-secondary-color);
 }
 
@@ -128,8 +129,7 @@ select:focus-visible {
   border-radius: 999px;
 }
 
-   primary bar under the active tab is obvious at a glance and pairs colour
-   with a semibold weight, so it doesn't rely on colour alone. */
+
 .nav-tabs {
   border-bottom: 1px solid var(--bs-border-color);
 }

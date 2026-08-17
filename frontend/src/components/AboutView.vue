@@ -4,18 +4,24 @@ import { api } from "../api.js";
 
 const GITHUB_URL = "https://github.com/SeanTolstoyevski/qbi";
 
-const version = ref("");
-const commit = ref("");
+const info = ref(null);
 const error = ref("");
 
 onMounted(async () => {
   try {
-    version.value = await api.version();
-    commit.value = await api.commit();
+    info.value = await api.buildInfo();
   } catch (e) {
     error.value = String(e);
   }
 });
+
+// The backend stamps RFC 3339 UTC ("2026-06-18T12:34:56Z"); show it in the
+// user's locale. Unstamped (local/dev) builds return "unknown".
+function formatBuildTime(raw) {
+  if (!raw || raw === "unknown") return "";
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString();
+}
 
 function openGitHub(e) {
   if (window.runtime?.BrowserOpenURL) {
@@ -26,26 +32,27 @@ function openGitHub(e) {
 </script>
 
 <template>
-  <section aria-labelledby="about-heading">
-    <h2 id="about-heading" tabindex="-1">About</h2>
+  <p class="lead" style="max-width: 32rem">
+    QBI is a lightweight Kubernetes inspector: 100% open source &amp; 100%
+    accessible.
+  </p>
 
-    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+  <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
 
-    <dl class="row" style="max-width: 32rem">
-      <dt class="col-sm-3">Application</dt>
-      <dd class="col-sm-9">QBI</dd>
+  <dl class="row" style="max-width: 32rem">
+    <dt class="col-sm-3">Version</dt>
+    <dd class="col-sm-9">{{ info?.version || "…" }}</dd>
 
-      <dt class="col-sm-3">Version</dt>
-      <dd class="col-sm-9">{{ version || "…" }}</dd>
+    <dt class="col-sm-3">Build</dt>
+    <dd class="col-sm-9">{{ info?.commit || "…" }}</dd>
 
-      <dt class="col-sm-3">Build</dt>
-      <dd class="col-sm-9">{{ commit || "…" }}</dd>
-    </dl>
+    <dt class="col-sm-3">Built</dt>
+    <dd class="col-sm-9">{{ formatBuildTime(info?.buildTime) || "…" }}</dd>
+  </dl>
 
-    <p class="mb-0">
-      <a :href="GITHUB_URL" @click="openGitHub">
-        SeanTolstoyevski/qbi on GitHub
-      </a>
-    </p>
-  </section>
+  <p class="mb-0">
+    <a :href="GITHUB_URL" @click="openGitHub">
+      SeanTolstoyevski/qbi on GitHub
+    </a>
+  </p>
 </template>

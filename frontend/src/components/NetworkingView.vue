@@ -165,7 +165,9 @@ async function removeIngress(ing) {
 }
 
 async function load() {
-  if (!state.namespace) return;
+  // Nothing may be fetched without a live connection; the view is normally
+  // unmounted by then, but stay self-consistent for safety.
+  if (!state.connected || !state.namespace) return;
   loading.value = true;
   error.value = "";
   try {
@@ -247,7 +249,7 @@ defineExpose({ load });
           id="svc-create-btn"
           type="button"
           class="btn btn-sm btn-outline-primary"
-          :disabled="createServiceOpen || !state.namespace"
+          :disabled="createServiceOpen || !state.connected || !state.namespace"
           @click="openCreateService"
         >
           Create service
@@ -256,7 +258,7 @@ defineExpose({ load });
           id="ing-create-btn"
           type="button"
           class="btn btn-sm btn-outline-primary"
-          :disabled="createIngressOpen || !state.namespace"
+          :disabled="createIngressOpen || !state.connected || !state.namespace"
           @click="openCreateIngress"
         >
           Create ingress
@@ -264,7 +266,7 @@ defineExpose({ load });
         <button
           type="button"
           class="btn btn-sm btn-outline-secondary"
-          :disabled="loading || !state.namespace"
+          :disabled="loading || !state.connected || !state.namespace"
           @click="load"
         >
           <span class="visually-hidden">Refresh networking</span>

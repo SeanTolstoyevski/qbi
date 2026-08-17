@@ -1,5 +1,5 @@
 /*
- * Tests for EventsView.vue — the namespace events table with filters.
+ * Tests for EventsView.vue  the namespace events table with filters.
  *
  * We cover:
  *   - Renders every event returned by the API
@@ -70,7 +70,7 @@ async function mountEvents() {
   return w;
 }
 
-describe("EventsView — rendering", () => {
+describe("EventsView  rendering", () => {
   it("renders every event", async () => {
     const w = await mountEvents();
     expect(w.findAll("tbody tr")).toHaveLength(3);
@@ -78,7 +78,7 @@ describe("EventsView — rendering", () => {
   });
 });
 
-describe("EventsView — filters", () => {
+describe("EventsView  filters", () => {
   it("warnings-only narrows to warning events", async () => {
     const w = await mountEvents();
     await w.find("#warnings-only").setValue(true);
@@ -109,7 +109,7 @@ describe("EventsView — filters", () => {
   });
 });
 
-describe("EventsView — copy", () => {
+describe("EventsView  copy", () => {
   it("copies an event message", async () => {
     const w = await mountEvents();
     const btn = w.findAll("button").find((b) => b.text().includes("Copy"));
@@ -122,13 +122,27 @@ describe("EventsView — copy", () => {
   });
 });
 
-describe("EventsView — empty events window", () => {
+describe("EventsView  empty events window", () => {
   it("explains the retention window instead of looking broken", async () => {
-    // No events at all — the exact "screen looks empty" case.
+    // No events at all  the exact "screen looks empty" case.
     api.listEvents.mockResolvedValue([]);
     const w = mount(EventsView, { attachTo: document.body });
     await flushPromises();
     expect(w.text()).toContain("No events in the last hour");
+    w.unmount();
+  });
+});
+
+describe("EventsView  refresh button", () => {
+  it("reloads events via the refresh button", async () => {
+    const w = await mountEvents();
+    api.listEvents.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh activity"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.listEvents).toHaveBeenCalledTimes(1);
     w.unmount();
   });
 });

@@ -10,7 +10,7 @@
  *   - Rejects creation when no port is given
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import NetworkingView from "../components/NetworkingView.vue";
@@ -35,7 +35,14 @@ vi.mock("../api.js", () => ({
   onEvent: vi.fn(() => () => {}),
 }));
 
-const { setConnection, setNamespace } = useStore();
+const { setConnection, setNamespace, clearConnection } = useStore();
+
+beforeAll(() => {
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    configurable: true,
+  });
+});
 
 beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
@@ -77,6 +84,38 @@ describe("NetworkingView — rendering", () => {
     await flushPromises();
     expect(w.text()).toContain("web");
     expect(w.text()).toContain("web.default.svc");
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — connection gating", () => {
+  it("keeps create and refresh actions inert without a verified connection", async () => {
+    // Stale-state repro: a namespace is still set (recalled from storage) but
+    // a failed connect tore the connection down — no cluster action may run.
+    clearConnection();
+    setNamespace("default");
+
+    const w = mountView();
+    await flushPromises();
+
+    const svcBtn = w.find("#svc-create-btn");
+    const ingBtn = w.find("#ing-create-btn");
+    expect(svcBtn.attributes("disabled")).toBeDefined();
+    expect(ingBtn.attributes("disabled")).toBeDefined();
+    const refresh = w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh networking"));
+    expect(refresh.attributes("disabled")).toBeDefined();
+
+    // The view must not even attempt data calls without a connection.
+    expect(api.listServices).not.toHaveBeenCalled();
+    expect(api.listIngresses).not.toHaveBeenCalled();
+
+    // Clicking the disabled create-ingress button must not open the panel.
+    await ingBtn.trigger("click");
+    await nextTick();
+    expect(w.find("form").exists()).toBe(false);
+
     w.unmount();
   });
 });
@@ -560,6 +599,39 @@ describe("NetworkingView — focus returns to the trigger on close", () => {
     await flushPromises();
     await closeWithEscape(w, "ing-create-heading");
     expect(document.activeElement?.id).toBe("ing-create-btn");
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — refresh button", () => {
+  it("reloads services and ingresses via the refresh button", async () => {
+    const w = mountView();
+    await flushPromises();
+    api.listServices.mockClear();
+    api.listIngresses.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh networking"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.listServices).toHaveBeenCalledTimes(1);
+    expect(api.listIngresses).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — copy", () => {
+  it("copies the service DNS name", async () => {
+    const w = mountView();
+    await flushPromises();
+    const btn = w
+      .findAll("button")
+      .find((b) => b.classes().includes("copy-inline"));
+    await btn.trigger("click");
+    await flushPromises();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "web.default.svc",
+    );
     w.unmount();
   });
 });

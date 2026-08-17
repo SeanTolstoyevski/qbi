@@ -1,20 +1,3 @@
-/*
- * Tests for IngressCreate.vue — the create/edit-ingress panel of the
- * Networking view. One component, two modes: no ingressName prop = create,
- * ingressName prop = edit (prefilled from the live spec, name immutable).
- *
- * We cover:
- *   - focus moves to the panel heading on open
- *   - the form surface: name, ingress class options (cluster classes, custom,
- *     RBAC fallback), rules/paths rows, TLS rows, default backend
- *   - validation mirrors the backend: name, rules-or-default-backend, path
- *     slash/pathType, backend service + port, hosts, annotation keys
- *   - the create flow, including the cancelled-confirmation path
- *   - the YAML preview (validates before rendering)
- *   - edit mode: prefills the form, disables the name, blocks saving until
- *     unsupported resource backends are resolved, applies the update
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import IngressCreate from "../components/IngressCreate.vue";
@@ -95,7 +78,7 @@ async function fillValid(w) {
   await w.find("#ing-create-class").setValue("nginx");
 }
 
-describe("IngressCreate — focus and layout", () => {
+describe("IngressCreate  focus and layout", () => {
   it("moves focus to the panel heading on open", async () => {
     const w = await mountCreate();
     expect(document.activeElement?.id).toBe("ing-create-heading");
@@ -154,7 +137,7 @@ describe("IngressCreate — focus and layout", () => {
   });
 });
 
-describe("IngressCreate — validation", () => {
+describe("IngressCreate  validation", () => {
   it("requires a name", async () => {
     const w = await mountCreate();
     await fillValid(w);
@@ -307,7 +290,7 @@ describe("IngressCreate — validation", () => {
   });
 });
 
-describe("IngressCreate — create flow", () => {
+describe("IngressCreate  create flow", () => {
   it("creates with the user's choices and emits created", async () => {
     const w = await mountCreate();
     await fillValid(w);
@@ -399,7 +382,7 @@ describe("IngressCreate — create flow", () => {
   });
 });
 
-describe("IngressCreate — YAML preview", () => {
+describe("IngressCreate  YAML preview", () => {
   it("renders the exact manifest and requires a valid form first", async () => {
     const w = await mountCreate();
     // Invalid form: no preview call.
@@ -424,7 +407,7 @@ describe("IngressCreate — YAML preview", () => {
   });
 });
 
-describe("IngressCreate — edit mode", () => {
+describe("IngressCreate  edit mode", () => {
   const editSpec = {
     spec: {
       name: "web",
@@ -539,7 +522,7 @@ describe("IngressCreate — edit mode", () => {
         labels: {},
       },
       unsupported: [
-        "Host example.com, path /static uses a resource backend, which the form cannot express — enter a service for it or remove the row.",
+        "Host example.com, path /static uses a resource backend, which the form cannot express  enter a service for it or remove the row.",
       ],
     });
     const w = await mountCreate({ ingressName: "res" });
@@ -601,7 +584,7 @@ describe("IngressCreate — edit mode", () => {
         labels: {},
       },
       unsupported: [
-        "A TLS block with no hosts and no secret (default certificate for all hosts) cannot be expressed in this form — enter hosts or a secret for it, or remove the row.",
+        "A TLS block with no hosts and no secret (default certificate for all hosts) cannot be expressed in this form  enter hosts or a secret for it, or remove the row.",
       ],
     });
     const w = await mountCreate({ ingressName: "web" });
@@ -637,6 +620,23 @@ describe("IngressCreate — edit mode", () => {
     const w = await mountCreate({ ingressName: "gone" });
     expect(w.find('[role="alert"]').text()).toContain("not found");
     expect(w.find("#ing-create-name").exists()).toBe(false);
+    w.unmount();
+  });
+});
+
+describe("IngressCreate  close paths", () => {
+  it("emits close from Cancel and the panel Close button", async () => {
+    const w = await mountCreate();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Cancel")
+      .trigger("click");
+    expect(w.emitted("close")).toHaveLength(1);
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Close")
+      .trigger("click");
+    expect(w.emitted("close")).toHaveLength(2);
     w.unmount();
   });
 });

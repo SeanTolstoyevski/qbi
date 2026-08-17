@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,6 +17,8 @@ import (
 )
 
 func strPtr(s string) *string { return &s }
+
+func boolPtr(b bool) *bool { return &b }
 
 func pathTypePtr(t networkingv1.PathType) *networkingv1.PathType { return &t }
 
@@ -78,15 +81,27 @@ func backend(name string, port int32) networkingv1.IngressBackend {
 // backend health statuses and the issue list.
 func TestIngressesEnrichment(t *testing.T) {
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "default"}}
-	eps := &corev1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "default"},
-		Subsets: []corev1.EndpointSubset{{
-			Addresses: []corev1.EndpointAddress{{IP: "10.0.0.1"}, {IP: "10.0.0.2"}},
-		}},
+	eps := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "web"},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints: []discoveryv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}},
+			{Addresses: []string{"10.0.0.2"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}},
+			{Addresses: []string{"10.0.0.9"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(false)}},
+		},
+	}
+	orphan := &discoveryv1.EndpointSlice{
+		ObjectMeta:  metav1.ObjectMeta{Name: "manual-xyz", Namespace: "default"},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints:   []discoveryv1.Endpoint{{Addresses: []string{"10.0.0.77"}}},
 	}
 	sec := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "web-tls", Namespace: "default"}}
 
-	c := newTestClient(testIngress(), svc, eps, sec)
+	c := newTestClient(testIngress(), svc, eps, orphan, sec)
 	list, err := c.Ingresses(context.Background(), "default")
 	if err != nil {
 		t.Fatalf("Ingresses: %v", err)
@@ -96,7 +111,6 @@ func TestIngressesEnrichment(t *testing.T) {
 	}
 	info := list[0]
 
-	// Every LB address is kept (regression: the old code kept only the last).
 	if len(info.Addresses) != 2 || info.Addresses[0] != "1.2.3.4" || info.Addresses[1] != "lb.example.com" {
 		t.Errorf("addresses = %v, want [1.2.3.4 lb.example.com]", info.Addresses)
 	}
@@ -126,14 +140,11 @@ func TestIngressesEnrichment(t *testing.T) {
 		t.Errorf("named port = %q, want http", got)
 	}
 
-	// Only the "gone" service should be flagged; TLS and web are healthy.
 	if len(info.Issues) != 1 {
 		t.Errorf("issues = %v, want exactly the missing-service issue", info.Issues)
 	}
 }
 
-// TestIngressIssues covers the warning paths: no address, missing TLS secret,
-// backend with no ready endpoints, missing default backend and no rules.
 func TestIngressIssues(t *testing.T) {
 	ing := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{Name: "broken", Namespace: "default"},
@@ -253,8 +264,105 @@ func TestIngressHealthDegradesOnListError(t *testing.T) {
 	}
 }
 
-// TestIngressDetailFiltersEvents: the detail view carries only the events
-// about this ingress, most recent first.
+func TestIngressHealthDegradesOnEndpointSliceError(t *testing.T) {
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "default"}}
+	c := newTestClient(testIngress(), svc)
+	c.clientset.(*fake.Clientset).PrependReactor("list", "endpointslices", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("endpointslices is forbidden")
+	})
+
+	list, err := c.Ingresses(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("Ingresses: %v", err)
+	}
+	info := list[0]
+	if p := info.Rules[0].Paths[0]; p.Status != "unknown" {
+		t.Errorf("path / status = %q, want unknown under RBAC failure", p.Status)
+	}
+	if p := info.Rules[0].Paths[1]; p.Status != "no-service" {
+		t.Errorf("path /api status = %q, want no-service (service truly missing)", p.Status)
+	}
+	found := false
+	for _, iss := range info.Issues {
+		if contains(iss, "could not be fully checked") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("issues = %v, want a degraded-health note", info.Issues)
+	}
+}
+
+func TestReadyEndpointIPs(t *testing.T) {
+	ipv4 := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "web"},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints: []discoveryv1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}},
+			{Addresses: []string{"10.0.0.2"}}, // nil Ready = unknown, treat as ready
+			{Addresses: []string{"10.0.0.3"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(false)}},
+		},
+	}
+
+	ipv6 := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-xyz",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "web"},
+		},
+		AddressType: discoveryv1.AddressTypeIPv6,
+		Endpoints: []discoveryv1.Endpoint{
+			{Addresses: []string{"fd00::1"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}},
+			{Addresses: []string{"10.0.0.1"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}},
+		},
+	}
+
+	fqdn := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ext-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "ext"},
+		},
+		AddressType: discoveryv1.AddressTypeFQDN,
+		Endpoints:   []discoveryv1.Endpoint{{Addresses: []string{"ext.example.com"}}},
+	}
+
+	orphan := &discoveryv1.EndpointSlice{
+		ObjectMeta:  metav1.ObjectMeta{Name: "manual-abc", Namespace: "default"},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints:   []discoveryv1.Endpoint{{Addresses: []string{"10.0.0.77"}}},
+	}
+
+	other := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "api-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "api"},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Endpoints:   []discoveryv1.Endpoint{{Addresses: []string{"10.0.0.5"}, Conditions: discoveryv1.EndpointConditions{Ready: boolPtr(true)}}},
+	}
+
+	c := newTestClient(ipv4, ipv6, fqdn, orphan, other)
+	got, err := readyEndpointIPs(context.Background(), c.clientset, "default")
+	if err != nil {
+		t.Fatalf("readyEndpointIPs: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("services with endpoints = %d, want 2 (web, api)", len(got))
+	}
+	if joined := strings.Join(got["web"], ","); joined != "10.0.0.1,10.0.0.2,fd00::1" {
+		t.Errorf("web endpoints = %q, want 10.0.0.1,10.0.0.2,fd00::1", joined)
+	}
+	if joined := strings.Join(got["api"], ","); joined != "10.0.0.5" {
+		t.Errorf("api endpoints = %q, want 10.0.0.5", joined)
+	}
+}
+
 func TestIngressDetailFiltersEvents(t *testing.T) {
 	now := time.Now()
 	evOld := &corev1.Event{
