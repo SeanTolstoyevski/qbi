@@ -248,6 +248,72 @@ describe("SecretCreate - YAML surface", () => {
   });
 });
 
+describe("SecretCreate - type combobox", () => {
+  it("does not use the inaccessible datalist pattern for Type", async () => {
+    const w = await mountCreate();
+    const type = w.find("#secret-create-type");
+    expect(type.attributes("role")).toBe("combobox");
+    expect(w.find("datalist").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("picks a type with arrow keys and Enter, and submits it", async () => {
+    const w = await mountCreate();
+    const type = w.find("#secret-create-type");
+    await type.trigger("keydown", { key: "ArrowDown" });
+    await type.trigger("keydown", { key: "ArrowDown" });
+    await type.trigger("keydown", { key: "Enter" });
+    expect(type.element.value).toBe("kubernetes.io/tls");
+    await w.find("#secret-create-name").setValue("api-token");
+    const { keys, vals } = rowInputs(w);
+    await keys[0].setValue("user");
+    await vals[0].setValue("admin");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect(api.createSecret).toHaveBeenCalledWith(
+      "default",
+      {
+        name: "api-token",
+        type: "kubernetes.io/tls",
+        data: { user: "admin" },
+      },
+      "transparent",
+    );
+    w.unmount();
+  });
+
+  it("shows the TLS key hint when the tls type is picked", async () => {
+    const w = await mountCreate();
+    const type = w.find("#secret-create-type");
+    await type.trigger("keydown", { key: "ArrowDown" });
+    await type.trigger("keydown", { key: "ArrowDown" });
+    await type.trigger("keydown", { key: "Enter" });
+    expect(w.text()).toContain("tls.crt");
+    w.unmount();
+  });
+
+  it("accepts a custom type typed as free text", async () => {
+    const w = await mountCreate();
+    await w.find("#secret-create-type").setValue("example.com/custom");
+    await w.find("#secret-create-name").setValue("api-token");
+    const { keys, vals } = rowInputs(w);
+    await keys[0].setValue("user");
+    await vals[0].setValue("admin");
+    await w.find("form").trigger("submit");
+    await flushPromises();
+    expect(api.createSecret).toHaveBeenCalledWith(
+      "default",
+      {
+        name: "api-token",
+        type: "example.com/custom",
+        data: { user: "admin" },
+      },
+      "transparent",
+    );
+    w.unmount();
+  });
+});
+
 describe("SecretCreate - close paths", () => {
   it("emits close from Cancel, the panel Close button and Escape", async () => {
     const w = await mountCreate();
