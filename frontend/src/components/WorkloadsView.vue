@@ -24,6 +24,14 @@ const restarting = ref(""); // "Kind/name" currently being restarted
 const deleting = ref(""); // "Kind/name" currently being deleted
 const scaling = ref(null); // { kind, name } while scale input is open
 const scaleValue = ref(1);
+let scaleInputEl = null; // DOM input while the scale row is open
+
+// Function ref for the scale input. The row sits inside a v-for, where Vue
+// collects plain template refs into an array; a function ref receives the
+// element itself (and null on unmount), which is what focus needs.
+function setScaleInput(el) {
+  scaleInputEl = el;
+}
 const yamlTarget = ref(null); // { kind, name }
 const rollouts = ref([]);
 const rolloutsTotal = ref(0);
@@ -291,7 +299,9 @@ function openScale(w) {
   scaleValue.value =
     w.replicas ?? (Number(w.ready.split("/")[1] ?? w.ready) || 1);
   scaling.value = { kind: w.kind, name: w.name };
-  nextTick(() => document.getElementById(`scale-${w.name}`)?.focus());
+  // The autofocus attribute only fires once per document, so the first edit
+  // got focus but every later one did not; focus explicitly on every open.
+  nextTick(() => scaleInputEl?.focus());
 }
 
 function cancelScale() {
@@ -599,6 +609,7 @@ defineExpose({ load });
                         </label>
                         <input
                           :id="`scale-${w.name}`"
+                          :ref="setScaleInput"
                           v-model.number="scaleValue"
                           type="number"
                           min="0"
