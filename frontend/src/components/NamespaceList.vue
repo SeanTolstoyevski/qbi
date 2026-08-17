@@ -36,6 +36,8 @@ const options = computed(() => {
       value: ns.name,
       label: ns.name,
       description: `${ns.status} · ${ns.age}`,
+      // A namespace being deleted deserves a glance-level cue, not just text.
+      descriptionClass: ns.status === "Terminating" ? "text-warning" : "",
     }));
 });
 
@@ -64,6 +66,7 @@ function openMenu({ value, x, y }) {
 
 function closeMenu(returnFocus = false) {
   menuOpen.value = false;
+  menuNs.value = "";
   if (returnFocus) {
     nextTick(() => listBoxRef.value?.focusActive());
   }
@@ -137,7 +140,7 @@ defineExpose({ load, listReady, focusList });
 <template>
   <section aria-labelledby="ns-heading" class="h-100 d-flex flex-column">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="ns-heading" class="h6 mb-0">Namespaces</h2>
+      <h2 id="ns-heading" class="h5 mb-0">Namespaces</h2>
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
@@ -145,7 +148,7 @@ defineExpose({ load, listReady, focusList });
         @click="load"
       >
         <span class="visually-hidden">Refresh namespaces</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -181,6 +184,7 @@ defineExpose({ load, listReady, focusList });
         described-by="ns-list-hint"
         :options="options"
         :has-context-menu="true"
+        :context-open-value="menuNs"
         :model-value="state.namespace"
         @select="select"
         @context-action="openMenu"

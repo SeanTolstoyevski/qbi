@@ -49,6 +49,42 @@ describe("SettingsView - loading", () => {
   });
 });
 
+describe("SettingsView - dark mode", () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute("data-bs-theme");
+    localStorage.removeItem("qba.theme");
+  });
+
+  it("starts from the persisted theme", async () => {
+    localStorage.setItem("qba.theme", "dark");
+    const w = await mountSettings();
+    expect(w.find("#dark-mode-toggle").element.checked).toBe(true);
+    expect(w.text()).toContain("Enabled");
+    w.unmount();
+  });
+
+  it("enabling dark mode sets the theme attribute, persists and announces", async () => {
+    const w = await mountSettings();
+    await w.find("#dark-mode-toggle").setValue(true);
+    await rAF();
+    expect(document.documentElement.getAttribute("data-bs-theme")).toBe("dark");
+    expect(localStorage.getItem("qba.theme")).toBe("dark");
+    expect(state.status).toContain("Dark mode enabled.");
+    w.unmount();
+  });
+
+  it("disabling dark mode removes the attribute and persists", async () => {
+    localStorage.setItem("qba.theme", "dark");
+    const w = await mountSettings();
+    await w.find("#dark-mode-toggle").setValue(false);
+    await rAF();
+    expect(document.documentElement.hasAttribute("data-bs-theme")).toBe(false);
+    expect(localStorage.getItem("qba.theme")).toBe("light");
+    expect(state.status).toContain("Dark mode disabled.");
+    w.unmount();
+  });
+});
+
 describe("SettingsView - toggling auto-refresh", () => {
   it("enables auto-refresh, persists and announces", async () => {
     const w = await mountSettings();

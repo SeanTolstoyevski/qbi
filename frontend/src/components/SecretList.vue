@@ -151,7 +151,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="secrets-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="secrets-heading" class="h6 mb-0">
+      <h2 id="secrets-heading" class="h5 mb-0">
         Secrets<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -161,7 +161,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh secrets</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 

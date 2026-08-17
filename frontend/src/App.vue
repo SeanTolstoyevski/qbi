@@ -15,12 +15,17 @@ import NodesView from "./components/NodesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
-const { state, announce } = useStore();
+const { state, announce, clearFlash } = useStore();
 
-// First-launch welcome wizard: shown until the user either completes it
-// (persisted via Service.AcknowledgeWelcome, never shown again) or dismisses
-// it for this session. While it is open, the app behind it is inert so the
-// wizard is the only thing a keyboard or screen-reader user can reach.
+let flashTimer = null;
+watch(
+  () => state.flashSeq,
+  () => {
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(clearFlash, 1800);
+  },
+);
+
 const showWelcome = ref(false);
 const welcomeError = ref("");
 
@@ -38,7 +43,7 @@ async function onWelcomeAcknowledged() {
     announce("Welcome complete.");
     focusSectionHeading();
   } catch (e) {
-    // Keep the wizard open and surface the save failure inside the dialog.
+
     welcomeError.value = String(e);
   }
 }
@@ -53,8 +58,7 @@ onMounted(async () => {
     const s = await api.getSettings();
     showWelcome.value = !s.welcomeSeen;
   } catch {
-    // Settings unreadable (e.g. bindings unavailable): show the wizard rather
-    // than silently skip it — dismissal still works without the backend.
+
     showWelcome.value = true;
   }
 });
@@ -80,7 +84,7 @@ function selectSection(name) {
   section.value = name;
   try {
     localStorage.setItem(SECTION_KEY, name);
-  } catch {}
+  } catch { }
   nextTick(() => document.getElementById(`section-heading-${name}`)?.focus());
 }
 
@@ -118,8 +122,13 @@ function onGlobalKeydown(e) {
   selectSection(name);
 }
 
-onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
-onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
+onMounted(() => {
+  window.addEventListener("keydown", onGlobalKeydown);
+});
+onUnmounted(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
+  clearTimeout(flashTimer);
+});
 
 const TAB_KEY = "qba.activeTab";
 const savedTab = localStorage.getItem(TAB_KEY);
@@ -129,7 +138,7 @@ function selectTab(name) {
   activeTab.value = name;
   try {
     localStorage.setItem(TAB_KEY, name);
-  } catch {}
+  } catch { }
 }
 
 function onTabKeydown(e) {
@@ -158,33 +167,18 @@ function onTabKeydown(e) {
 </script>
 
 <template>
-  <div
-    class="app-root"
-    :inert="showWelcome || undefined"
-    :aria-hidden="showWelcome || undefined"
-  >
-    <a class="skip-link btn btn-primary" href="#main-content"
-      >Skip to main content</a
-    >
-
+  <div class="app-root" :inert="showWelcome || undefined" :aria-hidden="showWelcome || undefined">
     <div class="app-shell">
       <header class="border-bottom bg-body-tertiary px-3 py-2">
-        <div
-          class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"
-        >
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
           <h1 class="h5 mb-0">QBI</h1>
 
           <nav class="header-nav">
             <ul class="nav nav-pills">
               <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
-                <button
-                  type="button"
-                  class="nav-link text-capitalize"
-                  :class="{ active: section === s }"
-                  :aria-current="section === s ? 'page' : undefined"
-                  :title="`${s[0].toUpperCase()}${s.slice(1)} (Ctrl+${idx + 1})`"
-                  @click="selectSection(s)"
-                >
+                <button type="button" class="nav-link text-capitalize" :class="{ active: section === s }"
+                  :aria-current="section === s ? 'page' : undefined" :aria-keyshortcuts="`Control+${idx + 1}`"
+                  @click="selectSection(s)">
                   {{ s }}
                 </button>
               </li>
@@ -194,11 +188,7 @@ function onTabKeydown(e) {
         <ContextBar />
       </header>
 
-      <div
-        class="visually-hidden"
-        :aria-live="state.statusKind"
-        aria-atomic="true"
-      >
+      <div class="visually-hidden" :aria-live="state.statusKind" aria-atomic="true">
         {{ state.status }}
       </div>
 
@@ -208,23 +198,12 @@ function onTabKeydown(e) {
             <NamespaceList ref="namespaceListRef" />
           </nav>
 
-          <main
-            id="main-content"
-            class="col-12 col-md-9 col-lg-10 h-100 scroll-pane"
-          >
+          <main id="main-content" class="col-12 col-md-9 col-lg-10 h-100 scroll-pane">
             <div v-show="section === 'cluster'">
-              <h2
-                id="section-heading-cluster"
-                class="visually-hidden"
-                tabindex="-1"
-              >
+              <h2 id="section-heading-cluster" class="visually-hidden" tabindex="-1">
                 Cluster resources
               </h2>
-              <div
-                v-if="!state.connected"
-                class="alert alert-info"
-                role="status"
-              >
+              <div v-if="!state.connected" class="alert alert-info" role="status">
                 Select a kubeconfig file with
                 <strong>Open kubeconfig file…</strong>, choose a context, then
                 select <strong>Connect</strong> to begin.
@@ -242,111 +221,56 @@ function onTabKeydown(e) {
               <AboutView />
             </div>
             <div v-show="section === 'namespace'">
-              <h2
-                id="section-heading-namespace"
-                class="visually-hidden"
-                tabindex="-1"
-              >
+              <h2 id="section-heading-namespace" class="visually-hidden" tabindex="-1">
                 Namespace resources
               </h2>
-              <div
-                v-if="!state.connected"
-                class="alert alert-info"
-                role="status"
-              >
+              <div v-if="!state.connected" class="alert alert-info" role="status">
                 Select a kubeconfig file with
                 <strong>Open kubeconfig file…</strong>, choose a context, then
                 select <strong>Connect</strong> to begin.
               </div>
               <template v-else>
-                <div
-                  v-if="!state.namespace"
-                  class="alert alert-secondary"
-                  role="status"
-                >
+                <div v-if="!state.namespace" class="alert alert-secondary" role="status">
                   Select a namespace from the list to view its pods, networking
                   and secrets.
                 </div>
 
                 <template v-else>
-                  <ul
-                    class="nav nav-tabs mb-3"
-                    role="tablist"
-                    @keydown="onTabKeydown"
-                  >
-                    <li
-                      v-for="t in tabs"
-                      :key="t"
-                      class="nav-item"
-                      role="presentation"
-                    >
-                      <button
-                        :id="`tab-${t}`"
-                        class="nav-link text-capitalize"
-                        :class="{ active: activeTab === t }"
-                        type="button"
-                        role="tab"
-                        :tabindex="activeTab === t ? 0 : -1"
-                        :aria-selected="activeTab === t"
-                        :aria-controls="`panel-${t}`"
-                        @click="selectTab(t)"
-                      >
+                  <ul class="nav nav-tabs mb-3" role="tablist" @keydown="onTabKeydown">
+                    <li v-for="t in tabs" :key="t" class="nav-item" role="presentation">
+                      <button :id="`tab-${t}`" class="nav-link text-capitalize" :class="{ active: activeTab === t }"
+                        type="button" role="tab" :tabindex="activeTab === t ? 0 : -1" :aria-selected="activeTab === t"
+                        :aria-controls="`panel-${t}`" @click="selectTab(t)">
                         {{ t === "configmaps" ? "Config maps" : t }}
                       </button>
                     </li>
                   </ul>
 
-                  <div
-                    v-show="activeTab === 'pods'"
-                    id="panel-pods"
-                    role="tabpanel"
-                    aria-labelledby="tab-pods"
-                  >
+                  <div v-show="activeTab === 'pods'" id="panel-pods" role="tabpanel" aria-labelledby="tab-pods">
                     <PodsView />
                   </div>
 
-                  <div
-                    v-show="activeTab === 'workloads'"
-                    id="panel-workloads"
-                    role="tabpanel"
-                    aria-labelledby="tab-workloads"
-                  >
+                  <div v-show="activeTab === 'workloads'" id="panel-workloads" role="tabpanel"
+                    aria-labelledby="tab-workloads">
                     <WorkloadsView />
                   </div>
 
-                  <div
-                    v-show="activeTab === 'networking'"
-                    id="panel-networking"
-                    role="tabpanel"
-                    aria-labelledby="tab-networking"
-                  >
+                  <div v-show="activeTab === 'networking'" id="panel-networking" role="tabpanel"
+                    aria-labelledby="tab-networking">
                     <NetworkingView />
                   </div>
 
-                  <div
-                    v-show="activeTab === 'configmaps'"
-                    id="panel-configmaps"
-                    role="tabpanel"
-                    aria-labelledby="tab-configmaps"
-                  >
+                  <div v-show="activeTab === 'configmaps'" id="panel-configmaps" role="tabpanel"
+                    aria-labelledby="tab-configmaps">
                     <ConfigMapList />
                   </div>
 
-                  <div
-                    v-show="activeTab === 'secrets'"
-                    id="panel-secrets"
-                    role="tabpanel"
-                    aria-labelledby="tab-secrets"
-                  >
+                  <div v-show="activeTab === 'secrets'" id="panel-secrets" role="tabpanel"
+                    aria-labelledby="tab-secrets">
                     <SecretList />
                   </div>
 
-                  <div
-                    v-show="activeTab === 'events'"
-                    id="panel-events"
-                    role="tabpanel"
-                    aria-labelledby="tab-events"
-                  >
+                  <div v-show="activeTab === 'events'" id="panel-events" role="tabpanel" aria-labelledby="tab-events">
                     <EventsView />
                   </div>
                 </template>
@@ -358,10 +282,10 @@ function onTabKeydown(e) {
     </div>
   </div>
 
-  <WelcomeWizard
-    v-if="showWelcome"
-    :error="welcomeError"
-    @acknowledged="onWelcomeAcknowledged"
-    @dismiss="onWelcomeDismissed"
-  />
+  <div v-if="state.flashMsg" class="qba-toast" aria-hidden="true">
+    {{ state.flashMsg }}
+  </div>
+
+  <WelcomeWizard v-if="showWelcome" :error="welcomeError" @acknowledged="onWelcomeAcknowledged"
+    @dismiss="onWelcomeDismissed" />
 </template>

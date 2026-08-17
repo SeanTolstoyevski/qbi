@@ -72,9 +72,11 @@ function findBtn(w, label) {
 }
 
 // Actions live behind an "Actions" dropdown button; open it before clicking a
-// menu item (same helper convention as PodList tests).
+// menu item (same helper convention as PodList tests). Services render before
+// ingresses, so the LAST Actions button is the ingress row's menu.
 async function openActions(w) {
-  await findBtn(w, "Actions").trigger("click");
+  const btns = w.findAll("button").filter((b) => b.text().includes("Actions"));
+  await btns[btns.length - 1].trigger("click");
   await nextTick();
 }
 
@@ -348,6 +350,7 @@ describe("NetworkingView — delete service", () => {
     api.deleteService.mockResolvedValue(true);
     const w = mountView();
     await flushPromises();
+    await openActions(w); // service delete lives in the row's Actions menu
     const btn = w.findAll("button").find((b) => b.text().includes("Delete"));
     await btn.trigger("click");
     await flushPromises();

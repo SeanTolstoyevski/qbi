@@ -73,6 +73,10 @@ describe("App - primary navigation", () => {
 
     const active = nav.findAll("button").find((b) => b.text() === "namespace");
     expect(active.attributes("aria-current")).toBe("page");
+
+    // The section buttons advertise their shortcuts to assistive tech.
+    const cluster = nav.findAll("button").find((b) => b.text() === "cluster");
+    expect(cluster.attributes("aria-keyshortcuts")).toBe("Control+1");
     w.unmount();
   });
 

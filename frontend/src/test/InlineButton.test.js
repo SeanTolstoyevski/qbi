@@ -4,8 +4,9 @@ import InlineButton from "../components/InlineButton.vue";
 
 vi.mock("../store.js", () => {
   const announce = vi.fn();
+  const flash = vi.fn();
   return {
-    useStore: () => ({ announce }),
+    useStore: () => ({ announce, flash }),
   };
 });
 

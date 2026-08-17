@@ -5,6 +5,7 @@ import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import YamlViewer from "./YamlViewer.vue";
 import InlineButton from "./InlineButton.vue";
+import { nodeStatusBadgeClass } from "../statusClasses.js";
 
 const { state, announce } = useStore();
 
@@ -81,7 +82,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="nodes-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="nodes-heading" class="h6 mb-0">Nodes</h2>
+      <h2 id="nodes-heading" class="h5 mb-0">Nodes</h2>
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary"
@@ -89,7 +90,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh nodes</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -182,13 +183,9 @@ defineExpose({ load });
                 />
               </th>
               <td>
-                <span
-                  class="badge"
-                  :class="
-                    n.status === 'Ready' ? 'text-bg-success' : 'text-bg-danger'
-                  "
-                  >{{ n.status }}</span
-                >
+                <span class="badge" :class="nodeStatusBadgeClass(n.status)">{{
+                  n.status
+                }}</span>
                 <span v-if="!n.schedulable" class="badge text-bg-warning ms-1">
                   cordoned
                   <span class="visually-hidden">, scheduling disabled</span>

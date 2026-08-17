@@ -3,8 +3,9 @@ import { copyToClipboard } from "../clipboard.js";
 
 vi.mock("../store.js", () => {
   const announce = vi.fn();
+  const flash = vi.fn();
   return {
-    useStore: () => ({ announce }),
+    useStore: () => ({ announce, flash }),
   };
 });
 
@@ -13,6 +14,7 @@ const { useStore } = await import("../store.js");
 describe("copyToClipboard", () => {
   let writeText;
   let announce;
+  let flash;
 
   beforeEach(() => {
     writeText = vi.fn();
@@ -22,6 +24,7 @@ describe("copyToClipboard", () => {
       configurable: true,
     });
     announce = useStore().announce;
+    flash = useStore().flash;
     vi.clearAllMocks();
   });
 
@@ -32,6 +35,7 @@ describe("copyToClipboard", () => {
 
     expect(writeText).toHaveBeenCalledWith("hello");
     expect(announce).toHaveBeenCalledWith("Greeting copied to clipboard.");
+    expect(flash).toHaveBeenCalledWith("Greeting copied.");
   });
 
   it("announces the label in the success message", async () => {
@@ -48,6 +52,7 @@ describe("copyToClipboard", () => {
     await copyToClipboard("x", "Stuff");
 
     expect(announce).toHaveBeenCalledWith("Copy failed.", "assertive");
+    expect(flash).toHaveBeenCalledWith("Copy failed.");
   });
 
   it("can copy an empty string", async () => {

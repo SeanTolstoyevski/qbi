@@ -31,11 +31,28 @@ export function useActionMenu(externalRef) {
 
   function openMenu(key) {
     menuOpen.value = key;
-    nextTick(() =>
-      document
-        .querySelector(`[data-menu="${key}"] [role="menuitem"]:not(:disabled)`)
-        ?.focus(),
-    );
+    nextTick(() => {
+      const menu = document.querySelector(`[data-menu="${key}"]`);
+      const btn = document.getElementById(`actions-btn-${key}`);
+      if (menu && btn) {
+        const r = btn.getBoundingClientRect();
+        const vw = window.innerWidth || 800;
+        const vh = window.innerHeight || 600;
+        const menuHeight = menu.offsetHeight || 0;
+        const spaceBelow = vh - r.bottom;
+        const top =
+          spaceBelow >= menuHeight + 8
+            ? r.bottom + 4
+            : Math.max(8, r.top - menuHeight - 4);
+        const left = Math.min(r.left, Math.max(8, vw - 8 - 220));
+        menu.style.position = "fixed";
+        menu.style.top = `${top}px`;
+        menu.style.left = `${left}px`;
+        menu.style.maxHeight = `${Math.max(160, Math.min(320, vh - top - 8))}px`;
+        menu.style.overflowY = "auto";
+      }
+      menu?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
+    });
   }
 
   /**
@@ -101,7 +118,7 @@ export function useActionMenu(externalRef) {
     }
   }
 
-  // ── click-outside (managed internally) ──────────────────────────────────
+  // ── click-outside / scroll / resize (managed internally) ───────────────
 
   function onDocClick(e) {
     if (!menuOpen.value) return;
@@ -112,8 +129,40 @@ export function useActionMenu(externalRef) {
     }
   }
 
-  onMounted(() => document.addEventListener("click", onDocClick, true));
-  onUnmounted(() => document.removeEventListener("click", onDocClick, true));
+  // A fixed-position menu would drift away from its row once the page moves;
+  // closing on any scroll/resize keeps it honest. Scrolling INSIDE the open
+  // menu itself (overflow-y: auto, e.g. ArrowDown auto-scrolling a long menu)
+  // is interaction, not the page moving — leave it alone. When the focus was
+  // inside the closed menu, return it to the trigger so keyboard users never
+  // drop to <body>.
+  function onDocScroll(e) {
+    if (!menuOpen.value) return;
+    if (
+      e.target instanceof Element &&
+      e.target.closest(`[data-menu="${menuOpen.value}"]`)
+    ) {
+      return;
+    }
+    const focusInMenu = document.activeElement?.closest?.(
+      `[data-menu="${menuOpen.value}"]`,
+    );
+    closeMenu(menuOpen.value, { skipFocus: !focusInMenu });
+  }
+
+  function onWinResize() {
+    if (menuOpen.value) closeMenu(menuOpen.value, { skipFocus: true });
+  }
+
+  onMounted(() => {
+    document.addEventListener("click", onDocClick, true);
+    document.addEventListener("scroll", onDocScroll, true);
+    window.addEventListener("resize", onWinResize);
+  });
+  onUnmounted(() => {
+    document.removeEventListener("click", onDocClick, true);
+    document.removeEventListener("scroll", onDocScroll, true);
+    window.removeEventListener("resize", onWinResize);
+  });
 
   // ── exports ─────────────────────────────────────────────────────────────
 

@@ -13,6 +13,20 @@ beforeEach(() => {
 });
 
 describe("AboutView - version info", () => {
+  it("renders the keyboard shortcuts reference", async () => {
+    api.buildInfo.mockResolvedValue({
+      version: "dev",
+      commit: "unknown",
+      buildTime: "unknown",
+    });
+    const w = mount(AboutView);
+    await flushPromises();
+    expect(w.text()).toContain("Keyboard shortcuts");
+    expect(w.text()).toContain("Ctrl+E");
+    expect(w.text()).toContain("focus the namespace list");
+    w.unmount();
+  });
+
   it("renders the version and commit", async () => {
     api.buildInfo.mockResolvedValue({
       version: "0.2.0",

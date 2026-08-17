@@ -45,9 +45,11 @@ func main() {
 	service := NewService(app)
 
 	err = wails.Run(&options.App{
-		Title:  "QBI - Kubernetes inspector",
-		Width:  1200,
-		Height: 800,
+		Title:     "QBI - Kubernetes inspector",
+		Width:     1200,
+		Height:    800,
+		MinWidth:  768,
+		MinHeight: 480,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

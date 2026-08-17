@@ -131,7 +131,7 @@ defineExpose({ load });
           @click="load"
         >
           <span class="visually-hidden">Refresh ingress details</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </PanelHeader>

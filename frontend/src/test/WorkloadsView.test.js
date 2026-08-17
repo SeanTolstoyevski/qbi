@@ -86,7 +86,7 @@ function mountWithCronJobs() {
   return mountView();
 }
 
-describe("WorkloadsView — payload shape", () => {
+describe("WorkloadsView - payload shape", () => {
   it("renders workloads from the WorkloadsView payload", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);
@@ -125,7 +125,7 @@ describe("WorkloadsView — payload shape", () => {
   });
 });
 
-describe("WorkloadsView — actions", () => {
+describe("WorkloadsView - actions", () => {
   it("triggers a rolling restart via the API", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);
@@ -141,11 +141,15 @@ describe("WorkloadsView — actions", () => {
       "Deployment",
       "web",
     );
+
+    expect(useStore().state.flashMsg).toContain(
+      "Rolling restart triggered for Deployment web",
+    );
     w.unmount();
   });
 });
 
-describe("WorkloadsView — delete workload", () => {
+describe("WorkloadsView - delete workload", () => {
   it("deletes a workload via the API after confirmation", async () => {
     api.deleteWorkload.mockResolvedValue(true);
     const w = mountView();
@@ -175,7 +179,7 @@ describe("WorkloadsView — delete workload", () => {
   });
 });
 
-describe("WorkloadsView — scale", () => {
+describe("WorkloadsView - scale", () => {
   async function mountWithWorkloads() {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);
@@ -281,7 +285,7 @@ describe("WorkloadsView — scale", () => {
   });
 });
 
-describe("WorkloadsView — namespace switch", () => {
+describe("WorkloadsView - namespace switch", () => {
   // The inline scale row names a workload from the previous namespace; it
   // must close when the namespace changes instead of lingering over a
   // resource that may not exist there.
@@ -318,7 +322,7 @@ describe("WorkloadsView — namespace switch", () => {
   });
 });
 
-describe("WorkloadsView — recent rollouts", () => {
+describe("WorkloadsView - recent rollouts", () => {
   // Rollout history is the durable counterpart to events (which expire after
   // ~1h). The backend bounds it, and the view must render it and degrade
   // gracefully when the call is denied or slow.
@@ -425,7 +429,7 @@ describe("WorkloadsView — recent rollouts", () => {
   });
 });
 
-describe("WorkloadsView — cron job logs", () => {
+describe("WorkloadsView - cron job logs", () => {
   it("streams the newest run's pod like a pod", async () => {
     api.getCronJobDetail.mockResolvedValue({
       name: "backup",
@@ -503,7 +507,7 @@ describe("WorkloadsView — cron job logs", () => {
   });
 });
 
-describe("WorkloadsView — cron job create", () => {
+describe("WorkloadsView - cron job create", () => {
   it("creates a cron job from the form and reloads", async () => {
     api.createCronJob.mockResolvedValue(true);
     const w = mountWithCronJobs();
@@ -552,7 +556,7 @@ describe("WorkloadsView — cron job create", () => {
   });
 });
 
-describe("WorkloadsView — cron job edit + suspend", () => {
+describe("WorkloadsView - cron job edit + suspend", () => {
   it("applies schedule and suspend edits", async () => {
     api.updateCronJob.mockResolvedValue(true);
     const w = mountWithCronJobs();
@@ -586,8 +590,18 @@ describe("WorkloadsView — cron job edit + suspend", () => {
     w.unmount();
   });
 
-  // The edit form is a separate panel (like pod detail/logs), so closing it
-  // must return focus to the Edit button that opened it.
+  it("shows a visible error when the suspend toggle fails", async () => {
+    api.updateCronJob.mockRejectedValueOnce(new Error("boom"));
+    const w = mountWithCronJobs();
+    await flushPromises();
+    await openActions(w);
+    await findBtn(w, "Suspend").trigger("click");
+    await flushPromises();
+
+    expect(w.text()).toContain("boom");
+    w.unmount();
+  });
+
   it("returns focus to the Actions button when the panel closes via Escape", async () => {
     const w = mountWithCronJobs();
     await flushPromises();
@@ -607,7 +621,7 @@ describe("WorkloadsView — cron job edit + suspend", () => {
   });
 });
 
-describe("WorkloadsView — deployment create", () => {
+describe("WorkloadsView - deployment create", () => {
   function openDeployPanel(w) {
     return findBtn(w, "Create deployment").trigger("click");
   }
@@ -671,7 +685,7 @@ describe("WorkloadsView — deployment create", () => {
   });
 });
 
-describe("WorkloadsView — refresh button", () => {
+describe("WorkloadsView - refresh button", () => {
   it("reloads workloads, jobs and cron jobs via the refresh button", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);

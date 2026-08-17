@@ -444,19 +444,21 @@ function onSectionKeydown(e) {
     <div
       class="d-flex align-items-center justify-content-between mb-2 gap-2 flex-wrap"
     >
-      <h2 id="log-heading" ref="headingEl" class="h6 mb-0" tabindex="-1">
+      <h2 id="log-heading" ref="headingEl" class="h5 mb-0" tabindex="-1">
         Logs: {{ pod }} / {{ container }}
         <span v-if="streaming" class="badge text-bg-success ms-1" role="status"
           >live</span
         >
         <span v-else class="badge text-bg-secondary ms-1">stopped</span>
-        <span v-if="previous" class="badge text-bg-warning ms-1">previous</span>
+        <span v-if="previous" class="badge text-bg-secondary ms-1"
+          >previous</span
+        >
       </h2>
       <div class="d-flex align-items-center gap-2">
         <button
           v-if="streaming"
           type="button"
-          class="btn btn-sm btn-outline-warning"
+          class="btn btn-sm btn-outline-secondary"
           @click="stop"
         >
           Stop
@@ -525,7 +527,7 @@ function onSectionKeydown(e) {
             aria-label="Previous match"
             @click="gotoMatch(-1)"
           >
-            ↑
+            <i class="bi bi-chevron-up" aria-hidden="true"></i>
           </button>
           <button
             type="button"
@@ -534,7 +536,7 @@ function onSectionKeydown(e) {
             aria-label="Next match"
             @click="gotoMatch(1)"
           >
-            ↓
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
           </button>
         </div>
         <p
@@ -589,70 +591,81 @@ function onSectionKeydown(e) {
     </div>
 
     <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
-      <div class="d-flex align-items-center gap-1">
-        <label for="opt-tail" class="form-label mb-0 small">History</label>
-        <select
-          id="opt-tail"
-          v-model.number="tail"
-          class="form-select form-select-sm"
-          style="width: auto"
-        >
-          <option :value="100">100 lines</option>
-          <option :value="500">500 lines</option>
-          <option :value="1000">1000 lines</option>
-          <option :value="-1">All</option>
-        </select>
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex align-items-center gap-1">
+          <label for="opt-tail" class="form-label mb-0 small">History</label>
+          <select
+            id="opt-tail"
+            v-model.number="tail"
+            class="form-select form-select-sm"
+            style="width: auto"
+          >
+            <option :value="100">100 lines</option>
+            <option :value="500">500 lines</option>
+            <option :value="1000">1000 lines</option>
+            <option :value="-1">All</option>
+          </select>
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input
+            id="opt-ts"
+            v-model="timestamps"
+            class="form-check-input"
+            type="checkbox"
+          />
+          <label class="form-check-label small" for="opt-ts">Timestamps</label>
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input
+            id="opt-prev"
+            v-model="previous"
+            class="form-check-input"
+            type="checkbox"
+          />
+          <label class="form-check-label small" for="opt-prev"
+            >Previous (crashed) instance</label
+          >
+        </div>
       </div>
-      <div class="form-check form-switch mb-0">
-        <input
-          id="opt-ts"
-          v-model="timestamps"
-          class="form-check-input"
-          type="checkbox"
-        />
-        <label class="form-check-label small" for="opt-ts">Timestamps</label>
-      </div>
-      <div class="form-check form-switch mb-0">
-        <input
-          id="opt-prev"
-          v-model="previous"
-          class="form-check-input"
-          type="checkbox"
-        />
-        <label class="form-check-label small" for="opt-prev"
-          >Previous (crashed) instance</label
-        >
-      </div>
-      <div class="form-check form-switch mb-0">
-        <input
-          id="opt-wrap"
-          v-model="wrap"
-          class="form-check-input"
-          type="checkbox"
-        />
-        <label class="form-check-label small" for="opt-wrap">Wrap lines</label>
-      </div>
-      <div class="form-check form-switch mb-0">
-        <input
-          id="opt-scroll"
-          v-model="autoScroll"
-          class="form-check-input"
-          type="checkbox"
-        />
-        <label class="form-check-label small" for="opt-scroll"
-          >Auto-scroll</label
-        >
+      <div class="d-flex flex-wrap align-items-center gap-3 border-start ps-3">
+        <div class="form-check form-switch mb-0">
+          <input
+            id="opt-wrap"
+            v-model="wrap"
+            class="form-check-input"
+            type="checkbox"
+          />
+          <label class="form-check-label small" for="opt-wrap"
+            >Wrap lines</label
+          >
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input
+            id="opt-scroll"
+            v-model="autoScroll"
+            class="form-check-input"
+            type="checkbox"
+          />
+          <label class="form-check-label small" for="opt-scroll"
+            >Auto-scroll</label
+          >
+        </div>
       </div>
     </div>
 
     <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
+    <!-- role="log" would imply a polite live region (ARIA implicit aria-live),
+         so a fast stream would be announced line-by-line and flood the reader.
+         Explicit aria-live="off" opts out; users read lines via the roving
+         focus (arrow keys) instead, exactly as the comment below intends. -->
     <div
       ref="logEl"
       class="log-view flex-grow-1"
       :class="{ 'log-nowrap': !wrap }"
       tabindex="0"
       role="log"
+      aria-live="off"
       aria-label="Log output"
       @keydown="onLogKeydown"
       @focus="onLogFocus"

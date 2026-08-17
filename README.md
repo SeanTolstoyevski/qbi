@@ -85,17 +85,13 @@ in Settings.
 through a native confirmation dialog that defaults to **No** and says exactly
 what will happen. More in [Security](#security).
 
-**Accessible by design** - Keyboard-first with WAI-ARIA patterns throughout, a
-single high-contrast focus ring, `aria-live` announcements and
-`prefers-reduced-motion` support. Accessibility is a design constraint, not a
-bolt-on, but you don't need a screen reader to benefit from it.
 
 ## Screenshots
 
-**Pod logs** - The streaming log viewer: search with live match count, tail
-and timestamps toggles, and desktop-style line navigation.
-
 ![Pod log viewer](docs/images/pod_log_screen.png)
+
+
+![Dark mode in pods tab](docs/images/pods_screen_-_dark_mode_is_active.png)
 
 ## Requirements
 

@@ -15,9 +15,9 @@ defineExpose({ headingEl });
 
 <template>
   <div class="d-flex align-items-center justify-content-between mb-2">
-    <h2 :id="headingId" ref="headingEl" class="h6 mb-0" tabindex="-1">
+    <h3 :id="headingId" ref="headingEl" class="h5 mb-0" tabindex="-1">
       {{ title }}
-    </h2>
+    </h3>
     <slot></slot>
     <button
       type="button"

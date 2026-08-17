@@ -113,6 +113,108 @@ describe("useActionMenu — open / close / focus", () => {
   });
 });
 
+describe("useActionMenu — positioning", () => {
+  it("anchors the menu to the trigger's viewport position", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+    const trigger = wrapper.find("#actions-btn-item1");
+    // happy-dom rects are all zeros; the point is that the menu gets an
+    // explicit fixed position instead of relying on absolute-in-overflow.
+    trigger.element.getBoundingClientRect = () => ({
+      top: 100,
+      bottom: 132,
+      left: 40,
+      right: 140,
+      width: 100,
+      height: 32,
+    });
+
+    await trigger.trigger("click");
+    await nextTick();
+    await nextTick();
+
+    const menu = document.querySelector('[data-menu="item1"]');
+    expect(menu.style.position).toBe("fixed");
+    expect(menu.style.top).toBe("136px"); // bottom + 4
+    expect(menu.style.left).toBe("40px");
+    expect(menu.style.maxHeight).not.toBe("");
+    expect(menu.style.overflowY).toBe("auto");
+
+    wrapper.unmount();
+  });
+
+  it("closes the menu when the page scrolls, without moving focus", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+    wrapper.vm.openMenu("item1");
+    await nextTick();
+    await nextTick();
+    expect(wrapper.vm.menuOpen).toBe("item1");
+
+    const elsewhere = document.createElement("button");
+    document.body.appendChild(elsewhere);
+    elsewhere.focus();
+
+    document.dispatchEvent(new Event("scroll"));
+    await nextTick();
+
+    expect(wrapper.vm.menuOpen).toBe("");
+    expect(document.activeElement).toBe(elsewhere);
+
+    document.body.removeChild(elsewhere);
+    wrapper.unmount();
+  });
+
+  it("does not close when the scroll happens inside the open menu", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+    wrapper.vm.openMenu("item1");
+    await nextTick();
+    await nextTick();
+
+    // A wheel/arrow scroll inside the menu (overflow-y: auto) is interaction,
+    // not the page moving — the menu must survive it.
+    const menu = document.querySelector('[data-menu="item1"]');
+    menu.dispatchEvent(new Event("scroll", { bubbles: true }));
+    await nextTick();
+
+    expect(wrapper.vm.menuOpen).toBe("item1");
+
+    wrapper.unmount();
+  });
+
+  it("returns focus to the trigger when scroll closes a menu holding focus", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+    wrapper.vm.openMenu("item1");
+    await nextTick();
+    await nextTick();
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-menu="item1"] [role="menuitem"]'),
+    );
+
+    document.dispatchEvent(new Event("scroll"));
+    await nextTick();
+
+    expect(wrapper.vm.menuOpen).toBe("");
+    expect(document.activeElement).toBe(
+      document.getElementById("actions-btn-item1"),
+    );
+
+    wrapper.unmount();
+  });
+
+  it("closes the menu when the window resizes", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+    wrapper.vm.openMenu("item1");
+    await nextTick();
+    await nextTick();
+    expect(wrapper.vm.menuOpen).toBe("item1");
+
+    window.dispatchEvent(new Event("resize"));
+    await nextTick();
+
+    expect(wrapper.vm.menuOpen).toBe("");
+    wrapper.unmount();
+  });
+});
+
 describe("useActionMenu — keyboard navigation", () => {
   it("Escape closes the menu and returns focus", async () => {
     const wrapper = mount(makeComponent(), { attachTo: document.body });

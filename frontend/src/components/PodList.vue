@@ -5,6 +5,7 @@ import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
 import InlineButton from "./InlineButton.vue";
+import { phaseBadgeClass } from "../statusClasses.js";
 const { state, announce } = useStore();
 
 const emit = defineEmits(["view-logs", "view-details", "view-yaml"]);
@@ -143,7 +144,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="pods-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="pods-heading" class="h6 mb-0">
+      <h2 id="pods-heading" class="h5 mb-0">
         Pods<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -153,7 +154,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh pods</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -211,15 +212,9 @@ defineExpose({ load });
                 </th>
                 <td>{{ pod.ready }}</td>
                 <td>
-                  <span
-                    class="badge"
-                    :class="
-                      pod.phase === 'Running'
-                        ? 'text-bg-success'
-                        : 'text-bg-secondary'
-                    "
-                    >{{ pod.phase }}</span
-                  >
+                  <span class="badge" :class="phaseBadgeClass(pod.phase)">{{
+                    pod.phase
+                  }}</span>
                 </td>
                 <td>{{ pod.restarts }}</td>
                 <td>{{ pod.age }}</td>

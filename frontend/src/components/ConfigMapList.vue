@@ -78,7 +78,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="cm-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="cm-heading" class="h6 mb-0">
+      <h2 id="cm-heading" class="h5 mb-0">
         Config maps<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -88,7 +88,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh config maps</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -151,6 +151,7 @@ defineExpose({ load });
                   variant="inline"
                   :copy-text="entry.value"
                   announce="Value"
+                  :title="`Copy ${entry.key}`"
                 />
               </dt>
               <dd class="mb-0 mt-1">

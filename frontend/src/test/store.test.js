@@ -50,6 +50,30 @@ describe("store — announce()", () => {
   });
 });
 
+describe("store — flash()", () => {
+  it("sets the flash message and bumps the sequence", async () => {
+    const { state, flash } = await freshStore();
+    expect(state.flashMsg).toBe("");
+    expect(state.flashSeq).toBe(0);
+
+    flash("Pod web copied.");
+    expect(state.flashMsg).toBe("Pod web copied.");
+    expect(state.flashSeq).toBe(1);
+
+    // A second flash replaces the message — the seq bump restarts the UI timer.
+    flash("YAML copied.");
+    expect(state.flashMsg).toBe("YAML copied.");
+    expect(state.flashSeq).toBe(2);
+  });
+
+  it("clearFlash empties the message", async () => {
+    const { state, flash, clearFlash } = await freshStore();
+    flash("hi");
+    clearFlash();
+    expect(state.flashMsg).toBe("");
+  });
+});
+
 describe("store — setConnection()", () => {
   it("marks connected and stores context", async () => {
     const { state, setConnection } = await freshStore();

@@ -4,13 +4,14 @@ import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
+import { jobStatusBadgeClass } from "../statusClasses.js";
 import YamlViewer from "./YamlViewer.vue";
 import LogViewer from "./LogViewer.vue";
 import CronJobCreate from "./CronJobCreate.vue";
 import CronJobEdit from "./CronJobEdit.vue";
 import DeploymentCreate from "./DeploymentCreate.vue";
 
-const { state, announce } = useStore();
+const { state, announce, flash } = useStore();
 
 const workloads = ref([]);
 const workloadErrors = ref([]); // per-kind load errors (RBAC)
@@ -218,6 +219,9 @@ async function toggleSuspend(cj) {
     announce(`Cron job ${cj.name} ${cj.suspended ? "resumed" : "suspended"}.`);
     await load();
   } catch (e) {
+    // Unlike restart/scale/delete, suspend used to fail silently: nothing
+    // visible changed and no error was shown. Mirror the other actions.
+    error.value = String(e);
     announce(`Failed to update cron job ${cj.name}: ${String(e)}`, "assertive");
   } finally {
     suspending.value = "";
@@ -235,6 +239,9 @@ async function restart(w) {
     );
     if (!triggered) return;
     announce(`Rolling restart triggered for ${w.kind} ${w.name}.`);
+    // The cluster state does not change visibly after a restart, so the
+    // announce (SR-only) needs a sighted counterpart via the flash toast.
+    flash(`Rolling restart triggered for ${w.kind} ${w.name}.`);
     await load();
   } catch (e) {
     error.value = String(e);
@@ -344,7 +351,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="workloads-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="workloads-heading" class="h6 mb-0">
+      <h2 id="workloads-heading" class="h5 mb-0">
         Workloads<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -354,7 +361,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh workloads</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -394,14 +401,14 @@ defineExpose({ load });
               :disabled="createDeployOpen"
               @click="openCreateDeploy"
             >
-              Create<span class="visually-hidden"> deployment</span>
+              Create deployment
             </button>
           </div>
           <p v-if="workloads.length === 0" class="text-muted small">
             None found.
           </p>
           <div v-else class="table-responsive mb-3">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Workload controllers in
                 {{
@@ -604,7 +611,7 @@ defineExpose({ load });
           <h3 class="h6 text-body-secondary mb-1">Jobs</h3>
           <p v-if="jobs.length === 0" class="text-muted small">None found.</p>
           <div v-else class="table-responsive mb-3">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Jobs in
                 {{
@@ -630,12 +637,7 @@ defineExpose({ load });
                   <td>
                     <span
                       class="badge"
-                      :class="{
-                        'text-bg-success': j.status === 'Complete',
-                        'text-bg-danger': j.status === 'Failed',
-                        'text-bg-warning': j.status === 'Suspended',
-                        'text-bg-secondary': j.status === 'Running',
-                      }"
+                      :class="jobStatusBadgeClass(j.status)"
                       >{{ j.status }}</span
                     >
                   </td>
@@ -672,7 +674,7 @@ defineExpose({ load });
               :disabled="createOpen"
               @click="openCreate"
             >
-              Create<span class="visually-hidden"> cron job</span>
+              Create cron job
             </button>
           </div>
 
@@ -680,7 +682,7 @@ defineExpose({ load });
             None found.
           </p>
           <div v-else class="table-responsive">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Cron jobs in
                 {{

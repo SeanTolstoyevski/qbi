@@ -55,4 +55,23 @@ function openGitHub(e) {
       SeanTolstoyevski/qbi on GitHub
     </a>
   </p>
+
+  <h2 class="h6 mt-4 mb-2">Keyboard shortcuts</h2>
+  <ul class="small mb-0" style="max-width: 32rem">
+    <li>
+      <kbd>Ctrl</kbd>+<kbd>1</kbd> to <kbd>4</kbd> - switch between Cluster,
+      Namespace, Settings and About.
+    </li>
+    <li><kbd>Ctrl</kbd>+<kbd>E</kbd> - focus the namespace list.</li>
+    <li>
+      In the log viewer: <kbd>Ctrl</kbd>+<kbd>F</kbd> searches,
+      <kbd>↑</kbd>/<kbd>↓</kbd> move between lines, <kbd>Ctrl</kbd>+<kbd>C</kbd>
+      copies the focused line (or all when no line is focused),
+      <kbd>Esc</kbd> closes the panel.
+    </li>
+    <li>
+      In lists (namespaces, secrets, config maps): <kbd>↑</kbd>/<kbd>↓</kbd>
+      move, <kbd>Enter</kbd> selects, type to jump to a matching name.
+    </li>
+  </ul>
 </template>

@@ -74,7 +74,7 @@ load();
           @click="load"
         >
           <span class="visually-hidden">Refresh YAML</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </PanelHeader>
