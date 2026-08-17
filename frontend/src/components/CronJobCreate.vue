@@ -10,6 +10,7 @@ import {
   SCHEDULE_ERROR,
 } from "../cronJobHelpers.js";
 import { validateName } from "../kubeValidation.js";
+import Combobox from "./Combobox.vue";
 import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
@@ -126,19 +127,12 @@ async function submit() {
         <label for="cj-concurrency" class="form-label mb-1 small"
           >Concurrency policy</label
         >
-        <select
+        <Combobox
           id="cj-concurrency"
           v-model="form.concurrencyPolicy"
-          class="form-select form-select-sm"
-        >
-          <option
-            v-for="p in CONCURRENCY_POLICIES"
-            :key="p.value"
-            :value="p.value"
-          >
-            {{ p.label }}
-          </option>
-        </select>
+          :options="CONCURRENCY_POLICIES"
+          readonly
+        />
       </div>
       <div class="col-12">
         <label for="cj-command" class="form-label mb-1 small"

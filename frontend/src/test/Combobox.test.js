@@ -219,6 +219,95 @@ describe("Combobox - filtering and free text", () => {
   });
 });
 
+describe("Combobox - readonly (select-only) mode", () => {
+  const RO_OPTIONS = [
+    { value: 100, label: "100 lines" },
+    { value: 500, label: "500 lines" },
+    { value: 1000, label: "1000 lines" },
+    { value: -1, label: "All" },
+  ];
+
+  async function mountRo(modelValue = 500, extra = {}) {
+    const w = mount(Combobox, {
+      props: {
+        id: "ro-box",
+        modelValue,
+        options: RO_OPTIONS,
+        readonly: true,
+        ...extra,
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    return w;
+  }
+
+  it("shows the current value's label and is not typeable", async () => {
+    const w = await mountRo();
+    expect(input(w).element.value).toBe("500 lines");
+    expect(input(w).element.readOnly).toBe(true);
+    w.unmount();
+  });
+
+  it("ArrowDown opens with the current selection highlighted and moves through options", async () => {
+    const w = await mountRo();
+    await key(w, "ArrowDown");
+    expect(list(w).isVisible()).toBe(true);
+    expect(activeOption(w).text()).toBe("500 lines");
+    await key(w, "ArrowDown");
+    expect(activeOption(w).text()).toBe("1000 lines");
+    w.unmount();
+  });
+
+  it("Enter picks the highlighted option and emits the numeric value", async () => {
+    const w = await mountRo();
+    await key(w, "ArrowDown");
+    await key(w, "ArrowDown");
+    await key(w, "Enter");
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([1000]);
+    expect(w.emitted("select")?.at(-1)).toEqual([1000]);
+    expect(input(w).element.value).toBe("1000 lines");
+    expect(input(w).attributes("aria-expanded")).toBe("false");
+    w.unmount();
+  });
+
+  it("Space opens the list when closed and picks when open", async () => {
+    const w = await mountRo(100);
+    await key(w, " ");
+    expect(list(w).isVisible()).toBe(true);
+    await key(w, " ");
+    expect(w.emitted("update:modelValue")?.at(-1)).toEqual([100]);
+    expect(list(w).isVisible()).toBe(false);
+    w.unmount();
+  });
+
+  it("typing does not change the value", async () => {
+    const w = await mountRo();
+    // The readonly attribute blocks typing in a real browser; the component
+    // must additionally ignore any input event that slips through.
+    expect(input(w).element.readOnly).toBe(true);
+    await input(w).trigger("input");
+    expect(w.emitted("update:modelValue")).toBeUndefined();
+    w.unmount();
+  });
+
+  it("type-ahead jumps to the option matching the typed characters", async () => {
+    const w = await mountRo();
+    await key(w, "ArrowDown");
+    await key(w, "a"); // "All"
+    expect(activeOption(w).text()).toBe("All");
+    w.unmount();
+  });
+
+  it("disabled combobox ignores keyboard input", async () => {
+    const w = await mountRo(500, { disabled: true });
+    expect(input(w).attributes("disabled")).toBeDefined();
+    await key(w, "ArrowDown");
+    expect(list(w).isVisible()).toBe(false);
+    w.unmount();
+  });
+});
+
 describe("Combobox - pointer interaction and blur", () => {
   it("picks an option on click and keeps focus in the input", async () => {
     const w = await mountBox();

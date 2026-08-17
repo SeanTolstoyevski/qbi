@@ -8,6 +8,7 @@ import { validateName } from "../kubeValidation.js";
 import PanelHeader from "./PanelHeader.vue";
 import KeyValueFieldset from "./KeyValueFieldset.vue";
 import YamlPreview from "./YamlPreview.vue";
+import Combobox from "./Combobox.vue";
 
 /*
  * Create-service panel (Networking view). A Service is a sibling of the
@@ -34,6 +35,18 @@ const form = ref({
   clusterIP: "",
   externalIPs: [""],
 });
+
+// Choice lists for the form's comboboxes (values match the k8s API enums).
+const SVC_TYPES = [
+  { value: "ClusterIP", label: "ClusterIP (internal only)" },
+  { value: "NodePort", label: "NodePort (external via node IP)" },
+  { value: "LoadBalancer", label: "LoadBalancer (cloud)" },
+];
+const PROTOCOLS = ["TCP", "UDP", "SCTP"];
+const AFFINITY_OPTIONS = [
+  { value: "", label: "None (default)" },
+  { value: "ClientIP", label: "ClientIP (stick to one pod)" },
+];
 
 const preview = ref("");
 const previewOpen = ref(false);
@@ -203,15 +216,12 @@ async function submit() {
       </div>
       <div class="col-12 col-md-6">
         <label for="svc-type" class="form-label mb-1 small">Type</label>
-        <select
+        <Combobox
           id="svc-type"
           v-model="form.type"
-          class="form-select form-select-sm"
-        >
-          <option value="ClusterIP">ClusterIP (internal only)</option>
-          <option value="NodePort">NodePort (external via node IP)</option>
-          <option value="LoadBalancer">LoadBalancer (cloud)</option>
-        </select>
+          :options="SVC_TYPES"
+          readonly
+        />
       </div>
 
       <!-- Selector -->
@@ -269,15 +279,12 @@ async function submit() {
               <label class="visually-hidden" :for="`svc-proto-${i}`"
                 >Protocol</label
               >
-              <select
+              <Combobox
                 :id="`svc-proto-${i}`"
                 v-model="p.protocol"
-                class="form-select form-select-sm"
-              >
-                <option value="TCP">TCP</option>
-                <option value="UDP">UDP</option>
-                <option value="SCTP">SCTP</option>
-              </select>
+                :options="PROTOCOLS"
+                readonly
+              />
             </div>
             <div v-if="showNodePort" class="col-6 col-md-2">
               <label class="visually-hidden" :for="`svc-nodeport-${i}`"
@@ -324,14 +331,12 @@ async function submit() {
                 <label for="svc-affinity" class="form-label mb-1 small"
                   >Session affinity</label
                 >
-                <select
+                <Combobox
                   id="svc-affinity"
                   v-model="form.sessionAffinity"
-                  class="form-select form-select-sm"
-                >
-                  <option value="">None (default)</option>
-                  <option value="ClientIP">ClientIP (stick to one pod)</option>
-                </select>
+                  :options="AFFINITY_OPTIONS"
+                  readonly
+                />
               </div>
               <div class="col-6 col-md-4">
                 <label for="svc-clusterip" class="form-label mb-1 small"

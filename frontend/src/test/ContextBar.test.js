@@ -3,6 +3,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import ContextBar from "../components/ContextBar.vue";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
+import { chooseCombobox } from "./combobox.js";
 
 vi.mock("../api.js", () => ({
   api: {
@@ -53,8 +54,10 @@ describe("ContextBar - kubeconfig status", () => {
     const w = await mountBar();
     expect(api.listContexts).toHaveBeenCalledTimes(1);
     const select = w.find("#context-select");
-    expect(select.element.value).toBe("prod");
-    const labels = w.findAll("#context-select option").map((o) => o.text());
+    expect(select.element.value).toBe("prod (current)");
+    const labels = w
+      .findAll("#context-select ~ ul [role='option']")
+      .map((o) => o.text());
     expect(labels).toContain("prod (current)");
     expect(labels).toContain("staging");
     w.unmount();
@@ -121,7 +124,7 @@ describe("ContextBar - picking a kubeconfig file", () => {
     await flushPromises();
     expect(api.selectKubeconfig).toHaveBeenCalledTimes(1);
     expect(api.listContexts).toHaveBeenCalledTimes(2);
-    expect(w.find("#context-select").element.value).toBe("prod");
+    expect(w.find("#context-select").element.value).toBe("prod (current)");
     w.unmount();
   });
 
@@ -191,7 +194,7 @@ describe("ContextBar - refresh and connect", () => {
   it("connects with the selected context, announces and flips the button to Reconnect", async () => {
     api.connect.mockResolvedValue({ name: "staging" });
     const w = await mountBar();
-    await w.find("#context-select").setValue("staging");
+    await chooseCombobox(w, "context-select", "staging");
     await w.find('button[type="submit"]').trigger("click");
     await flushPromises();
     await rAF();
@@ -212,7 +215,7 @@ describe("ContextBar - refresh and connect", () => {
     try {
       const w = await mountBar();
       api.connect.mockResolvedValue({ name: "staging" });
-      await w.find("#context-select").setValue("staging");
+      await chooseCombobox(w, "context-select", "staging");
       await w.find('button[type="submit"]').trigger("click");
       await flushPromises();
       expect(state.connected).toBe(true);

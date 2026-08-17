@@ -4,6 +4,7 @@ import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { copyToClipboard } from "../clipboard.js";
+import Combobox from "./Combobox.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -23,6 +24,14 @@ const error = ref("");
 const tail = ref(500); // history lines to fetch: number, or -1 for "all"
 const timestamps = ref(false);
 const previous = ref(false); // logs from the previous (crashed) container
+
+// History choices keep numeric values: -1 means "all" (matches the API).
+const TAIL_OPTIONS = [
+  { value: 100, label: "100 lines" },
+  { value: 500, label: "500 lines" },
+  { value: 1000, label: "1000 lines" },
+  { value: -1, label: "All" },
+];
 
 // --- view options ----------------------------------------------------------
 const autoScroll = ref(true);
@@ -594,17 +603,13 @@ function onSectionKeydown(e) {
       <div class="d-flex flex-wrap align-items-center gap-3">
         <div class="d-flex align-items-center gap-1">
           <label for="opt-tail" class="form-label mb-0 small">History</label>
-          <select
+          <Combobox
             id="opt-tail"
-            v-model.number="tail"
-            class="form-select form-select-sm"
-            style="width: auto"
-          >
-            <option :value="100">100 lines</option>
-            <option :value="500">500 lines</option>
-            <option :value="1000">1000 lines</option>
-            <option :value="-1">All</option>
-          </select>
+            v-model="tail"
+            :options="TAIL_OPTIONS"
+            readonly
+            style="min-width: 8.5rem"
+          />
         </div>
         <div class="form-check form-switch mb-0">
           <input

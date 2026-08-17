@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import WorkloadsView from "../components/WorkloadsView.vue";
+import { chooseCombobox } from "./combobox.js";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 
@@ -389,8 +390,8 @@ describe("WorkloadsView - recent rollouts", () => {
       api.history.mockClear();
 
       await w.find("#rollout-filter").setValue("web");
-      await w.find("#rollout-limit").setValue("200");
-      await w.find("#rollout-depth").setValue("10");
+      await chooseCombobox(w, "rollout-limit", 200);
+      await chooseCombobox(w, "rollout-depth", 10);
       await nextTick();
       await vi.advanceTimersByTimeAsync(300); // past the 250ms debounce
 
@@ -518,7 +519,7 @@ describe("WorkloadsView - cron job create", () => {
     await w.find("#cj-schedule").setValue("0 2 * * *");
     await w.find("#cj-image").setValue("busybox");
     await w.find("#cj-command").setValue("echo hi");
-    await w.find("#cj-concurrency").setValue("Forbid");
+    await chooseCombobox(w, "cj-concurrency", "Forbid");
     await w.find("#cj-suspend").setValue(true);
     await w
       .findAll("button")
@@ -565,7 +566,7 @@ describe("WorkloadsView - cron job edit + suspend", () => {
     await findBtn(w, "Edit").trigger("click");
     await nextTick();
     await w.find("#cj-edit-schedule").setValue("0 3 * * *");
-    await w.find("#cj-edit-policy").setValue("Replace");
+    await chooseCombobox(w, "cj-edit-policy", "Replace");
     await w.find("#cj-edit-suspend").setValue(true);
     await findBtn(w, "Apply").trigger("click");
     await flushPromises();

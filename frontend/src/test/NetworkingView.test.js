@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import NetworkingView from "../components/NetworkingView.vue";
+import { chooseCombobox } from "./combobox.js";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 
@@ -282,7 +283,7 @@ describe("NetworkingView — create service", () => {
     await findBtn(w, "Create service").trigger("click");
     await nextTick();
     await w.find("#svc-name").setValue("gitea");
-    await w.find("#svc-type").setValue("NodePort");
+    await chooseCombobox(w, "svc-type", "NodePort");
     await w.find("#svc-sel-key-0").setValue("app");
     await w.find("#svc-sel-val-0").setValue("gitea");
     await w.find("#svc-port-0").setValue(3000);

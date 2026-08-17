@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import IngressCreate from "../components/IngressCreate.vue";
 import { api } from "../api.js";
+import { chooseCombobox } from "./combobox.js";
 
 vi.mock("../api.js", () => ({
   api: {
@@ -75,7 +76,7 @@ async function fillValid(w) {
   await w.find("#ing-path-0-0").setValue("/");
   await w.find("#ing-svc-0-0").setValue("web");
   await w.find("#ing-svcport-0-0").setValue("80");
-  await w.find("#ing-create-class").setValue("nginx");
+  await chooseCombobox(w, "ing-create-class", "nginx");
 }
 
 describe("IngressCreate  focus and layout", () => {
@@ -108,7 +109,7 @@ describe("IngressCreate  focus and layout", () => {
 
   it("offers the cluster's ingress classes plus the cluster default", async () => {
     const w = await mountCreate();
-    const opts = w.find("#ing-create-class").findAll("option");
+    const opts = w.findAll("#ing-create-class ~ ul [role='option']");
     expect(opts.map((o) => o.text())).toEqual([
       "None (cluster default)",
       "nginx",
@@ -121,7 +122,7 @@ describe("IngressCreate  focus and layout", () => {
   it("reveals a custom class input when Custom is chosen", async () => {
     const w = await mountCreate();
     expect(w.find("#ing-create-class-custom").exists()).toBe(false);
-    await w.find("#ing-create-class").setValue("__custom__");
+    await chooseCombobox(w, "ing-create-class", "__custom__");
     expect(w.find("#ing-create-class-custom").exists()).toBe(true);
     await w.find("#ing-create-class-custom").setValue("istio");
     w.unmount();
@@ -601,7 +602,7 @@ describe("IngressCreate  edit mode", () => {
       unsupported: [],
     });
     const w = await mountCreate({ ingressName: "web" });
-    expect(w.find("#ing-create-class").element.value).toBe("__custom__");
+    expect(w.find("#ing-create-class").element.value).toBe("Custom…");
     expect(w.find("#ing-create-class-custom").element.value).toBe("istio");
     await w.find("form").trigger("submit");
     await flushPromises();

@@ -1,33 +1,11 @@
 <script setup>
-/*
- * An accessible editable combobox with list autocomplete, following the
- * WAI-ARIA APG "Editable Combobox with List Autocomplete" pattern:
- *
- *   input role="combobox" with aria-expanded / aria-controls /
- *   aria-activedescendant, and a listbox popup of role="option" elements.
- *
- * The input keeps focus at all times; the highlighted option is exposed via
- * aria-activedescendant, so a screen reader announces it on every move
- * without focus ever leaving the field.
- *
- * Keyboard support (while the input is focused):
- *   ArrowDown / ArrowUp  open the list (if closed) or move the highlight
- *   Home / End           jump to the first / last visible option
- *   Enter                pick the highlighted option (when the list is open)
- *   Escape               close the list without picking
- *   typing               filters the options (case-insensitive substring)
- *
- * The input stays free-text: typing anything (including a value that is not
- * in the list) is allowed, matching the native-combobox feel. Escape is
- * stopPropagation'd while the list is open so enclosing screens (which use
- * Escape to close) don't close underneath an open popup.
- */
-import { ref, computed, useId } from "vue";
+import { ref, computed, useId, watch } from "vue";
 
 const props = defineProps({
-  id: { type: String, default: "" },
-  modelValue: { type: String, default: "" },
+  modelValue: { type: [String, Number], default: "" },
   options: { type: Array, required: true },
+  readonly: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
   placeholder: { type: String, default: "" },
   ariaLabel: { type: String, default: "" },
 });
@@ -40,17 +18,55 @@ const wrapper = ref(null);
 const open = ref(false);
 const activeIndex = ref(-1);
 
-// Case-insensitive substring match: typing "tls" finds "kubernetes.io/tls".
-// Single implementation used both for rendering (filtered) and for the live
-// open/close decision in onInput (which must filter from the event value,
-// since props.modelValue lags one tick behind the input).
+// Normalize string options to { value, label } so all modes rely on one
+// shape; plain strings use themselves as both value and label.
+const optionList = computed(() =>
+  props.options.map((o) =>
+    typeof o === "string" ? { value: o, label: o } : o,
+  ),
+);
+
+// Case-insensitive substring match on labels: typing "tls" finds
+// "kubernetes.io/tls". Single implementation used both for rendering
+// (filtered) and for the live open/close decision in onInput (which must
+// filter from the event value, since props.modelValue lags one tick behind
+// the input).
 function filterOptions(value) {
   const q = value.trim().toLowerCase();
-  if (!q) return props.options;
-  return props.options.filter((o) => o.toLowerCase().includes(q));
+  if (!q) return optionList.value;
+  return optionList.value.filter((o) => o.label.toLowerCase().includes(q));
 }
 
-const filtered = computed(() => filterOptions(props.modelValue));
+// Readonly mode shows all options; editable mode filters by the input text.
+const filtered = computed(() =>
+  props.readonly ? optionList.value : filterOptions(props.modelValue),
+);
+
+// What the input shows: free text in editable mode, the current option's
+// label in readonly mode (raw values like "" or 100 would be meaningless).
+const displayValue = computed(() => {
+  if (!props.readonly) return props.modelValue;
+  const i = optionList.value.findIndex((o) => o.value === props.modelValue);
+  return i >= 0 ? optionList.value[i].label : "";
+});
+
+// Keep the highlight aligned with the current value when it changes.
+watch(
+  () => props.modelValue,
+  (val) => {
+    const i = optionList.value.findIndex((o) => o.value === val);
+    if (i >= 0) activeIndex.value = i;
+  },
+  { immediate: true },
+);
+
+// A disabled combobox must not keep an open popup.
+watch(
+  () => props.disabled,
+  (d) => {
+    if (d) closeList();
+  },
+);
 
 const activeDescendant = computed(() =>
   open.value && activeIndex.value >= 0
@@ -66,6 +82,13 @@ function scrollActiveIntoView() {
   wrapper.value
     ?.querySelector(`#${optionId(activeIndex.value)}`)
     ?.scrollIntoView?.({ block: "nearest" });
+}
+
+// Where the highlight starts when the list opens: the current selection in
+// readonly mode (native-select feel), the first option otherwise.
+function initialIndex() {
+  const i = optionList.value.findIndex((o) => o.value === props.modelValue);
+  return i >= 0 ? i : 0;
 }
 
 function openList(initial) {
@@ -88,17 +111,21 @@ function move(to) {
   scrollActiveIntoView();
 }
 
+// Emit the option's value as-is (string or number) so numeric selects keep
+// their type without relying on v-model.number conversion.
 function pick(i) {
   const opt = filtered.value[i];
   if (opt === undefined) return;
-  emit("update:modelValue", opt);
-  emit("select", opt);
+  emit("update:modelValue", opt.value);
+  emit("select", opt.value);
   closeList();
 }
 
 function onInput(e) {
+  if (props.readonly) return; // readonly inputs cannot be typed in
   const value = e.target.value;
   emit("update:modelValue", value);
+
   const matches = filterOptions(value);
   if (matches.length > 0) {
     open.value = true;
@@ -109,17 +136,39 @@ function onInput(e) {
   }
 }
 
+let typeBuffer = "";
+let typeTimer = null;
+
+function typeahead(char) {
+  clearTimeout(typeTimer);
+  typeBuffer += char.toLowerCase();
+  typeTimer = setTimeout(() => (typeBuffer = ""), 600);
+
+  if (!open.value) openList(initialIndex());
+  const len = filtered.value.length;
+
+  for (let step = 1; step <= len; step++) {
+    const i = (activeIndex.value + step) % len;
+    if (filtered.value[i].label.toLowerCase().startsWith(typeBuffer)) {
+      move(i);
+      return;
+    }
+  }
+}
+
 function onKeydown(e) {
+  if (props.disabled) return;
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
       if (open.value) move(activeIndex.value + 1);
-      else openList(0);
+      else openList(props.readonly ? initialIndex() : 0);
       break;
     case "ArrowUp":
       e.preventDefault();
       if (open.value) move(activeIndex.value - 1);
-      else openList(filtered.value.length - 1);
+      else
+        openList(props.readonly ? initialIndex() : filtered.value.length - 1);
       break;
     case "Home":
       e.preventDefault();
@@ -136,6 +185,14 @@ function onKeydown(e) {
         pick(activeIndex.value);
       }
       break;
+    case " ":
+      if (props.readonly) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (open.value && activeIndex.value >= 0) pick(activeIndex.value);
+        else openList(initialIndex());
+      }
+      break;
     case "Escape":
       if (open.value) {
         e.preventDefault();
@@ -146,6 +203,11 @@ function onKeydown(e) {
     case "Tab":
       closeList();
       break;
+    default:
+      if (props.readonly && e.key.length === 1 && /\S/.test(e.key)) {
+        e.preventDefault();
+        typeahead(e.key);
+      }
   }
 }
 
@@ -164,11 +226,11 @@ function onBlur() {
   <div ref="wrapper" class="qba-combobox">
     <input
       :id="id || undefined"
-      :value="modelValue"
+      :value="displayValue"
       type="text"
       role="combobox"
       class="form-control form-control-sm"
-      :class="{ 'qba-combobox-open': open }"
+      :class="{ 'qba-combobox-open': open, 'qba-combobox-readonly': readonly }"
       :aria-label="ariaLabel || undefined"
       aria-autocomplete="list"
       aria-haspopup="listbox"
@@ -176,6 +238,8 @@ function onBlur() {
       :aria-controls="listId"
       :aria-activedescendant="activeDescendant"
       :placeholder="placeholder"
+      :readonly="readonly || undefined"
+      :disabled="disabled || undefined"
       autocomplete="off"
       spellcheck="false"
       @input="onInput"
@@ -192,7 +256,8 @@ function onBlur() {
       <li
         v-for="(opt, i) in filtered"
         :id="optionId(i)"
-        :key="opt"
+        :key="opt.value"
+        :data-value="opt.value"
         role="option"
         :aria-selected="i === activeIndex"
         class="qba-combobox-option"
@@ -200,15 +265,33 @@ function onBlur() {
         @mousedown="onOptionMouseDown"
         @click="pick(i)"
       >
-        {{ opt }}
+        {{ opt.label }}
       </li>
     </ul>
+    <i
+      v-if="readonly && !disabled"
+      class="bi bi-chevron-down qba-combobox-arrow"
+      aria-hidden="true"
+    ></i>
   </div>
 </template>
 
 <style scoped>
 .qba-combobox {
   position: relative;
+}
+
+.qba-combobox-readonly {
+  padding-right: 2rem; /* room for the chevron */
+}
+
+.qba-combobox-arrow {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--bs-secondary-color, #6c757d);
 }
 
 .qba-combobox-list {

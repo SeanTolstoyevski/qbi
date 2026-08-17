@@ -10,6 +10,7 @@ import LogViewer from "./LogViewer.vue";
 import CronJobCreate from "./CronJobCreate.vue";
 import CronJobEdit from "./CronJobEdit.vue";
 import DeploymentCreate from "./DeploymentCreate.vue";
+import Combobox from "./Combobox.vue";
 
 const { state, announce, flash } = useStore();
 
@@ -33,6 +34,20 @@ const rolloutFilter = ref("");
 const maxDeployments = ref(100); // 0 = all
 const revisionsPerDeploy = ref(5); // 0 = all
 let rolloutTimer = null;
+
+// Rollout-history choices keep numeric values: 0 means "all" (matches API).
+const DEPLOYMENT_LIMIT_OPTIONS = [
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 200, label: "200" },
+  { value: 0, label: "All" },
+];
+const REVISION_DEPTH_OPTIONS = [
+  { value: 5, label: "5" },
+  { value: 10, label: "10" },
+  { value: 25, label: "25" },
+  { value: 0, label: "All" },
+];
 
 // ── Cron job actions: logs, create, edit, suspend ──────────────────────────
 const logTarget = ref(null); // { pod, container } for the shared LogViewer
@@ -860,31 +875,23 @@ defineExpose({ load });
               <label for="rollout-limit" class="form-label mb-1 small"
                 >Deployments shown</label
               >
-              <select
+              <Combobox
                 id="rollout-limit"
                 v-model="maxDeployments"
-                class="form-select form-select-sm"
-              >
-                <option :value="50">50</option>
-                <option :value="100">100</option>
-                <option :value="200">200</option>
-                <option :value="0">All</option>
-              </select>
+                :options="DEPLOYMENT_LIMIT_OPTIONS"
+                readonly
+              />
             </div>
             <div class="col-6 col-lg-auto">
               <label for="rollout-depth" class="form-label mb-1 small"
                 >Revisions per deployment</label
               >
-              <select
+              <Combobox
                 id="rollout-depth"
                 v-model="revisionsPerDeploy"
-                class="form-select form-select-sm"
-              >
-                <option :value="5">5</option>
-                <option :value="10">10</option>
-                <option :value="25">25</option>
-                <option :value="0">All</option>
-              </select>
+                :options="REVISION_DEPTH_OPTIONS"
+                readonly
+              />
             </div>
           </div>
 

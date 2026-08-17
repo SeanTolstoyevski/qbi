@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import ServiceCreate from "../components/ServiceCreate.vue";
+import { chooseCombobox } from "./combobox.js";
 import { api } from "../api.js";
 
 vi.mock("../api.js", () => ({
@@ -33,7 +34,7 @@ function findBtn(w, label) {
 async function fillBasic(w, over = {}) {
   await w.find("#svc-name").setValue(over.name ?? "web");
   await w.find("#svc-port-0").setValue(over.port ?? 80);
-  if (over.type) await w.find("#svc-type").setValue(over.type);
+  if (over.type) await chooseCombobox(w, "svc-type", over.type);
   if (over.target) await w.find("#svc-target-0").setValue(over.target);
   if (over.nodePort) await w.find("#svc-nodeport-0").setValue(over.nodePort);
 }
@@ -48,11 +49,11 @@ describe("ServiceCreate — layout", () => {
   it("shows the node port field only for NodePort and LoadBalancer", async () => {
     const w = await mountForm();
     expect(w.find("#svc-nodeport-0").exists()).toBe(false);
-    await w.find("#svc-type").setValue("NodePort");
+    await chooseCombobox(w, "svc-type", "NodePort");
     expect(w.find("#svc-nodeport-0").exists()).toBe(true);
-    await w.find("#svc-type").setValue("LoadBalancer");
+    await chooseCombobox(w, "svc-type", "LoadBalancer");
     expect(w.find("#svc-nodeport-0").exists()).toBe(true);
-    await w.find("#svc-type").setValue("ClusterIP");
+    await chooseCombobox(w, "svc-type", "ClusterIP");
     expect(w.find("#svc-nodeport-0").exists()).toBe(false);
     w.unmount();
   });
@@ -150,7 +151,7 @@ describe("ServiceCreate — create flow", () => {
     await w.find("#svc-sel-val-0").setValue("gitea");
     // Advanced options: session affinity, cluster IP, external IPs.
     w.find("details").element.open = true;
-    await w.find("#svc-affinity").setValue("ClientIP");
+    await chooseCombobox(w, "svc-affinity", "ClientIP");
     await w.find("#svc-clusterip").setValue("10.96.0.10");
     await findBtn(w, "Add IP").trigger("click");
     await w.find("#svc-extip-0").setValue("1.2.3.4");

@@ -7,6 +7,7 @@ import { rowsToMap } from "../keyValueRows.js";
 import PanelHeader from "./PanelHeader.vue";
 import KeyValueFieldset from "./KeyValueFieldset.vue";
 import YamlPreview from "./YamlPreview.vue";
+import Combobox from "./Combobox.vue";
 import {
   DNS_LABEL_RE,
   DNS_SUBDOMAIN_RE,
@@ -61,6 +62,17 @@ const classes = ref([]);
 const classesError = ref("");
 const classChoice = ref(""); // "" | class name | "__custom__"
 const customClassName = ref("");
+
+// Combobox choices for the ingress class: cluster default, discovered
+// classes, and the sentinel that reveals the free-text custom-class input.
+const classOptions = computed(() => [
+  { value: "", label: "None (cluster default)" },
+  ...classes.value.map((c) => ({ value: c, label: c })),
+  { value: "__custom__", label: "Custom…" },
+]);
+
+// PathType values match the k8s API enum (networking.k8s.io/v1).
+const PATH_TYPES = ["Prefix", "Exact", "ImplementationSpecific"];
 
 const effectiveClass = computed(() => {
   if (classesError.value) return customClassName.value.trim();
@@ -502,15 +514,12 @@ async function submit() {
             </span>
           </template>
           <template v-else>
-            <select
+            <Combobox
               id="ing-create-class"
               v-model="classChoice"
-              class="form-select form-select-sm"
-            >
-              <option value="">None (cluster default)</option>
-              <option v-for="c in classes" :key="c" :value="c">{{ c }}</option>
-              <option value="__custom__">Custom…</option>
-            </select>
+              :options="classOptions"
+              readonly
+            />
             <div v-if="classChoice === '__custom__'" class="mt-1">
               <label class="visually-hidden" for="ing-create-class-custom"
                 >Custom ingress class</label
@@ -596,17 +605,12 @@ async function submit() {
                     :for="`ing-pathtype-${ri}-${pi}`"
                     >Path type for rule {{ ri + 1 }}</label
                   >
-                  <select
+                  <Combobox
                     :id="`ing-pathtype-${ri}-${pi}`"
                     v-model="p.pathType"
-                    class="form-select form-select-sm"
-                  >
-                    <option value="Prefix">Prefix</option>
-                    <option value="Exact">Exact</option>
-                    <option value="ImplementationSpecific">
-                      ImplementationSpecific
-                    </option>
-                  </select>
+                    :options="PATH_TYPES"
+                    readonly
+                  />
                 </div>
                 <div class="col-6 col-md-3">
                   <label class="visually-hidden" :for="`ing-svc-${ri}-${pi}`"
