@@ -85,14 +85,6 @@ in Settings.
 through a native confirmation dialog that defaults to **No** and says exactly
 what will happen. More in [Security](#security).
 
-
-## Screenshots
-
-![Pod log viewer](docs/images/pod_log_screen.png)
-
-
-![Dark mode in pods tab](docs/images/pods_screen_-_dark_mode_is_active.png)
-
 ## Requirements
 
 - [Go](https://go.dev/dl/) 1.25+
