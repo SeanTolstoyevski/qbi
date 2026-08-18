@@ -285,6 +285,12 @@ select:focus-visible {
     width 0.15s ease-in-out,
     padding 0.15s ease-in-out;
 }
+
+.copy-inline .bi {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
 .copy-inline .inline-button-text {
   max-width: 0;
   overflow: hidden;
@@ -292,7 +298,7 @@ select:focus-visible {
   font-size: 0.875rem;
   transition: max-width 0.15s ease-in-out;
 }
-/* cell variant: anchored to the right edge of a .name-cell */
+
 .name-cell > .copy-inline {
   position: absolute;
   right: 0.375rem;
