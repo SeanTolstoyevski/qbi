@@ -87,6 +87,7 @@ const editError = ref("");
 const changeSummary = ref({ added: 0, changed: 0, deleted: 0, list: [] });
 const confirmHeading = ref(null);
 const reviewBtn = ref(null);
+const keyRows = ref(null);
 
 function enterEdit() {
   if (!detail.value) return;
@@ -105,7 +106,7 @@ function cancelEdit() {
 function addKey() {
   const row = newRow({ isNew: true });
   draft.value.push(row);
-  nextTick(() => document.getElementById(`secret-key-${row.id}`)?.focus());
+  nextTick(() => keyRows.value?.focusKey(row.id));
 }
 
 function toggleDelete(row) {
@@ -349,7 +350,7 @@ function onKeydown(e) {
           <h3
             id="secret-detail-heading"
             ref="headingEl"
-            class="h6 mb-0"
+            class="h5 mb-0"
             tabindex="-1"
           >
             Secret: {{ detail.name }}
@@ -439,9 +440,14 @@ function onKeydown(e) {
                   style="white-space: pre-wrap; overflow-wrap: anywhere"
                   >{{ displayValue(entry) }}</code
                 >
-                <span v-else class="text-body-secondary" aria-hidden="true"
-                  >••••••••</span
-                >
+                <template v-else>
+                  <!-- Visual mask is aria-hidden; a sighted user sees the
+                       bullets, a screen reader hears that a value exists. -->
+                  <span class="text-body-secondary" aria-hidden="true"
+                    >••••••••</span
+                  >
+                  <span class="visually-hidden">hidden value</span>
+                </template>
                 <span
                   v-if="entry.isBinary && mode !== 'base64'"
                   class="small text-body-secondary ms-1"
@@ -464,6 +470,7 @@ function onKeydown(e) {
                   variant="inline"
                   :copy-text="displayValue(entry)"
                   announce="Value"
+                  :title="`Copy ${entry.key}`"
                 />
               </td>
             </tr>
@@ -490,6 +497,7 @@ function onKeydown(e) {
         </p>
 
         <SecretKeyRows
+          ref="keyRows"
           :rows="draft"
           :mode="mode"
           :readonly-keys="true"

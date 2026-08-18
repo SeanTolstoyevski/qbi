@@ -26,6 +26,9 @@ const props = defineProps({
   // When true, items advertise a context menu and emit context-action on
   // right-click / application key (both normalised to the contextmenu event).
   hasContextMenu: { type: Boolean, default: false },
+  // Value of the option whose context menu is currently open ("" = none), so
+  // the kebab button and its row can expose aria-expanded truthfully.
+  contextOpenValue: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue", "select", "context-action"]);
@@ -189,7 +192,11 @@ defineExpose({ focusActive: () => focusOption(activeIndex.value) });
     >
       <div class="qba-option-content">
         <span class="fw-semibold">{{ opt.label }}</span>
-        <span v-if="opt.description" class="d-block small text-body-secondary">
+        <span
+          v-if="opt.description"
+          class="d-block small"
+          :class="opt.descriptionClass || 'text-body-secondary'"
+        >
           {{ opt.description }}
         </span>
       </div>
@@ -199,9 +206,11 @@ defineExpose({ focusActive: () => focusOption(activeIndex.value) });
         class="qba-option-menu-btn"
         tabindex="-1"
         :aria-label="`Actions for ${opt.label}`"
+        aria-haspopup="menu"
+        :aria-expanded="contextOpenValue === opt.value"
         @click.stop="onMenuBtnClick($event, i)"
       >
-        <span aria-hidden="true">&#8942;</span>
+        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
       </button>
     </li>
   </ul>
@@ -238,19 +247,30 @@ defineExpose({ focusActive: () => focusOption(activeIndex.value) });
   border-radius: var(--bs-border-radius, 0.25rem);
   line-height: 1;
   font-size: 1rem;
-  /* Subtle by default so it doesn't clutter the list; revealed on interaction. */
-  opacity: 0;
+  /* Faint but always visible so sighted users can discover the menu without
+     hovering; full opacity on interaction. */
+  opacity: 0.35;
   cursor: pointer;
   color: inherit;
   transition: opacity 0.1s;
 }
 
-/* Show the button when the row is hovered, when the row has focus, or when
-   the button itself is focused (e.g. via a pointer user tabbing into it). */
+/* Show the button at full strength when the row is hovered, when the row has
+   focus, or when the button itself is focused (e.g. via a pointer user tabbing
+   into it). */
 .qba-option-row:hover .qba-option-menu-btn,
 .qba-option-row:focus .qba-option-menu-btn,
-.qba-option-menu-btn:focus {
+.qba-option-menu-btn:focus,
+.qba-option-menu-btn:hover {
   opacity: 1;
+}
+
+/* Touch devices have no hover and often no Tab key, so the reveal pattern
+   would hide the control forever; keep it fully visible. */
+@media (hover: none) {
+  .qba-option-menu-btn {
+    opacity: 1;
+  }
 }
 
 .qba-option-menu-btn:focus {

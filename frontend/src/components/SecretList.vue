@@ -46,6 +46,8 @@ const loading = ref(false);
 const error = ref("");
 const filter = ref("");
 const selected = ref(null);
+const createBtn = ref(null);
+const filterInput = ref(null);
 
 // What the right column shows: a selected secret's detail panel, or the
 // create panel. Both are keyed so opening a different item remounts cleanly.
@@ -111,7 +113,7 @@ function open(name) {
 function openCreate() {
   // Focus the trigger before mounting the panel so useReturnFocus can return
   // focus here on close (same pattern as PodList's focusTriggerAndAct).
-  document.getElementById("secret-create-btn")?.focus();
+  createBtn.value?.focus();
   detailName.value = null;
   selected.value = null;
   creating.value = true;
@@ -137,7 +139,7 @@ function onDetailClose() {
   detailName.value = null;
   selected.value = null;
   // Hand focus back to the list so a keyboard user isn't left stranded.
-  nextTick(() => document.getElementById("secret-filter")?.focus());
+  nextTick(() => filterInput.value?.focus());
 }
 
 useWatch("watch:secrets", {
@@ -151,7 +153,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="secrets-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="secrets-heading" class="h6 mb-0">
+      <h2 id="secrets-heading" class="h5 mb-0">
         Secrets<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -161,7 +163,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh secrets</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -169,6 +171,7 @@ defineExpose({ load });
     <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
       <button
         id="secret-create-btn"
+        ref="createBtn"
         type="button"
         class="btn btn-sm btn-primary"
         :disabled="!state.namespace"
@@ -229,6 +232,7 @@ defineExpose({ load });
         >
         <input
           id="secret-filter"
+          ref="filterInput"
           v-model="filter"
           type="search"
           class="form-control form-control-sm mb-2"

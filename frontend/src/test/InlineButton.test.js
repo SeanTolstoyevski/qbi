@@ -4,8 +4,9 @@ import InlineButton from "../components/InlineButton.vue";
 
 vi.mock("../store.js", () => {
   const announce = vi.fn();
+  const flash = vi.fn();
   return {
-    useStore: () => ({ announce }),
+    useStore: () => ({ announce, flash }),
   };
 });
 
@@ -39,7 +40,7 @@ describe("InlineButton", () => {
     expect(btn.attributes("title")).toBeUndefined();
     // The icon is decorative; the text span is not aria-hidden, so the
     // screen reader announces "Copy button" — no per-row label noise.
-    expect(btn.get("svg").attributes("aria-hidden")).toBe("true");
+    expect(btn.get("i").attributes("aria-hidden")).toBe("true");
     expect(
       btn.get(".inline-button-text").attributes("aria-hidden"),
     ).toBeUndefined();

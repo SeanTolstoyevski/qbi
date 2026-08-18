@@ -1,9 +1,10 @@
 <script setup>
-import { ref, nextTick, computed } from "vue";
+import { ref, nextTick, computed, watch } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { newRow, validateRows, rowsToMap } from "../useSecretDraft.js";
+import Combobox from "./Combobox.vue";
 import SecretKeyRows from "./SecretKeyRows.vue";
 import { validateName } from "../kubeValidation.js";
 import PanelHeader from "./PanelHeader.vue";
@@ -37,6 +38,9 @@ const draft = ref([newRow({ isNew: true })]);
 const saving = ref(false);
 const error = ref("");
 const header = ref(null);
+const nameInput = ref(null);
+const yamlInput = ref(null);
+const keyRows = ref(null);
 
 const yamlText = ref("");
 const yamlSaving = ref(false);
@@ -47,8 +51,8 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-// Common secret types offered in the type input's datalist. The field is a
-// free-text input so unusual types can still be typed.
+// Common secret types offered in the type combobox. The field is free-text,
+// so unusual types can still be typed; the combobox only suggests.
 const SECRET_TYPES = [
   "Opaque",
   "kubernetes.io/tls",
@@ -59,9 +63,12 @@ const SECRET_TYPES = [
 ];
 
 const isTls = ref(false);
-function watchType() {
-  isTls.value = form.value.type === "kubernetes.io/tls";
-}
+watch(
+  () => form.value.type,
+  (t) => {
+    isTls.value = t === "kubernetes.io/tls";
+  },
+);
 
 // A clean starter manifest for the YAML surface, in the current value mode:
 // stringData (plain text) in transparent mode, data (base64) in base64 mode.
@@ -95,9 +102,9 @@ function selectView(v) {
   view.value = v;
   if (v === "yaml" && yamlText.value === "") {
     yamlText.value = starterYaml();
-    nextTick(() => document.getElementById("secret-create-yaml")?.focus());
+    nextTick(() => yamlInput.value?.focus());
   } else if (v === "form") {
-    nextTick(() => document.getElementById("secret-create-name")?.focus());
+    nextTick(() => nameInput.value?.focus());
   }
 }
 
@@ -105,7 +112,7 @@ function selectView(v) {
 function addKey() {
   const row = newRow({ isNew: true });
   draft.value.push(row);
-  nextTick(() => document.getElementById(`secret-key-${row.id}`)?.focus());
+  nextTick(() => keyRows.value?.focusKey(row.id));
 }
 function toggleDelete(row) {
   row.deleted = !row.deleted;
@@ -232,6 +239,7 @@ async function submitYaml() {
           >
           <input
             id="secret-create-name"
+            ref="nameInput"
             v-model="form.name"
             type="text"
             class="form-control form-control-sm"
@@ -243,19 +251,12 @@ async function submitYaml() {
           <label for="secret-create-type" class="form-label mb-1 small"
             >Type</label
           >
-          <input
+          <Combobox
             id="secret-create-type"
             v-model="form.type"
-            type="text"
-            class="form-control form-control-sm"
-            list="secret-types"
-            autocomplete="off"
+            :options="SECRET_TYPES"
             placeholder="Opaque"
-            @input="watchType"
           />
-          <datalist id="secret-types">
-            <option v-for="t in SECRET_TYPES" :key="t" :value="t" />
-          </datalist>
         </div>
 
         <div class="col-12">
@@ -274,6 +275,7 @@ async function submitYaml() {
 
         <div class="col-12">
           <SecretKeyRows
+            ref="keyRows"
             :rows="draft"
             :mode="mode"
             :readonly-keys="false"
@@ -327,6 +329,7 @@ async function submitYaml() {
       </p>
       <textarea
         id="secret-create-yaml"
+        ref="yamlInput"
         v-model="yamlText"
         class="form-control font-monospace"
         rows="18"

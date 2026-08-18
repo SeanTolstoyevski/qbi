@@ -323,3 +323,15 @@ describe("PodList - reload after reconnect", () => {
     w.unmount();
   });
 });
+
+describe("PodList - refresh button", () => {
+  it("reloads pods via the refresh button", async () => {
+    const w = await mountPodList();
+    api.listPods.mockClear();
+    await findBtn(w, "Refresh pods").trigger("click");
+    await nextTick();
+    await nextTick();
+    expect(api.listPods).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});

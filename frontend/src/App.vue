@@ -15,12 +15,17 @@ import NodesView from "./components/NodesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
-const { state, announce } = useStore();
+const { state, announce, clearFlash } = useStore();
 
-// First-launch welcome wizard: shown until the user either completes it
-// (persisted via Service.AcknowledgeWelcome, never shown again) or dismisses
-// it for this session. While it is open, the app behind it is inert so the
-// wizard is the only thing a keyboard or screen-reader user can reach.
+let flashTimer = null;
+watch(
+  () => state.flashSeq,
+  () => {
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(clearFlash, 1800);
+  },
+);
+
 const showWelcome = ref(false);
 const welcomeError = ref("");
 
@@ -38,7 +43,6 @@ async function onWelcomeAcknowledged() {
     announce("Welcome complete.");
     focusSectionHeading();
   } catch (e) {
-    // Keep the wizard open and surface the save failure inside the dialog.
     welcomeError.value = String(e);
   }
 }
@@ -53,8 +57,6 @@ onMounted(async () => {
     const s = await api.getSettings();
     showWelcome.value = !s.welcomeSeen;
   } catch {
-    // Settings unreadable (e.g. bindings unavailable): show the wizard rather
-    // than silently skip it — dismissal still works without the backend.
     showWelcome.value = true;
   }
 });
@@ -62,7 +64,7 @@ onMounted(async () => {
 watch(
   () => [state.namespace, state.connectionEpoch],
   () => {
-    if (state.namespace) api.setWatchNamespace(state.namespace);
+    api.setWatchNamespace(state.namespace || "");
   },
 );
 
@@ -118,8 +120,13 @@ function onGlobalKeydown(e) {
   selectSection(name);
 }
 
-onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
-onUnmounted(() => window.removeEventListener("keydown", onGlobalKeydown));
+onMounted(() => {
+  window.addEventListener("keydown", onGlobalKeydown);
+});
+onUnmounted(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
+  clearTimeout(flashTimer);
+});
 
 const TAB_KEY = "qba.activeTab";
 const savedTab = localStorage.getItem(TAB_KEY);
@@ -163,10 +170,6 @@ function onTabKeydown(e) {
     :inert="showWelcome || undefined"
     :aria-hidden="showWelcome || undefined"
   >
-    <a class="skip-link btn btn-primary" href="#main-content"
-      >Skip to main content</a
-    >
-
     <div class="app-shell">
       <header class="border-bottom bg-body-tertiary px-3 py-2">
         <div
@@ -182,7 +185,7 @@ function onTabKeydown(e) {
                   class="nav-link text-capitalize"
                   :class="{ active: section === s }"
                   :aria-current="section === s ? 'page' : undefined"
-                  :title="`${s[0].toUpperCase()}${s.slice(1)} (Ctrl+${idx + 1})`"
+                  :aria-keyshortcuts="`Control+${idx + 1}`"
                   @click="selectSection(s)"
                 >
                   {{ s }}
@@ -233,24 +236,12 @@ function onTabKeydown(e) {
             </div>
 
             <div v-show="section === 'settings'">
-              <h2
-                id="section-heading-settings"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                Settings
-              </h2>
+              <h2 id="section-heading-settings" tabindex="-1">Settings</h2>
               <SettingsView />
             </div>
 
             <div v-show="section === 'about'">
-              <h2
-                id="section-heading-about"
-                class="visually-hidden"
-                tabindex="-1"
-              >
-                About
-              </h2>
+              <h2 id="section-heading-about" tabindex="-1">About</h2>
               <AboutView />
             </div>
             <div v-show="section === 'namespace'">
@@ -368,6 +359,10 @@ function onTabKeydown(e) {
         </div>
       </div>
     </div>
+  </div>
+
+  <div v-if="state.flashMsg" class="qba-toast" aria-hidden="true">
+    {{ state.flashMsg }}
   </div>
 
   <WelcomeWizard

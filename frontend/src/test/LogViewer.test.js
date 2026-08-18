@@ -1,19 +1,3 @@
-/*
- * Tests for LogViewer.vue — desktop-style log navigation.
- *
- * We cover:
- *   - Roving tabindex: only the active line is in the tab order
- *   - Arrow keys move the focused line
- *   - Home/End jump to first/last
- *   - Ctrl+C copies the focused line
- *   - Ctrl+C with nothing focused falls back to copying all
- *   - Ctrl+A copies all logs
- *   - ReDoS protection: unsafe regex patterns are rejected
- *
- * The log stream is simulated by capturing the onEvent handlers from the
- * mocked api module and pushing lines through them.
- */
-
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -84,7 +68,7 @@ function keydown(w, key, extra = {}) {
   return w.find(".log-view").trigger("keydown", { key, ...extra });
 }
 
-describe("LogViewer — line navigation", () => {
+describe("LogViewer - line navigation", () => {
   it("gives the log region roving tabindex: no line is tabbable until navigated", async () => {
     const w = await mountWithLines();
     const lines = w.findAll(".log-line");
@@ -147,7 +131,7 @@ describe("LogViewer — line navigation", () => {
   });
 });
 
-describe("LogViewer — copying", () => {
+describe("LogViewer - copying", () => {
   it("Ctrl+C copies the focused line", async () => {
     const w = await mountWithLines();
     await keydown(w, "ArrowDown");
@@ -179,26 +163,37 @@ describe("LogViewer — copying", () => {
   });
 });
 
-describe("LogViewer — ReDoS protection", () => {
+describe("LogViewer - copy button", () => {
+  it("copies the whole log via the Copy button", async () => {
+    const w = await mountWithLines();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Copy")
+      .trigger("click");
+    await flushPromises();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      LINES.join("\n"),
+    );
+    w.unmount();
+  });
+});
+
+describe("LogViewer - ReDoS protection", () => {
   it("shows error for regex with nested quantifiers like (a+)+", async () => {
     const w = await mountLogViewer();
     const search = w.find("#log-search");
     const regexCheckbox = w.find("#opt-regex");
 
-    // Enable regex mode
     await regexCheckbox.setValue(true);
-    // Type a classic ReDoS pattern
     await search.setValue("(a+)+b");
 
     await nextTick();
     await flushPromises();
 
-    // The error message should appear
     const status = w.find("#match-status");
     expect(status.text()).toContain("Invalid pattern");
     expect(status.text()).toContain("hang");
 
-    // The search input should show as invalid
     expect(search.classes()).toContain("is-invalid");
 
     w.unmount();
@@ -249,7 +244,7 @@ describe("LogViewer — ReDoS protection", () => {
     const w = await mountLogViewer();
     const search = w.find("#log-search");
 
-    // Do NOT enable regex mode — this is a literal search
+    // Do NOT enable regex mode - this is a literal search
     await search.setValue("(a+)+b");
 
     await nextTick();

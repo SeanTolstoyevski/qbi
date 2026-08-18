@@ -68,3 +68,48 @@ describe("YamlViewer", () => {
     w.unmount();
   });
 });
+
+describe("YamlViewer — refresh, close and loading", () => {
+  it("reloads the manifest via the refresh button", async () => {
+    const w = await mountViewer();
+    api.getResourceYaml.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh YAML"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.getResourceYaml).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+
+  it("emits close from the Close button and on Escape", async () => {
+    const w = await mountViewer();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Close")
+      .trigger("click");
+    expect(w.emitted("close")).toHaveLength(1);
+    await w.trigger("keydown", { key: "Escape" });
+    expect(w.emitted("close")).toHaveLength(2);
+    w.unmount();
+  });
+
+  it("disables Copy while the manifest is loading", async () => {
+    let resolve;
+    api.getResourceYaml.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    const w = mount(YamlViewer, {
+      props: { namespace: "default", kind: "pod", name: "web" },
+    });
+    await flushPromises();
+    const copy = w.findAll("button").find((b) => b.text() === "Copy");
+    expect(copy.attributes("disabled")).toBeDefined();
+    resolve(MANIFEST);
+    await flushPromises();
+    expect(copy.attributes("disabled")).toBeUndefined();
+    w.unmount();
+  });
+});

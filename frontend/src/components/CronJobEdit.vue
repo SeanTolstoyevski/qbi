@@ -9,6 +9,7 @@ import {
   SCHEDULE_ERROR,
 } from "../cronJobHelpers.js";
 import PanelHeader from "./PanelHeader.vue";
+import Combobox from "./Combobox.vue";
 
 /*
  * Edit-cron-job panel. Like the other panels (pod detail, logs, YAML), it is
@@ -98,19 +99,12 @@ async function submit() {
         <label for="cj-edit-policy" class="form-label mb-1 small"
           >Concurrency policy</label
         >
-        <select
+        <Combobox
           id="cj-edit-policy"
           v-model="form.concurrencyPolicy"
-          class="form-select form-select-sm"
-        >
-          <option
-            v-for="p in CONCURRENCY_POLICIES"
-            :key="p.value"
-            :value="p.value"
-          >
-            {{ p.label }}
-          </option>
-        </select>
+          :options="CONCURRENCY_POLICIES"
+          readonly
+        />
       </div>
       <div class="col-12 col-md-3 d-flex align-items-end">
         <div class="form-check mb-0">

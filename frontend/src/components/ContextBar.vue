@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
+import Combobox from "./Combobox.vue";
 
-const { state, announce, setConnection } = useStore();
+const { state, announce, setConnection, clearConnection } = useStore();
 
 const kubeconfig = ref(null); // { path, source, exists }
 const contexts = ref([]);
@@ -17,6 +18,15 @@ const sourceLabel = {
   default: "default (~/.kube/config)",
   none: "none",
 };
+
+const contextOptions = computed(() =>
+  contexts.value.length === 0
+    ? [{ value: "", label: "No contexts found" }]
+    : contexts.value.map((c) => ({
+        value: c.name,
+        label: c.current ? `${c.name} (current)` : c.name,
+      })),
+);
 
 async function refreshStatus() {
   try {
@@ -73,6 +83,10 @@ async function connect() {
     setConnection(ctx);
     announce(`Connected to ${ctx.name}.`);
   } catch (e) {
+    // A failed connect/reconnect must not leave the UI pretending a previous
+    // connection still works: tear it down so every cluster-dependent view
+    // and action is inert until a connect actually succeeds.
+    clearConnection();
     error.value = String(e);
     announce(`Failed to connect: ${error.value}`, "assertive");
   } finally {
@@ -131,20 +145,14 @@ defineExpose({ loadContexts });
         <label for="context-select" class="form-label mb-1"
           >Cluster context</label
         >
-        <select
+        <Combobox
           id="context-select"
           v-model="selected"
-          class="form-select"
+          :options="contextOptions"
+          readonly
           :disabled="loading || contexts.length === 0"
           style="min-width: 16rem"
-        >
-          <option v-if="contexts.length === 0" value="">
-            No contexts found
-          </option>
-          <option v-for="c in contexts" :key="c.name" :value="c.name">
-            {{ c.name }}{{ c.current ? " (current)" : "" }}
-          </option>
-        </select>
+        />
       </div>
 
       <button

@@ -4,7 +4,7 @@ import AboutView from "../components/AboutView.vue";
 import { api } from "../api.js";
 
 vi.mock("../api.js", () => ({
-  api: { version: vi.fn(), commit: vi.fn() },
+  api: { buildInfo: vi.fn() },
   onEvent: vi.fn(() => () => {}),
 }));
 
@@ -12,10 +12,27 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("AboutView — version info", () => {
+describe("AboutView - version info", () => {
+  it("renders the keyboard shortcuts reference", async () => {
+    api.buildInfo.mockResolvedValue({
+      version: "dev",
+      commit: "unknown",
+      buildTime: "unknown",
+    });
+    const w = mount(AboutView);
+    await flushPromises();
+    expect(w.text()).toContain("Keyboard shortcuts");
+    expect(w.text()).toContain("Ctrl+E");
+    expect(w.text()).toContain("focus the namespace list");
+    w.unmount();
+  });
+
   it("renders the version and commit", async () => {
-    api.version.mockResolvedValue("0.2.0");
-    api.commit.mockResolvedValue("a1b2c3d");
+    api.buildInfo.mockResolvedValue({
+      version: "0.2.0",
+      commit: "a1b2c3d",
+      buildTime: "unknown",
+    });
     const w = mount(AboutView);
     await flushPromises();
     expect(w.text()).toContain("0.2.0");
@@ -23,8 +40,46 @@ describe("AboutView — version info", () => {
     w.unmount();
   });
 
+  it("renders the build time in the user's locale", async () => {
+    api.buildInfo.mockResolvedValue({
+      version: "dev",
+      commit: "unknown",
+      buildTime: "2026-06-18T12:34:56Z",
+    });
+    const w = mount(AboutView);
+    await flushPromises();
+    expect(w.text()).toContain("Built");
+
+    const expected = new Date("2026-06-18T12:34:56Z").toLocaleString();
+    expect(w.text()).toContain(expected);
+    w.unmount();
+  });
+
+  it("shows a placeholder when the build time was not stamped", async () => {
+    api.buildInfo.mockResolvedValue({
+      version: "dev",
+      commit: "unknown",
+      buildTime: "unknown",
+    });
+    const w = mount(AboutView);
+    await flushPromises();
+
+    const dds = w.findAll("dd");
+    expect(dds[dds.length - 1].text()).toBe("…");
+    w.unmount();
+  });
+
+  it("shows the open-source tagline", async () => {
+    const w = mount(AboutView);
+    await flushPromises();
+    expect(w.find("p.lead").text()).toBe(
+      "QBI is a lightweight Kubernetes inspector: 100% open source & 100% accessible.",
+    );
+    w.unmount();
+  });
+
   it("shows an error when version info cannot be loaded", async () => {
-    api.version.mockRejectedValue(new Error("bindings unavailable"));
+    api.buildInfo.mockRejectedValue(new Error("bindings unavailable"));
     const w = mount(AboutView);
     await flushPromises();
     expect(w.text()).toContain("bindings unavailable");
@@ -32,7 +87,7 @@ describe("AboutView — version info", () => {
   });
 });
 
-describe("AboutView — GitHub link", () => {
+describe("AboutView - GitHub link", () => {
   it("links to the project repository", async () => {
     const w = mount(AboutView);
     await flushPromises();

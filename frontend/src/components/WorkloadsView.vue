@@ -4,13 +4,15 @@ import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
+import { jobStatusBadgeClass } from "../statusClasses.js";
 import YamlViewer from "./YamlViewer.vue";
 import LogViewer from "./LogViewer.vue";
 import CronJobCreate from "./CronJobCreate.vue";
 import CronJobEdit from "./CronJobEdit.vue";
 import DeploymentCreate from "./DeploymentCreate.vue";
+import Combobox from "./Combobox.vue";
 
-const { state, announce } = useStore();
+const { state, announce, flash } = useStore();
 
 const workloads = ref([]);
 const workloadErrors = ref([]); // per-kind load errors (RBAC)
@@ -22,16 +24,35 @@ const restarting = ref(""); // "Kind/name" currently being restarted
 const deleting = ref(""); // "Kind/name" currently being deleted
 const scaling = ref(null); // { kind, name } while scale input is open
 const scaleValue = ref(1);
+let scaleInputEl = null;
+
+function setScaleInput(el) {
+  scaleInputEl = el;
+}
+
 const yamlTarget = ref(null); // { kind, name }
 const rollouts = ref([]);
 const rolloutsTotal = ref(0);
 const rolloutsError = ref("");
-// The user chooses how much rollout history to see; the backend only applies
-// their choices (plus the project-wide list safety valve).
+
 const rolloutFilter = ref("");
 const maxDeployments = ref(100); // 0 = all
 const revisionsPerDeploy = ref(5); // 0 = all
 let rolloutTimer = null;
+
+// Rollout-history choices keep numeric values: 0 means "all" (matches API).
+const DEPLOYMENT_LIMIT_OPTIONS = [
+  { value: 50, label: "50" },
+  { value: 100, label: "100" },
+  { value: 200, label: "200" },
+  { value: 0, label: "All" },
+];
+const REVISION_DEPTH_OPTIONS = [
+  { value: 5, label: "5" },
+  { value: 10, label: "10" },
+  { value: 25, label: "25" },
+  { value: 0, label: "All" },
+];
 
 // ── Cron job actions: logs, create, edit, suspend ──────────────────────────
 const logTarget = ref(null); // { pod, container } for the shared LogViewer
@@ -40,6 +61,14 @@ const createOpen = ref(false);
 const editTarget = ref(null); // CronJobInfo being edited in the edit panel
 const suspending = ref(""); // cron job name while a suspend/resume is in flight
 const createDeployOpen = ref(false); // Deployment create panel
+const cjCreateBtn = ref(null);
+const deployCreateBtn = ref(null);
+const cronActionBtns = {};
+
+function setCronActionBtn(name, el) {
+  if (el) cronActionBtns[name] = el;
+  else delete cronActionBtns[name];
+}
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
 const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
@@ -49,9 +78,6 @@ async function load() {
   if (!state.namespace) return;
   loading.value = true;
   error.value = "";
-  // A namespace switch invalidates panels tied to a specific workload
-  // (YAML, inline scale row, cron job log/edit/create, action menus): they name
-  // resources that may not exist here.
   yamlTarget.value = null;
   scaling.value = null;
   logTarget.value = null;
@@ -118,9 +144,7 @@ onUnmounted(() => clearTimeout(rolloutTimer));
 // "Logs" resolves the newest run's pod and streams it with the shared viewer;
 // multi-container pods get an inline chooser, mirroring the pod flow.
 async function openCronLogs(cj) {
-  // Focus the trigger first so the LogViewer (via useReturnFocus) returns
-  // focus here when it closes — the same pattern PodList uses.
-  document.getElementById(`actions-btn-cj-${cj.name}`)?.focus();
+  cronActionBtns[cj.name]?.focus();
   try {
     const detail = await api.getCronJobDetail(state.namespace, cj.name);
     const run = detail?.runs?.find((r) => r.pods?.length);
@@ -163,7 +187,7 @@ function closeLogs() {
 
 // ── Deployment create panel ────────────────────────────────────────────────
 function openCreateDeploy() {
-  document.getElementById("deploy-create-btn")?.focus();
+  deployCreateBtn.value?.focus();
   createDeployOpen.value = true;
 }
 function closeCreateDeploy() {
@@ -179,9 +203,7 @@ async function onDeployCreated() {
 // panel architecture as pod detail/logs: the panel takes focus on open and
 // returns it to the button that opened it on close.
 function openCreate() {
-  // Focus the trigger before mounting the panel so useReturnFocus can return
-  // focus here on close (same pattern as PodList's focusTriggerAndAct).
-  document.getElementById("cj-create-btn")?.focus();
+  cjCreateBtn.value?.focus();
   createOpen.value = true;
 }
 function closeCreate() {
@@ -189,7 +211,7 @@ function closeCreate() {
 }
 
 function openEdit(cj) {
-  document.getElementById(`actions-btn-cj-${cj.name}`)?.focus();
+  cronActionBtns[cj.name]?.focus();
   editTarget.value = cj;
 }
 function closeEdit() {
@@ -218,6 +240,9 @@ async function toggleSuspend(cj) {
     announce(`Cron job ${cj.name} ${cj.suspended ? "resumed" : "suspended"}.`);
     await load();
   } catch (e) {
+    // Unlike restart/scale/delete, suspend used to fail silently: nothing
+    // visible changed and no error was shown. Mirror the other actions.
+    error.value = String(e);
     announce(`Failed to update cron job ${cj.name}: ${String(e)}`, "assertive");
   } finally {
     suspending.value = "";
@@ -235,6 +260,9 @@ async function restart(w) {
     );
     if (!triggered) return;
     announce(`Rolling restart triggered for ${w.kind} ${w.name}.`);
+    // The cluster state does not change visibly after a restart, so the
+    // announce (SR-only) needs a sighted counterpart via the flash toast.
+    flash(`Rolling restart triggered for ${w.kind} ${w.name}.`);
     await load();
   } catch (e) {
     error.value = String(e);
@@ -266,8 +294,12 @@ async function removeWorkload(w) {
 }
 
 function openScale(w) {
-  scaleValue.value = Number(w.ready.split("/")[1] ?? w.ready) || 1;
+  scaleValue.value =
+    w.replicas ?? (Number(w.ready.split("/")[1] ?? w.ready) || 1);
   scaling.value = { kind: w.kind, name: w.name };
+  // The autofocus attribute only fires once per document, so the first edit
+  // got focus but every later one did not; focus explicitly on every open.
+  nextTick(() => scaleInputEl?.focus());
 }
 
 function cancelScale() {
@@ -344,7 +376,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="workloads-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="workloads-heading" class="h6 mb-0">
+      <h2 id="workloads-heading" class="h5 mb-0">
         Workloads<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -354,7 +386,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh workloads</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -389,19 +421,20 @@ defineExpose({ load });
             <h3 class="h6 text-body-secondary mb-0">Controllers</h3>
             <button
               id="deploy-create-btn"
+              ref="deployCreateBtn"
               type="button"
               class="btn btn-sm btn-outline-primary"
               :disabled="createDeployOpen"
               @click="openCreateDeploy"
             >
-              Create<span class="visually-hidden"> deployment</span>
+              Create deployment
             </button>
           </div>
           <p v-if="workloads.length === 0" class="text-muted small">
             None found.
           </p>
           <div v-else class="table-responsive mb-3">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Workload controllers in
                 {{
@@ -492,8 +525,7 @@ defineExpose({ load });
                             </button>
                           </li>
                           <li v-if="canScale(w)" role="presentation">
-                            <!-- Scale opens an inline row (not a panel), so we close the menu
-                                 and let the autofocus on the scale input take over. -->
+
                             <button
                               type="button"
                               role="menuitem"
@@ -576,12 +608,12 @@ defineExpose({ load });
                         </label>
                         <input
                           :id="`scale-${w.name}`"
+                          :ref="setScaleInput"
                           v-model.number="scaleValue"
                           type="number"
                           min="0"
                           class="form-control form-control-sm"
                           style="width: 5rem"
-                          autofocus
                         />
                         <button type="submit" class="btn btn-sm btn-primary">
                           Apply
@@ -604,7 +636,7 @@ defineExpose({ load });
           <h3 class="h6 text-body-secondary mb-1">Jobs</h3>
           <p v-if="jobs.length === 0" class="text-muted small">None found.</p>
           <div v-else class="table-responsive mb-3">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Jobs in
                 {{
@@ -630,12 +662,7 @@ defineExpose({ load });
                   <td>
                     <span
                       class="badge"
-                      :class="{
-                        'text-bg-success': j.status === 'Complete',
-                        'text-bg-danger': j.status === 'Failed',
-                        'text-bg-warning': j.status === 'Suspended',
-                        'text-bg-secondary': j.status === 'Running',
-                      }"
+                      :class="jobStatusBadgeClass(j.status)"
                       >{{ j.status }}</span
                     >
                   </td>
@@ -667,12 +694,13 @@ defineExpose({ load });
             <h3 class="h6 text-body-secondary mb-0">Cron jobs</h3>
             <button
               id="cj-create-btn"
+              ref="cjCreateBtn"
               type="button"
               class="btn btn-sm btn-outline-primary"
               :disabled="createOpen"
               @click="openCreate"
             >
-              Create<span class="visually-hidden"> cron job</span>
+              Create cron job
             </button>
           </div>
 
@@ -680,7 +708,7 @@ defineExpose({ load });
             None found.
           </p>
           <div v-else class="table-responsive">
-            <table class="table table-hover align-middle table-sm">
+            <table class="table table-hover align-middle">
               <caption class="visually-hidden">
                 Cron jobs in
                 {{
@@ -725,6 +753,7 @@ defineExpose({ load });
                       <div class="dropdown">
                         <button
                           :id="`actions-btn-cj-${cj.name}`"
+                          :ref="(el) => setCronActionBtn(cj.name, el)"
                           type="button"
                           class="btn btn-sm btn-outline-secondary dropdown-toggle"
                           aria-haspopup="menu"
@@ -858,31 +887,23 @@ defineExpose({ load });
               <label for="rollout-limit" class="form-label mb-1 small"
                 >Deployments shown</label
               >
-              <select
+              <Combobox
                 id="rollout-limit"
                 v-model="maxDeployments"
-                class="form-select form-select-sm"
-              >
-                <option :value="50">50</option>
-                <option :value="100">100</option>
-                <option :value="200">200</option>
-                <option :value="0">All</option>
-              </select>
+                :options="DEPLOYMENT_LIMIT_OPTIONS"
+                readonly
+              />
             </div>
             <div class="col-6 col-lg-auto">
               <label for="rollout-depth" class="form-label mb-1 small"
                 >Revisions per deployment</label
               >
-              <select
+              <Combobox
                 id="rollout-depth"
                 v-model="revisionsPerDeploy"
-                class="form-select form-select-sm"
-              >
-                <option :value="5">5</option>
-                <option :value="10">10</option>
-                <option :value="25">25</option>
-                <option :value="0">All</option>
-              </select>
+                :options="REVISION_DEPTH_OPTIONS"
+                readonly
+              />
             </div>
           </div>
 

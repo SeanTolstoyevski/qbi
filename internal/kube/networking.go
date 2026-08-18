@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -24,22 +25,9 @@ func (c *Client) Services(ctx context.Context, namespace string) ([]ServiceInfo,
 		return nil, err
 	}
 
-	// Fetch endpoints once and index by service name; missing endpoints simply
-	// mean the service currently has no ready backing pods.
-	epByName := map[string][]string{}
-	eps, err := cs.CoreV1().Endpoints(namespace).List(ctx, listOptions())
-	if err == nil {
-		for i := range eps.Items {
-			ep := &eps.Items[i]
-			addrs := []string{}
-			for _, subset := range ep.Subsets {
-				for _, a := range subset.Addresses {
-					addrs = append(addrs, a.IP)
-				}
-			}
-			sort.Strings(addrs)
-			epByName[ep.Name] = addrs
-		}
+	epByName, err := readyEndpointIPs(ctx, cs, namespace)
+	if err != nil {
+		epByName = nil
 	}
 
 	out := make([]ServiceInfo, 0, len(list.Items))
@@ -142,7 +130,7 @@ func (h *ingressHealth) secretStatus(secretName string) string {
 	return "ok"
 }
 
-// loadIngressHealth fetches services, endpoints and secrets once per
+// loadIngressHealth fetches services, EndpointSlices and secrets once per
 // namespace so every ingress can be checked without an N+1 fan-out.
 func loadIngressHealth(ctx context.Context, cs kubernetes.Interface, namespace string) *ingressHealth {
 	h := &ingressHealth{}
@@ -156,22 +144,11 @@ func loadIngressHealth(ctx context.Context, cs kubernetes.Interface, namespace s
 		h.services[svcList.Items[i].Name] = true
 	}
 
-	epList, err := cs.CoreV1().Endpoints(namespace).List(ctx, listOptions())
+	epByName, err := readyEndpointIPs(ctx, cs, namespace)
 	if err != nil {
 		return h
 	}
-	h.endpoints = map[string][]string{}
-	for i := range epList.Items {
-		ep := &epList.Items[i]
-		addrs := []string{}
-		for _, subset := range ep.Subsets {
-			for _, a := range subset.Addresses {
-				addrs = append(addrs, a.IP)
-			}
-		}
-		sort.Strings(addrs)
-		h.endpoints[ep.Name] = addrs
-	}
+	h.endpoints = epByName
 
 	secList, err := cs.CoreV1().Secrets(namespace).List(ctx, listOptions())
 	if err != nil {
@@ -183,6 +160,50 @@ func loadIngressHealth(ctx context.Context, cs kubernetes.Interface, namespace s
 	}
 
 	return h
+}
+
+func readyEndpointIPs(ctx context.Context, cs kubernetes.Interface, namespace string) (map[string][]string, error) {
+	list, err := cs.DiscoveryV1().EndpointSlices(namespace).List(ctx, listOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	perService := map[string]map[string]struct{}{}
+	for i := range list.Items {
+		es := &list.Items[i]
+		svc := es.Labels[discoveryv1.LabelServiceName]
+		if svc == "" {
+			continue
+		}
+
+		if es.AddressType != discoveryv1.AddressTypeIPv4 && es.AddressType != discoveryv1.AddressTypeIPv6 {
+			continue
+		}
+		set := perService[svc]
+		if set == nil {
+			set = map[string]struct{}{}
+			perService[svc] = set
+		}
+		for _, ep := range es.Endpoints {
+			if ep.Conditions.Ready != nil && !*ep.Conditions.Ready {
+				continue
+			}
+			for _, a := range ep.Addresses {
+				set[a] = struct{}{}
+			}
+		}
+	}
+
+	out := make(map[string][]string, len(perService))
+	for svc, set := range perService {
+		addrs := make([]string, 0, len(set))
+		for a := range set {
+			addrs = append(addrs, a)
+		}
+		sort.Strings(addrs)
+		out[svc] = addrs
+	}
+	return out, nil
 }
 
 // backendPort renders a ServiceBackendPort as text ("name" or "number").

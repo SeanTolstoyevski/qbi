@@ -58,7 +58,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="events-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="events-heading" class="h6 mb-0">
+      <h2 id="events-heading" class="h5 mb-0">
         Events<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <div class="d-flex align-items-center gap-2">
@@ -80,7 +80,7 @@ defineExpose({ load });
           @click="load"
         >
           <span class="visually-hidden">Refresh activity</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </div>
@@ -115,10 +115,7 @@ defineExpose({ load });
         >
       </p>
 
-      <table
-        v-if="shown.length"
-        class="table table-sm table-hover align-middle"
-      >
+      <table v-if="shown.length" class="table table-hover align-middle">
         <caption class="visually-hidden">
           Events in namespace
           {{
@@ -162,6 +159,7 @@ defineExpose({ load });
                 variant="inline"
                 :copy-text="e.message"
                 announce="Event message"
+                title="Copy event message"
               />
             </td>
             <td class="small text-body-secondary">{{ e.component || "—" }}</td>

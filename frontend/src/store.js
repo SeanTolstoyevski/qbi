@@ -45,6 +45,11 @@ const state = reactive({
   // screen readers announce loading/errors without stealing focus.
   status: "",
   statusKind: "polite", // "polite" | "assertive"
+  // Short-lived VISUAL confirmation (copy etc.) — the aria-live region is
+  // invisible, so actions whose only feedback would be an announce leave
+  // sighted users guessing. Rendered aria-hidden: never double-announced.
+  flashMsg: "",
+  flashSeq: 0, // bumped per message; the UI watches it to restart the timer
   autoRefresh: false, // persisted setting, loaded on mount
 });
 
@@ -58,6 +63,17 @@ function announce(message, kind = "polite") {
   });
 }
 
+// flash shows a short-lived visual message (rendered aria-hidden in App.vue).
+// Keep it for actions whose result is otherwise invisible to sighted users.
+function flash(message) {
+  state.flashMsg = message;
+  state.flashSeq += 1;
+}
+
+function clearFlash() {
+  state.flashMsg = "";
+}
+
 function setConnection(context) {
   state.connected = true;
   state.context = context;
@@ -66,6 +82,12 @@ function setConnection(context) {
   state.connectionEpoch += 1;
   state.namespace =
     recallNamespace(context?.name) || context?.namespace || null;
+}
+
+function clearConnection() {
+  state.connected = false;
+  state.context = null;
+  state.namespace = null;
 }
 
 function setNamespace(name) {
@@ -81,7 +103,10 @@ export function useStore() {
   return {
     state: readonly(state),
     announce,
+    flash,
+    clearFlash,
     setConnection,
+    clearConnection,
     setNamespace,
     setAutoRefresh,
   };

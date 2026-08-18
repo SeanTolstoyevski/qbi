@@ -1,21 +1,5 @@
 name: Release
 
-# Builds QBI for all supported platforms and publishes the assets to a GitHub
-# Release whenever the "release" branch is updated (new commit, merge, ...).
-# The workflow can also be triggered manually via the Actions UI.
-#
-# Versioning:
-#   - The single source of truth is the VERSION file at the repository root
-#     (a semantic version, e.g. "0.2.0").
-#   - The version is injected into the Go binary at build time via
-#     -ldflags (qbi/internal/version.Version / .Commit) and into the Windows
-#     file metadata via wails.json info.productVersion.
-#   - Releases only move forward: the workflow refuses to re-release an
-#     existing tag or to release a version older than the latest tag
-#     (QBI does not maintain old versions / backward releases).
-#   - Each platform is built on its native runner (Wails uses CGO and needs
-#     the platform's own toolchain/SDK; Go-only cross-compilation is not
-#     enough). darwin/amd64 runs on the macos-15-intel runner; darwin/arm64 runs on macos-latest.
 on:
   push:
     branches: [release]
@@ -212,7 +196,8 @@ jobs:
           path: frontend/dist
 
       - name: Build application (wails)
-        run: wails build -s ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }}"
+        shell: bash
+        run: wails build -s ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }} -X qbi/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Verify binary
         shell: bash

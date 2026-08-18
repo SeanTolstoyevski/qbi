@@ -8,6 +8,7 @@ import { splitCommand } from "../cronJobHelpers.js";
 import PanelHeader from "./PanelHeader.vue";
 import KeyValueFieldset from "./KeyValueFieldset.vue";
 import YamlPreview from "./YamlPreview.vue";
+import Combobox from "./Combobox.vue";
 import {
   validateName,
   qualifiedNameError,
@@ -27,6 +28,20 @@ const props = defineProps({
 });
 const emit = defineEmits(["close", "created"]);
 const { announce } = useStore();
+
+// Choice lists for the form's comboboxes (values match the k8s API enums).
+const PROTOCOLS = ["TCP", "UDP"];
+const PULL_POLICIES = [
+  { value: "", label: "Default (IfNotPresent)" },
+  { value: "Always", label: "Always" },
+  { value: "IfNotPresent", label: "IfNotPresent" },
+  { value: "Never", label: "Never" },
+];
+const UPDATE_STRATEGIES = [
+  { value: "", label: "Default (RollingUpdate)" },
+  { value: "RollingUpdate", label: "RollingUpdate" },
+  { value: "Recreate", label: "Recreate" },
+];
 
 const form = ref({
   name: "",
@@ -233,14 +248,12 @@ async function submit() {
       </div>
       <div class="col-12 col-md-2">
         <label for="dp-protocol" class="form-label mb-1 small">Protocol</label>
-        <select
+        <Combobox
           id="dp-protocol"
           v-model="form.protocol"
-          class="form-select form-select-sm"
-        >
-          <option value="TCP">TCP</option>
-          <option value="UDP">UDP</option>
-        </select>
+          :options="PROTOCOLS"
+          readonly
+        />
       </div>
       <div class="col-12 col-md-6">
         <label for="dp-command" class="form-label mb-1 small"
@@ -365,30 +378,23 @@ async function submit() {
                 <label for="dp-pull" class="form-label mb-1 small"
                   >Image pull policy</label
                 >
-                <select
+                <Combobox
                   id="dp-pull"
                   v-model="form.imagePullPolicy"
-                  class="form-select form-select-sm"
-                >
-                  <option value="">Default (IfNotPresent)</option>
-                  <option value="Always">Always</option>
-                  <option value="IfNotPresent">IfNotPresent</option>
-                  <option value="Never">Never</option>
-                </select>
+                  :options="PULL_POLICIES"
+                  readonly
+                />
               </div>
               <div class="col-6 col-md-4">
                 <label for="dp-strategy" class="form-label mb-1 small"
                   >Update strategy</label
                 >
-                <select
+                <Combobox
                   id="dp-strategy"
                   v-model="form.updateStrategy"
-                  class="form-select form-select-sm"
-                >
-                  <option value="">Default (RollingUpdate)</option>
-                  <option value="RollingUpdate">RollingUpdate</option>
-                  <option value="Recreate">Recreate</option>
-                </select>
+                  :options="UPDATE_STRATEGIES"
+                  readonly
+                />
               </div>
             </div>
 

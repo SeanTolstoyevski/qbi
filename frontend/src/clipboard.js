@@ -8,11 +8,13 @@ import { useStore } from "./store.js";
  *                         (e.g. "Pod my-pod", "YAML preview").
  */
 export async function copyToClipboard(text, label) {
-  const { announce } = useStore();
+  const { announce, flash } = useStore();
   try {
     await navigator.clipboard.writeText(text);
     announce(`${label} copied to clipboard.`);
+    flash(`${label} copied.`);
   } catch {
     announce("Copy failed.", "assertive");
+    flash("Copy failed.");
   }
 }

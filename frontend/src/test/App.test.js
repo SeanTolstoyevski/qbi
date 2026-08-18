@@ -1,11 +1,3 @@
-/*
- * Tests for App.vue — primary navigation and global keyboard shortcuts.
- *
- * App is the top-level shell: header, sidebar, primary nav tabs (Cluster /
- * Namespace / Settings / About), and the global keyboard shortcut layer.
- * Pod panel lifecycle tests live in PodsView.test.js.
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick, defineComponent, h } from "vue";
@@ -17,8 +9,7 @@ const { nsFocusList } = vi.hoisted(() => ({
 vi.mock("../api.js", () => ({
   api: {
     setWatchNamespace: vi.fn(),
-    version: vi.fn(),
-    commit: vi.fn(),
+    buildInfo: vi.fn(),
     getSettings: vi.fn(),
     acknowledgeWelcome: vi.fn(),
   },
@@ -31,8 +22,6 @@ import { api } from "../api.js";
 
 const { setConnection, setNamespace } = useStore();
 
-// NamespaceList is stubbed as ready with a focusList spy so the Ctrl+E
-// shortcut test can verify App asks the list to take focus.
 const NamespaceListStub = defineComponent({
   name: "NamespaceListStub",
   setup() {
@@ -43,7 +32,6 @@ const NamespaceListStub = defineComponent({
   },
 });
 
-// Every tab-panel child is stubbed — App only tests its own shell behaviour.
 const stubs = {
   ContextBar: true,
   NamespaceList: NamespaceListStub,
@@ -62,8 +50,6 @@ beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
   setNamespace("default");
   vi.clearAllMocks();
-  // Baseline for the first-launch check: the wizard was already completed, so
-  // App renders its normal shell unless a test overrides welcomeSeen.
   api.getSettings.mockResolvedValue({ autoRefresh: false, welcomeSeen: true });
   api.acknowledgeWelcome.mockResolvedValue();
 });
@@ -72,22 +58,25 @@ function mountApp() {
   return mount(App, { attachTo: document.body, global: { stubs } });
 }
 
-describe("App — primary navigation", () => {
+describe("App - primary navigation", () => {
   it("renders the four top-level screens and marks the active one", () => {
     const w = mountApp();
     const nav = w.find("nav.header-nav");
     expect(nav.exists()).toBe(true);
-    // Labels are lowercase in the DOM (text-capitalize styles them visually),
-    // matching the namespace sub-tab convention.
+
     expect(nav.findAll("button").map((b) => b.text())).toEqual([
       "cluster",
       "namespace",
       "settings",
       "about",
     ]);
-    // Namespace is the default section, so it carries the current marker.
+
     const active = nav.findAll("button").find((b) => b.text() === "namespace");
     expect(active.attributes("aria-current")).toBe("page");
+
+    // The section buttons advertise their shortcuts to assistive tech.
+    const cluster = nav.findAll("button").find((b) => b.text() === "cluster");
+    expect(cluster.attributes("aria-keyshortcuts")).toBe("Control+1");
     w.unmount();
   });
 
@@ -103,7 +92,7 @@ describe("App — primary navigation", () => {
     expect(about.attributes("aria-current")).toBe("page");
     expect(w.find("#section-heading-about").isVisible()).toBe(true);
     expect(w.find("#section-heading-namespace").isVisible()).toBe(false);
-    // View changes move focus to the revealed section heading.
+
     expect(document.activeElement).toBe(
       w.find("#section-heading-about").element,
     );
@@ -111,7 +100,7 @@ describe("App — primary navigation", () => {
   });
 });
 
-describe("App — screen shortcuts", () => {
+describe("App - screen shortcuts", () => {
   it("Ctrl+1 switches to the Cluster section", async () => {
     const w = mountApp();
     window.dispatchEvent(
@@ -139,7 +128,7 @@ describe("App — screen shortcuts", () => {
       new KeyboardEvent("keydown", { key: "9", ctrlKey: true }),
     );
     await nextTick();
-    // The default section (namespace) is untouched.
+
     expect(w.find("#section-heading-namespace").isVisible()).toBe(true);
     w.unmount();
   });
@@ -154,7 +143,7 @@ describe("App — screen shortcuts", () => {
   });
 });
 
-describe("App — welcome wizard", () => {
+describe("App - welcome wizard", () => {
   function wizardButton(w, text) {
     return w.findAll("button").find((b) => b.text() === text);
   }
@@ -175,8 +164,7 @@ describe("App — welcome wizard", () => {
     const w = mountApp();
     await flushPromises();
     expect(w.find('[role="dialog"]').exists()).toBe(true);
-    // The shell behind the backdrop is removed from the tab order and the
-    // accessibility tree while the wizard is open.
+
     expect(w.find(".app-root").attributes("inert")).toBeDefined();
     expect(w.find(".app-root").attributes("aria-hidden")).toBe("true");
     w.unmount();
@@ -194,7 +182,7 @@ describe("App — welcome wizard", () => {
     expect(api.acknowledgeWelcome).toHaveBeenCalledTimes(1);
     expect(w.find('[role="dialog"]').exists()).toBe(false);
     expect(w.find(".app-root").attributes("inert")).toBeUndefined();
-    // Focus returns to the visible section heading.
+
     expect(document.activeElement).toBe(
       w.find("#section-heading-namespace").element,
     );
@@ -262,7 +250,7 @@ describe("App — welcome wizard", () => {
       new KeyboardEvent("keydown", { key: "1", ctrlKey: true }),
     );
     await nextTick();
-    // The shortcut must not switch the section behind the modal.
+
     expect(w.find("#section-heading-cluster").isVisible()).toBe(false);
     expect(w.find("#section-heading-namespace").isVisible()).toBe(true);
     expect(w.find('[role="dialog"]').exists()).toBe(true);

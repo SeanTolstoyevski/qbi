@@ -165,7 +165,9 @@ async function removeIngress(ing) {
 }
 
 async function load() {
-  if (!state.namespace) return;
+  // Nothing may be fetched without a live connection; the view is normally
+  // unmounted by then, but stay self-consistent for safety.
+  if (!state.connected || !state.namespace) return;
   loading.value = true;
   error.value = "";
   try {
@@ -239,7 +241,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="net-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="net-heading" class="h6 mb-0">
+      <h2 id="net-heading" class="h5 mb-0">
         Networking<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <div class="d-flex align-items-center gap-2">
@@ -247,7 +249,7 @@ defineExpose({ load });
           id="svc-create-btn"
           type="button"
           class="btn btn-sm btn-outline-primary"
-          :disabled="createServiceOpen || !state.namespace"
+          :disabled="createServiceOpen || !state.connected || !state.namespace"
           @click="openCreateService"
         >
           Create service
@@ -256,7 +258,7 @@ defineExpose({ load });
           id="ing-create-btn"
           type="button"
           class="btn btn-sm btn-outline-primary"
-          :disabled="createIngressOpen || !state.namespace"
+          :disabled="createIngressOpen || !state.connected || !state.namespace"
           @click="openCreateIngress"
         >
           Create ingress
@@ -264,11 +266,11 @@ defineExpose({ load });
         <button
           type="button"
           class="btn btn-sm btn-outline-secondary"
-          :disabled="loading || !state.namespace"
+          :disabled="loading || !state.connected || !state.namespace"
           @click="load"
         >
           <span class="visually-hidden">Refresh networking</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </div>
@@ -311,21 +313,57 @@ defineExpose({ load });
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <span class="small text-body-secondary">{{ svc.age }}</span>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-danger"
-                    :disabled="deleting === svc.name"
-                    @click="removeService(svc)"
-                  >
-                    <span
-                      v-if="deleting === svc.name"
-                      class="spinner-border spinner-border-sm me-1"
-                      aria-hidden="true"
-                    ></span>
-                    Delete<span class="visually-hidden">
-                      service {{ svc.name }}</span
+                  <div class="dropdown">
+                    <button
+                      :id="`actions-btn-svc-${svc.name}`"
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                      aria-haspopup="menu"
+                      :aria-expanded="menuOpen === `svc-${svc.name}`"
+                      :aria-controls="`menu-svc-${svc.name}`"
+                      @click.stop="
+                        menuOpen === `svc-${svc.name}`
+                          ? closeMenu(`svc-${svc.name}`)
+                          : openMenu(`svc-${svc.name}`)
+                      "
                     >
-                  </button>
+                      Actions
+                      <span class="visually-hidden"
+                        >for service {{ svc.name }}</span
+                      >
+                    </button>
+
+                    <ul
+                      v-if="menuOpen === `svc-${svc.name}`"
+                      :id="`menu-svc-${svc.name}`"
+                      role="menu"
+                      :aria-label="`Actions for service ${svc.name}`"
+                      class="dropdown-menu show"
+                      :data-menu="`svc-${svc.name}`"
+                      @keydown="onMenuKeydown($event, `svc-${svc.name}`)"
+                    >
+                      <li role="presentation">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="dropdown-item text-danger"
+                          :disabled="deleting === svc.name"
+                          @click="
+                            focusTriggerAndAct(`svc-${svc.name}`, () =>
+                              removeService(svc),
+                            )
+                          "
+                        >
+                          <span
+                            v-if="deleting === svc.name"
+                            class="spinner-border spinner-border-sm me-1"
+                            aria-hidden="true"
+                          ></span>
+                          Delete
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
@@ -337,6 +375,7 @@ defineExpose({ load });
                     variant="inline"
                     :copy-text="svc.dnsName"
                     announce="DNS name"
+                    title="Copy DNS name"
                   />
                 </dd>
 

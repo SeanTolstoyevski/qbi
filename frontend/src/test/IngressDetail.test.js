@@ -1,17 +1,3 @@
-/*
- * Tests for IngressDetail.vue — the debugging panel opened from the
- * Networking screen's Inspect button. It shows the plain-language issue
- * list, TLS/secret wiring, routing rules with backend health, and the
- * events about the ingress.
- *
- * We cover:
- *   - Renders a healthy ingress (addresses, TLS present, backend ok)
- *   - Renders the issue list for a broken ingress
- *   - Renders events, and the fallback note when events are not readable
- *   - Opens the YAML sub-view
- *   - Close emits the close event
- */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import IngressDetail from "../components/IngressDetail.vue";
@@ -122,7 +108,7 @@ function mountDetail(name = "web") {
   });
 }
 
-describe("IngressDetail — rendering", () => {
+describe("IngressDetail - rendering", () => {
   it("renders a healthy ingress with addresses, TLS and backend health", async () => {
     api.getIngressDetail.mockResolvedValue(healthy);
     const w = mountDetail();
@@ -186,7 +172,7 @@ describe("IngressDetail — rendering", () => {
   });
 });
 
-describe("IngressDetail — actions", () => {
+describe("IngressDetail - actions", () => {
   it("opens the YAML sub-view for the ingress", async () => {
     api.getIngressDetail.mockResolvedValue(healthy);
     const w = mountDetail();
@@ -256,7 +242,7 @@ describe("IngressDetail — actions", () => {
   });
 });
 
-describe("IngressDetail — edit", () => {
+describe("IngressDetail - edit", () => {
   it("emits edit with the ingress name", async () => {
     api.getIngressDetail.mockResolvedValue(healthy);
     const w = mountDetail();
@@ -280,3 +266,35 @@ describe("IngressDetail — edit", () => {
 function findBtn(w, label) {
   return w.findAll("button").find((b) => b.text().includes(label));
 }
+
+describe("IngressDetail - refresh and Escape", () => {
+  it("reloads the detail via the refresh button", async () => {
+    api.getIngressDetail.mockResolvedValue(healthy);
+    const w = mountDetail();
+    await flushPromises();
+    api.getIngressDetail.mockClear();
+    await findBtn(w, "Refresh ingress details").trigger("click");
+    await flushPromises();
+    expect(api.getIngressDetail).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+
+  it("closes the panel on Escape only when the YAML sub-view is closed", async () => {
+    api.getIngressDetail.mockResolvedValue(healthy);
+    const w = mountDetail();
+    await flushPromises();
+    // Open the YAML sub-view: Escape must not close the whole panel there.
+    await findBtn(w, "YAML").trigger("click");
+    await flushPromises();
+    await w.trigger("keydown", { key: "Escape" });
+    expect(w.emitted("close")).toBeUndefined();
+    // Close the sub-view via its own Close button (last one in the DOM).
+    const closes = w.findAll("button").filter((b) => b.text() === "Close");
+    await closes[closes.length - 1].trigger("click");
+    await flushPromises();
+    // Now Escape closes the panel.
+    await w.trigger("keydown", { key: "Escape" });
+    expect(w.emitted("close")).toHaveLength(1);
+    w.unmount();
+  });
+});

@@ -5,6 +5,7 @@ import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
 import { useActionMenu } from "../useActionMenu.js";
 import InlineButton from "./InlineButton.vue";
+import { phaseBadgeClass } from "../statusClasses.js";
 const { state, announce } = useStore();
 
 const emit = defineEmits(["view-logs", "view-details", "view-yaml"]);
@@ -18,6 +19,12 @@ const shellExpanded = ref(""); // pod name whose shell container chooser is open
 const deleting = ref(""); // pod name currently being deleted
 const openingShell = ref(""); // pod name while terminal is launching
 const menuOpen = ref(""); // pod name whose action menu is open
+const shellGroups = {};
+
+function setShellGroup(name, el) {
+  if (el) shellGroups[name] = el;
+  else delete shellGroups[name];
+}
 
 const { openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
   useActionMenu(menuOpen);
@@ -91,9 +98,7 @@ async function openShell(pod) {
     return;
   }
   shellExpanded.value = pod.name;
-  nextTick(() => {
-    document.querySelector(`[data-shell-group="${pod.name}"] button`)?.focus();
-  });
+  nextTick(() => shellGroups[pod.name]?.querySelector("button")?.focus());
 }
 
 async function execShell(pod, container) {
@@ -143,7 +148,7 @@ defineExpose({ load });
 <template>
   <section aria-labelledby="pods-heading">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 id="pods-heading" class="h6 mb-0">
+      <h2 id="pods-heading" class="h5 mb-0">
         Pods<span v-if="state.namespace"> in {{ state.namespace }}</span>
       </h2>
       <button
@@ -153,7 +158,7 @@ defineExpose({ load });
         @click="load"
       >
         <span class="visually-hidden">Refresh pods</span>
-        <span aria-hidden="true">⟳</span>
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
       </button>
     </div>
 
@@ -211,15 +216,9 @@ defineExpose({ load });
                 </th>
                 <td>{{ pod.ready }}</td>
                 <td>
-                  <span
-                    class="badge"
-                    :class="
-                      pod.phase === 'Running'
-                        ? 'text-bg-success'
-                        : 'text-bg-secondary'
-                    "
-                    >{{ pod.phase }}</span
-                  >
+                  <span class="badge" :class="phaseBadgeClass(pod.phase)">{{
+                    pod.phase
+                  }}</span>
                 </td>
                 <td>{{ pod.restarts }}</td>
                 <td>{{ pod.age }}</td>
@@ -363,7 +362,11 @@ defineExpose({ load });
                 v-if="pod.containers.length > 1 && shellExpanded === pod.name"
               >
                 <td :id="`shell-containers-${pod.name}`" colspan="7">
-                  <fieldset class="mb-0" :data-shell-group="pod.name">
+                  <fieldset
+                    class="mb-0"
+                    :data-shell-group="pod.name"
+                    :ref="(el) => setShellGroup(pod.name, el)"
+                  >
                     <legend class="h6 small text-body-secondary">
                       Choose a container to open a shell
                     </legend>

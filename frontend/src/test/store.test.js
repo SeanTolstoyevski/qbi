@@ -50,6 +50,30 @@ describe("store — announce()", () => {
   });
 });
 
+describe("store — flash()", () => {
+  it("sets the flash message and bumps the sequence", async () => {
+    const { state, flash } = await freshStore();
+    expect(state.flashMsg).toBe("");
+    expect(state.flashSeq).toBe(0);
+
+    flash("Pod web copied.");
+    expect(state.flashMsg).toBe("Pod web copied.");
+    expect(state.flashSeq).toBe(1);
+
+    // A second flash replaces the message — the seq bump restarts the UI timer.
+    flash("YAML copied.");
+    expect(state.flashMsg).toBe("YAML copied.");
+    expect(state.flashSeq).toBe(2);
+  });
+
+  it("clearFlash empties the message", async () => {
+    const { state, flash, clearFlash } = await freshStore();
+    flash("hi");
+    clearFlash();
+    expect(state.flashMsg).toBe("");
+  });
+});
+
 describe("store — setConnection()", () => {
   it("marks connected and stores context", async () => {
     const { state, setConnection } = await freshStore();
@@ -87,6 +111,29 @@ describe("store — setConnection()", () => {
     // components watch the epoch so this is what forces them to reload.
     setConnection({ name: "prod", namespace: "default" });
     expect(state.connectionEpoch).toBe(2);
+  });
+});
+
+describe("store — clearConnection()", () => {
+  it("tears down connected state so no cluster view stays alive", async () => {
+    const { state, setConnection, setNamespace, clearConnection } =
+      await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    setNamespace("kube-system");
+    expect(state.connected).toBe(true);
+
+    clearConnection();
+    expect(state.connected).toBe(false);
+    expect(state.context).toBeNull();
+    expect(state.namespace).toBeNull();
+  });
+
+  it("leaves the connection epoch untouched (only successful connects bump it)", async () => {
+    const { state, setConnection, clearConnection } = await freshStore();
+    setConnection({ name: "prod", namespace: "default" });
+    const epoch = state.connectionEpoch;
+    clearConnection();
+    expect(state.connectionEpoch).toBe(epoch);
   });
 });
 

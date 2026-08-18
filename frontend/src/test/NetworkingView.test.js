@@ -10,10 +10,11 @@
  *   - Rejects creation when no port is given
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import NetworkingView from "../components/NetworkingView.vue";
+import { chooseCombobox } from "./combobox.js";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 
@@ -35,7 +36,14 @@ vi.mock("../api.js", () => ({
   onEvent: vi.fn(() => () => {}),
 }));
 
-const { setConnection, setNamespace } = useStore();
+const { setConnection, setNamespace, clearConnection } = useStore();
+
+beforeAll(() => {
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    configurable: true,
+  });
+});
 
 beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
@@ -65,9 +73,11 @@ function findBtn(w, label) {
 }
 
 // Actions live behind an "Actions" dropdown button; open it before clicking a
-// menu item (same helper convention as PodList tests).
+// menu item (same helper convention as PodList tests). Services render before
+// ingresses, so the LAST Actions button is the ingress row's menu.
 async function openActions(w) {
-  await findBtn(w, "Actions").trigger("click");
+  const btns = w.findAll("button").filter((b) => b.text().includes("Actions"));
+  await btns[btns.length - 1].trigger("click");
   await nextTick();
 }
 
@@ -77,6 +87,38 @@ describe("NetworkingView — rendering", () => {
     await flushPromises();
     expect(w.text()).toContain("web");
     expect(w.text()).toContain("web.default.svc");
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — connection gating", () => {
+  it("keeps create and refresh actions inert without a verified connection", async () => {
+    // Stale-state repro: a namespace is still set (recalled from storage) but
+    // a failed connect tore the connection down — no cluster action may run.
+    clearConnection();
+    setNamespace("default");
+
+    const w = mountView();
+    await flushPromises();
+
+    const svcBtn = w.find("#svc-create-btn");
+    const ingBtn = w.find("#ing-create-btn");
+    expect(svcBtn.attributes("disabled")).toBeDefined();
+    expect(ingBtn.attributes("disabled")).toBeDefined();
+    const refresh = w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh networking"));
+    expect(refresh.attributes("disabled")).toBeDefined();
+
+    // The view must not even attempt data calls without a connection.
+    expect(api.listServices).not.toHaveBeenCalled();
+    expect(api.listIngresses).not.toHaveBeenCalled();
+
+    // Clicking the disabled create-ingress button must not open the panel.
+    await ingBtn.trigger("click");
+    await nextTick();
+    expect(w.find("form").exists()).toBe(false);
+
     w.unmount();
   });
 });
@@ -241,7 +283,7 @@ describe("NetworkingView — create service", () => {
     await findBtn(w, "Create service").trigger("click");
     await nextTick();
     await w.find("#svc-name").setValue("gitea");
-    await w.find("#svc-type").setValue("NodePort");
+    await chooseCombobox(w, "svc-type", "NodePort");
     await w.find("#svc-sel-key-0").setValue("app");
     await w.find("#svc-sel-val-0").setValue("gitea");
     await w.find("#svc-port-0").setValue(3000);
@@ -309,6 +351,7 @@ describe("NetworkingView — delete service", () => {
     api.deleteService.mockResolvedValue(true);
     const w = mountView();
     await flushPromises();
+    await openActions(w); // service delete lives in the row's Actions menu
     const btn = w.findAll("button").find((b) => b.text().includes("Delete"));
     await btn.trigger("click");
     await flushPromises();
@@ -560,6 +603,39 @@ describe("NetworkingView — focus returns to the trigger on close", () => {
     await flushPromises();
     await closeWithEscape(w, "ing-create-heading");
     expect(document.activeElement?.id).toBe("ing-create-btn");
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — refresh button", () => {
+  it("reloads services and ingresses via the refresh button", async () => {
+    const w = mountView();
+    await flushPromises();
+    api.listServices.mockClear();
+    api.listIngresses.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh networking"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.listServices).toHaveBeenCalledTimes(1);
+    expect(api.listIngresses).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});
+
+describe("NetworkingView — copy", () => {
+  it("copies the service DNS name", async () => {
+    const w = mountView();
+    await flushPromises();
+    const btn = w
+      .findAll("button")
+      .find((b) => b.classes().includes("copy-inline"));
+    await btn.trigger("click");
+    await flushPromises();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "web.default.svc",
+    );
     w.unmount();
   });
 });

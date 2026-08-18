@@ -532,6 +532,7 @@ type WorkloadInfo struct {
 	Name      string   `json:"name"`
 	Namespace string   `json:"namespace"`
 	Ready     string   `json:"ready"` // e.g. "3/3"
+	Replicas  int32    `json:"replicas"`
 	UpToDate  int32    `json:"upToDate"`
 	Available int32    `json:"available"`
 	Images    []string `json:"images"`

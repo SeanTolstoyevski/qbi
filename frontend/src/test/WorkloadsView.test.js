@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import WorkloadsView from "../components/WorkloadsView.vue";
+import { chooseCombobox } from "./combobox.js";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 
@@ -44,6 +45,7 @@ const WL = [
     name: "web",
     namespace: "default",
     ready: "2/2",
+    replicas: 2,
     upToDate: 2,
     available: 2,
     images: ["nginx:1.27"],
@@ -86,7 +88,7 @@ function mountWithCronJobs() {
   return mountView();
 }
 
-describe("WorkloadsView — payload shape", () => {
+describe("WorkloadsView - payload shape", () => {
   it("renders workloads from the WorkloadsView payload", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);
@@ -125,7 +127,7 @@ describe("WorkloadsView — payload shape", () => {
   });
 });
 
-describe("WorkloadsView — actions", () => {
+describe("WorkloadsView - actions", () => {
   it("triggers a rolling restart via the API", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
     api.listJobs.mockResolvedValue([]);
@@ -141,11 +143,15 @@ describe("WorkloadsView — actions", () => {
       "Deployment",
       "web",
     );
+
+    expect(useStore().state.flashMsg).toContain(
+      "Rolling restart triggered for Deployment web",
+    );
     w.unmount();
   });
 });
 
-describe("WorkloadsView — delete workload", () => {
+describe("WorkloadsView - delete workload", () => {
   it("deletes a workload via the API after confirmation", async () => {
     api.deleteWorkload.mockResolvedValue(true);
     const w = mountView();
@@ -175,7 +181,151 @@ describe("WorkloadsView — delete workload", () => {
   });
 });
 
-describe("WorkloadsView — namespace switch", () => {
+describe("WorkloadsView - scale", () => {
+  async function mountWithWorkloads() {
+    api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
+    api.listJobs.mockResolvedValue([]);
+    api.listCronJobs.mockResolvedValue([]);
+    const w = mountView();
+    await flushPromises();
+    return w;
+  }
+
+  async function openScaleRow(w) {
+    await openActions(w);
+    await findBtn(w, "Scale").trigger("click");
+    await flushPromises();
+  }
+
+  it("prefills the scale input with the desired replica count", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("2");
+    w.unmount();
+  });
+
+  it("moves focus to the scale input on open", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    expect(document.activeElement).toBe(w.find("#scale-web").element);
+    w.unmount();
+  });
+
+  it("prefills and refocuses the input on a second edit after scaling", async () => {
+    api.scaleWorkload.mockResolvedValue(true);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(5);
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], ready: "2/2", replicas: 5 }],
+      errors: [],
+    });
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(w.find("#scale-web").exists()).toBe(false);
+
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("5");
+    expect(document.activeElement).toBe(w.find("#scale-web").element);
+    w.unmount();
+  });
+
+  it("prefills a scale-to-zero input with 0, not the 1 fallback", async () => {
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], ready: "0/0", replicas: 0 }],
+      errors: [],
+    });
+    const w = mountView();
+    await flushPromises();
+    await openScaleRow(w);
+    expect(w.find("#scale-web").element.value).toBe("0");
+    w.unmount();
+  });
+
+  it("applies the scale via the API and reloads", async () => {
+    api.scaleWorkload.mockResolvedValue(true);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(5);
+    api.listWorkloads.mockClear();
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+      5,
+    );
+    expect(api.listWorkloads).toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("keeps the row open when the user cancels the confirmation", async () => {
+    api.scaleWorkload.mockResolvedValue(false);
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    api.listWorkloads.mockClear();
+    await w.find("#scale-web").setValue(3);
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+      3,
+    );
+    expect(api.listWorkloads).not.toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("does not scale when the input is empty (invalid count)", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue("");
+    api.scaleWorkload.mockClear();
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(api.scaleWorkload).not.toHaveBeenCalled();
+    expect(w.find("#scale-web").exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("shows the error when scaling fails", async () => {
+    api.scaleWorkload.mockRejectedValue(new Error("scaling forbidden"));
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await w.find("#scale-web").setValue(2);
+    await findBtn(w, "Apply").trigger("click");
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toContain("scaling forbidden");
+    w.unmount();
+  });
+
+  it("closes the scale row via Cancel", async () => {
+    const w = await mountWithWorkloads();
+    await openScaleRow(w);
+    await findBtn(w, "Cancel").trigger("click");
+    await flushPromises();
+    expect(w.find("#scale-web").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("hides the Scale item for DaemonSets", async () => {
+    api.listWorkloads.mockResolvedValue({
+      workloads: [{ ...WL[0], kind: "DaemonSet", ready: "3/3" }],
+      errors: [],
+    });
+    const w = mountView();
+    await flushPromises();
+    await openActions(w);
+    expect(findBtn(w, "Scale")).toBeUndefined();
+    w.unmount();
+  });
+});
+
+describe("WorkloadsView - namespace switch", () => {
   // The inline scale row names a workload from the previous namespace; it
   // must close when the namespace changes instead of lingering over a
   // resource that may not exist there.
@@ -212,7 +362,7 @@ describe("WorkloadsView — namespace switch", () => {
   });
 });
 
-describe("WorkloadsView — recent rollouts", () => {
+describe("WorkloadsView - recent rollouts", () => {
   // Rollout history is the durable counterpart to events (which expire after
   // ~1h). The backend bounds it, and the view must render it and degrade
   // gracefully when the call is denied or slow.
@@ -279,8 +429,8 @@ describe("WorkloadsView — recent rollouts", () => {
       api.history.mockClear();
 
       await w.find("#rollout-filter").setValue("web");
-      await w.find("#rollout-limit").setValue("200");
-      await w.find("#rollout-depth").setValue("10");
+      await chooseCombobox(w, "rollout-limit", 200);
+      await chooseCombobox(w, "rollout-depth", 10);
       await nextTick();
       await vi.advanceTimersByTimeAsync(300); // past the 250ms debounce
 
@@ -319,7 +469,7 @@ describe("WorkloadsView — recent rollouts", () => {
   });
 });
 
-describe("WorkloadsView — cron job logs", () => {
+describe("WorkloadsView - cron job logs", () => {
   it("streams the newest run's pod like a pod", async () => {
     api.getCronJobDetail.mockResolvedValue({
       name: "backup",
@@ -397,7 +547,7 @@ describe("WorkloadsView — cron job logs", () => {
   });
 });
 
-describe("WorkloadsView — cron job create", () => {
+describe("WorkloadsView - cron job create", () => {
   it("creates a cron job from the form and reloads", async () => {
     api.createCronJob.mockResolvedValue(true);
     const w = mountWithCronJobs();
@@ -408,7 +558,7 @@ describe("WorkloadsView — cron job create", () => {
     await w.find("#cj-schedule").setValue("0 2 * * *");
     await w.find("#cj-image").setValue("busybox");
     await w.find("#cj-command").setValue("echo hi");
-    await w.find("#cj-concurrency").setValue("Forbid");
+    await chooseCombobox(w, "cj-concurrency", "Forbid");
     await w.find("#cj-suspend").setValue(true);
     await w
       .findAll("button")
@@ -446,7 +596,7 @@ describe("WorkloadsView — cron job create", () => {
   });
 });
 
-describe("WorkloadsView — cron job edit + suspend", () => {
+describe("WorkloadsView - cron job edit + suspend", () => {
   it("applies schedule and suspend edits", async () => {
     api.updateCronJob.mockResolvedValue(true);
     const w = mountWithCronJobs();
@@ -455,7 +605,7 @@ describe("WorkloadsView — cron job edit + suspend", () => {
     await findBtn(w, "Edit").trigger("click");
     await nextTick();
     await w.find("#cj-edit-schedule").setValue("0 3 * * *");
-    await w.find("#cj-edit-policy").setValue("Replace");
+    await chooseCombobox(w, "cj-edit-policy", "Replace");
     await w.find("#cj-edit-suspend").setValue(true);
     await findBtn(w, "Apply").trigger("click");
     await flushPromises();
@@ -480,8 +630,18 @@ describe("WorkloadsView — cron job edit + suspend", () => {
     w.unmount();
   });
 
-  // The edit form is a separate panel (like pod detail/logs), so closing it
-  // must return focus to the Edit button that opened it.
+  it("shows a visible error when the suspend toggle fails", async () => {
+    api.updateCronJob.mockRejectedValueOnce(new Error("boom"));
+    const w = mountWithCronJobs();
+    await flushPromises();
+    await openActions(w);
+    await findBtn(w, "Suspend").trigger("click");
+    await flushPromises();
+
+    expect(w.text()).toContain("boom");
+    w.unmount();
+  });
+
   it("returns focus to the Actions button when the panel closes via Escape", async () => {
     const w = mountWithCronJobs();
     await flushPromises();
@@ -501,7 +661,7 @@ describe("WorkloadsView — cron job edit + suspend", () => {
   });
 });
 
-describe("WorkloadsView — deployment create", () => {
+describe("WorkloadsView - deployment create", () => {
   function openDeployPanel(w) {
     return findBtn(w, "Create deployment").trigger("click");
   }
@@ -561,6 +721,24 @@ describe("WorkloadsView — deployment create", () => {
     await flushPromises();
     expect(api.createDeployment).not.toHaveBeenCalled();
     expect(w.text()).toContain("Name is required");
+    w.unmount();
+  });
+});
+
+describe("WorkloadsView - refresh button", () => {
+  it("reloads workloads, jobs and cron jobs via the refresh button", async () => {
+    api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
+    api.listJobs.mockResolvedValue([]);
+    api.listCronJobs.mockResolvedValue([]);
+    const w = mountView();
+    await flushPromises();
+    api.listWorkloads.mockClear();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh workloads"))
+      .trigger("click");
+    await flushPromises();
+    expect(api.listWorkloads).toHaveBeenCalledTimes(1);
     w.unmount();
   });
 });

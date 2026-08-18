@@ -37,13 +37,14 @@ const steps = [
 
 const step = ref(0);
 const acknowledged = ref(false);
+const headingEl = ref(null);
 
 const current = computed(() => steps[step.value]);
 const isFirst = computed(() => step.value === 0);
 const isLast = computed(() => step.value === steps.length - 1);
 
 function focusCurrentHeading() {
-  nextTick(() => document.getElementById(current.value.headingId)?.focus());
+  nextTick(() => headingEl.value?.focus());
 }
 
 function next() {
@@ -98,7 +99,7 @@ onMounted(focusCurrentHeading);
         ></button>
       </div>
 
-      <h1 :id="current.headingId" class="h3 mt-3 mb-2" tabindex="-1">
+      <h1 :id="current.headingId" ref="headingEl" class="h3 mt-3 mb-2" tabindex="-1">
         {{ current.title }}
       </h1>
 

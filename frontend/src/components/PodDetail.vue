@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import PanelHeader from "./PanelHeader.vue";
+import { phaseBadgeClass, containerReadyBadgeClass } from "../statusClasses.js";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -79,7 +80,7 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
           @click="load"
         >
           <span class="visually-hidden">Refresh pod details</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </PanelHeader>
@@ -91,15 +92,9 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
       <dl class="row small mb-3">
         <dt class="col-sm-4">Phase</dt>
         <dd class="col-sm-8">
-          <span
-            class="badge"
-            :class="
-              detail.phase === 'Running'
-                ? 'text-bg-success'
-                : 'text-bg-secondary'
-            "
-            >{{ detail.phase }}</span
-          >
+          <span class="badge" :class="phaseBadgeClass(detail.phase)">{{
+            detail.phase
+          }}</span>
         </dd>
         <dt class="col-sm-4">Pod IP</dt>
         <dd class="col-sm-8">
@@ -167,11 +162,9 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
         <div class="d-flex align-items-center justify-content-between">
           <span class="fw-semibold">{{ c.name }}</span>
           <span>
-            <span
-              class="badge"
-              :class="c.ready ? 'text-bg-success' : 'text-bg-warning'"
-              >{{ c.ready ? "ready" : "not ready" }}</span
-            >
+            <span class="badge" :class="containerReadyBadgeClass(c.ready)">{{
+              c.ready ? "ready" : "not ready"
+            }}</span>
             <span class="badge text-bg-secondary ms-1">{{ c.state }}</span>
           </span>
         </div>

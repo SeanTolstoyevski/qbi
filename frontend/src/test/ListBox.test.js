@@ -1,17 +1,3 @@
-/*
- * Tests for ListBox.vue
- *
- * ListBox is the heart of the keyboard UX — namespaces, secrets, config maps
- * are all navigated through it. We test:
- *   - ARIA attributes are correct
- *   - Arrow keys move the roving focus index
- *   - Home/End jump to first/last
- *   - Enter/Space emit 'select'
- *   - Type-ahead jumps to the matching option
- *   - Selection does NOT follow focus (WAI-ARIA listbox pattern)
- *   - Focus index clamps when the option list shrinks
- */
-
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -36,7 +22,7 @@ function mountListBox(overrides = {}) {
   });
 }
 
-describe("ListBox — ARIA structure", () => {
+describe("ListBox - ARIA structure", () => {
   it("renders a ul with role=listbox and aria-label", () => {
     const w = mountListBox();
     const ul = w.find("ul");
@@ -70,7 +56,7 @@ describe("ListBox — ARIA structure", () => {
   });
 });
 
-describe("ListBox — keyboard navigation", () => {
+describe("ListBox - keyboard navigation", () => {
   it("ArrowDown moves focus to the next option", async () => {
     const w = mountListBox();
     await w.find("ul").trigger("keydown", { key: "ArrowDown" });
@@ -112,7 +98,7 @@ describe("ListBox — keyboard navigation", () => {
   });
 });
 
-describe("ListBox — selection", () => {
+describe("ListBox - selection", () => {
   it("Enter emits 'select' with the focused option value", async () => {
     const w = mountListBox();
     await w.find("ul").trigger("keydown", { key: "ArrowDown" });
@@ -145,7 +131,7 @@ describe("ListBox — selection", () => {
   });
 });
 
-describe("ListBox — type-ahead", () => {
+describe("ListBox - type-ahead", () => {
   it("jumps to the first option starting with the typed letter", async () => {
     const w = mountListBox();
     await w.find("ul").trigger("keydown", { key: "m" });
@@ -163,7 +149,7 @@ describe("ListBox — type-ahead", () => {
   });
 });
 
-describe("ListBox — option list changes", () => {
+describe("ListBox - option list changes", () => {
   it("clamps active index when options shrink below it", async () => {
     const w = mountListBox();
     // Move to last item (index 3)

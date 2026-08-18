@@ -170,3 +170,19 @@ describe("NodesView - reload after reconnect", () => {
     w.unmount();
   });
 });
+
+describe("NodesView - refresh button", () => {
+  it("reloads nodes and metrics via the refresh button", async () => {
+    const w = await mountNodes();
+    api.listNodes.mockClear();
+    api.listNodeMetrics.mockClear();
+    const btn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Refresh nodes"));
+    await btn.trigger("click");
+    await flushPromises();
+    expect(api.listNodes).toHaveBeenCalledTimes(1);
+    expect(api.listNodeMetrics).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});

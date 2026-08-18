@@ -2,6 +2,40 @@
   --qba-focus: #1a56db;
 }
 
+[data-bs-theme="dark"] {
+  --qba-focus: #6ea8fe;
+}
+
+[data-bs-theme="dark"] .btn-outline-primary {
+  --bs-btn-color: var(--bs-primary-text-emphasis);
+  --bs-btn-border-color: var(--bs-primary-text-emphasis);
+}
+[data-bs-theme="dark"] .btn-outline-secondary {
+  --bs-btn-color: var(--bs-secondary-text-emphasis);
+  --bs-btn-border-color: var(--bs-secondary-text-emphasis);
+}
+[data-bs-theme="dark"] .btn-outline-success {
+  --bs-btn-color: var(--bs-success-text-emphasis);
+  --bs-btn-border-color: var(--bs-success-text-emphasis);
+}
+[data-bs-theme="dark"] .btn-outline-danger {
+  --bs-btn-color: var(--bs-danger-text-emphasis);
+  --bs-btn-border-color: var(--bs-danger-text-emphasis);
+}
+[data-bs-theme="dark"] .text-success {
+  color: var(--bs-success-text-emphasis) !important;
+}
+[data-bs-theme="dark"] .text-danger {
+  color: var(--bs-danger-text-emphasis) !important;
+}
+/* Pure amber text (#ffc107) on the light body background is 1.63:1 — far
+   below the 4.5:1 minimum, so statuses like "Terminating" were unreadable.
+   The emphasis amber keeps the hue but is readable in both themes
+   (#664d03 on white ≈ 8:1, #ffda6a on #212529 ≈ 11.4:1). */
+.text-warning {
+  color: var(--bs-warning-text-emphasis) !important;
+}
+
 html,
 body,
 #app {
@@ -54,8 +88,9 @@ select:focus-visible {
 }
 
 .log-view {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
   font-size: 0.85rem;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -117,8 +152,9 @@ select:focus-visible {
   min-width: 0;
 }
 
+/* Bootstrap's --bs-code-color is a red that reads
+   as an error for paths and resource names. Override to a neutral gray. */
 :root {
-     as an error for paths and resource names. Override to a neutral gray. */
   --bs-code-color: var(--bs-secondary-color);
 }
 
@@ -128,8 +164,6 @@ select:focus-visible {
   border-radius: 999px;
 }
 
-   primary bar under the active tab is obvious at a glance and pairs colour
-   with a semibold weight, so it doesn't rely on colour alone. */
 .nav-tabs {
   border-bottom: 1px solid var(--bs-border-color);
 }
@@ -141,7 +175,9 @@ select:focus-visible {
   border-bottom: 3px solid transparent;
   color: var(--bs-secondary-color);
   font-weight: 500;
-  transition: color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .nav-tabs .nav-link:hover,
@@ -155,8 +191,42 @@ select:focus-visible {
   background: transparent;
   border: 0;
   border-bottom: 3px solid var(--bs-primary);
-  color: var(--bs-primary);
+  /* --bs-primary on the dark body background is 3.43:1; the emphasis
+     color is 6.39:1 there and 12.8:1 on white. */
+  color: var(--bs-primary-text-emphasis);
   font-weight: 600;
+}
+
+/* Transient visual confirmation for actions whose only feedback would
+   otherwise be invisible (announce goes to the aria-live region, which is
+   visually hidden). aria-hidden in the template keeps it single-channel:
+   screen readers hear the live region, sighted users see this. */
+.qba-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1090;
+  max-width: 24rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
+  pointer-events: none;
+  animation: qba-toast-in 0.15s ease-out;
+}
+
+@keyframes qba-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .kubeconfig-chip {
@@ -185,7 +255,9 @@ select:focus-visible {
 
 .name-cell {
   position: relative;
-  padding-right: 2rem;
+  /* 2.25rem covers the collapsed copy button footprint
+     (0.375rem offset + 1.75rem width) plus a small gap. */
+  padding-right: 2.25rem;
   transition: padding-right 0.15s ease-in-out;
 }
 
@@ -207,9 +279,18 @@ select:focus-visible {
   color: var(--bs-secondary-color);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease-in-out, background-color 0.15s ease-in-out,
-    width 0.15s ease-in-out, padding 0.15s ease-in-out;
+  transition:
+    opacity 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    width 0.15s ease-in-out,
+    padding 0.15s ease-in-out;
 }
+
+.copy-inline .bi {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
 .copy-inline .inline-button-text {
   max-width: 0;
   overflow: hidden;
@@ -217,7 +298,7 @@ select:focus-visible {
   font-size: 0.875rem;
   transition: max-width 0.15s ease-in-out;
 }
-/* cell variant: anchored to the right edge of a .name-cell */
+
 .name-cell > .copy-inline {
   position: absolute;
   right: 0.375rem;
@@ -235,7 +316,9 @@ tbody tr:hover .copy-inline,
   opacity: 1;
   pointer-events: auto;
   background-color: var(--bs-tertiary-bg);
-  color: var(--bs-primary);
+  /* --bs-primary is 2.56-2.96:1 on the dark hover/reveal backgrounds;
+     the emphasis color passes in both themes (4.76-12.8:1). */
+  color: var(--bs-primary-text-emphasis);
 }
 .copy-inline:hover {
   background-color: var(--bs-secondary-bg);

@@ -69,6 +69,10 @@ watch(yamlOpen, (open) => {
   if (!open) nextTick(() => header.value?.headingEl?.focus());
 });
 
+function onSectionKeydown(e) {
+  if (!yamlOpen.value) onKeydown(e);
+}
+
 watch(() => [props.namespace, props.name], load, { immediate: true });
 
 const labelPairs = (m) =>
@@ -81,7 +85,7 @@ defineExpose({ load });
   <section
     aria-labelledby="ing-detail-heading"
     class="h-100 scroll-pane"
-    @keydown="yamlOpen ? undefined : onKeydown"
+    @keydown="onSectionKeydown"
   >
     <PanelHeader
       ref="header"
@@ -127,7 +131,7 @@ defineExpose({ load });
           @click="load"
         >
           <span class="visually-hidden">Refresh ingress details</span>
-          <span aria-hidden="true">⟳</span>
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
         </button>
       </div>
     </PanelHeader>

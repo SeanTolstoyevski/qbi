@@ -36,16 +36,11 @@ func NewService(app *App) *Service {
 	return s
 }
 
-// Version returns the semantic version of QBI (e.g. "0.2.0"). It is injected
-// at build time from the VERSION file; see internal/version.
-func (s *Service) Version() string {
-	return version.Version
-}
-
-// Commit returns the git commit this build was produced from, injected at
-// build time; "unknown" for non-release builds.
-func (s *Service) Commit() string {
-	return version.Commit
+// BuildInfo returns the version, git commit, and build time of this binary
+// as a single payload for the About view. The values are injected at build
+// time from the VERSION file; see internal/version.
+func (s *Service) BuildInfo() version.BuildInfo {
+	return version.Info()
 }
 
 // AppSettings is the settings payload exchanged with the frontend.
@@ -89,11 +84,16 @@ func (s *Service) SetAutoRefresh(enabled bool) error {
 }
 
 // SetWatchNamespace (re)starts namespace-scoped watch streams for the given
-// namespace. Called by the frontend whenever the active namespace changes.
-// Has no effect when auto-refresh is disabled.
+// namespace. An empty namespace means no cluster data is being viewed (for
+// example after a failed reconnect tore the connection down), so any running
+// streams are stopped. Has no effect when auto-refresh is disabled.
 func (s *Service) SetWatchNamespace(namespace string) {
 	st := loadSettings()
-	if !st.AutoRefresh || namespace == "" {
+	if namespace == "" {
+		s.watcher.Stop()
+		return
+	}
+	if !st.AutoRefresh {
 		return
 	}
 	s.watcher.Start(namespace)
