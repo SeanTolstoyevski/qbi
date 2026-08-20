@@ -5,7 +5,11 @@ import { useStore } from "../store.js";
 import { api } from "../api.js";
 
 vi.mock("../api.js", () => ({
-  api: { getSettings: vi.fn(), setAutoRefresh: vi.fn() },
+  api: {
+    getSettings: vi.fn(),
+    setAutoRefresh: vi.fn(),
+    setExperimental: vi.fn(),
+  },
   onEvent: vi.fn(() => () => {}),
 }));
 
@@ -17,6 +21,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.getSettings.mockResolvedValue({ welcomeSeen: true, autoRefresh: false });
   api.setAutoRefresh.mockResolvedValue(undefined);
+  api.setExperimental.mockResolvedValue(undefined);
+  useStore().setExperimental(false);
 });
 
 async function mountSettings() {
@@ -138,6 +144,48 @@ describe("SettingsView - toggling auto-refresh", () => {
     resolve();
     await flushPromises();
     expect(toggle.attributes("disabled")).toBeUndefined();
+    w.unmount();
+  });
+});
+
+describe("SettingsView - toggling experimental features", () => {
+  it("seeds the switch from the saved settings", async () => {
+    api.getSettings.mockResolvedValue({ experimental: true });
+    const w = await mountSettings();
+    expect(w.find("#experimental-toggle").element.checked).toBe(true);
+    w.unmount();
+  });
+
+  it("enables experimental features, persists and announces", async () => {
+    const w = await mountSettings();
+    await w.find("#experimental-toggle").setValue(true);
+    await flushPromises();
+    await rAF();
+    expect(api.setExperimental).toHaveBeenCalledWith(true);
+    expect(state.experimental).toBe(true);
+    expect(state.status).toContain("Experimental features enabled.");
+    w.unmount();
+  });
+
+  it("disables experimental features and announces", async () => {
+    api.getSettings.mockResolvedValue({ experimental: true });
+    const w = await mountSettings();
+    await w.find("#experimental-toggle").setValue(false);
+    await flushPromises();
+    await rAF();
+    expect(api.setExperimental).toHaveBeenCalledWith(false);
+    expect(state.experimental).toBe(false);
+    expect(state.status).toContain("Experimental features disabled.");
+    w.unmount();
+  });
+
+  it("keeps the old state when saving fails", async () => {
+    api.setExperimental.mockRejectedValue(new Error("save failed"));
+    const w = await mountSettings();
+    await w.find("#experimental-toggle").setValue(true);
+    await flushPromises();
+    expect(w.find('[role="alert"]').text()).toContain("save failed");
+    expect(state.experimental).toBe(false);
     w.unmount();
   });
 });

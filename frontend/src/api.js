@@ -64,6 +64,8 @@ export const api = {
   listPods: (namespace) => service().ListPods(namespace),
   deletePod: (namespace, name) => service().DeletePod(namespace, name),
   getPod: (namespace, name) => service().GetPod(namespace, name),
+  getPodNetworkFiles: (namespace, pod, container) =>
+    service().GetPodNetworkFiles(namespace, pod, container),
   openShell: (namespace, pod, container) =>
     service().OpenShell(namespace, pod, container),
   listSecrets: (namespace) => service().ListSecrets(namespace),
@@ -127,6 +129,7 @@ export const api = {
   getSettings: () => service().GetSettings(),
   acknowledgeWelcome: () => service().AcknowledgeWelcome(),
   setAutoRefresh: (enabled) => service().SetAutoRefresh(enabled),
+  setExperimental: (enabled) => service().SetExperimental(enabled),
   setWatchNamespace: (namespace) => service().SetWatchNamespace(namespace),
   buildInfo: () => service().BuildInfo(),
 };

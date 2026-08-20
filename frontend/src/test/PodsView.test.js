@@ -1,5 +1,5 @@
 /*
- * Tests for PodsView.vue — the pod list with its side panels.
+ * Tests for PodsView.vue - the pod list with its side panels.
  *
  * PodsView owns the open pod panels (logs / details / YAML). A panel is only
  * valid for the exact (context, namespace) it was opened from: switching
@@ -50,7 +50,7 @@ const { setConnection, setNamespace } = useStore();
 // panel-opening events exactly like the real component does.
 const PodListStub = defineComponent({
   name: "PodListStub",
-  emits: ["view-logs", "view-details", "view-yaml"],
+  emits: ["view-logs", "view-details", "view-yaml", "view-network-files"],
   setup(_, { emit }) {
     return () =>
       h("div", { class: "pod-list-stub" }, [
@@ -67,6 +67,14 @@ const PodListStub = defineComponent({
           "open details",
         ),
         h("button", { onClick: () => emit("view-yaml", "web") }, "open yaml"),
+        h(
+          "button",
+          {
+            onClick: () =>
+              emit("view-network-files", { pod: "web", container: "app" }),
+          },
+          "open files",
+        ),
       ]);
   },
 });
@@ -75,10 +83,10 @@ const stubs = {
   PodList: PodListStub,
   PodDetail: true,
   YamlViewer: true,
+  PodFilesView: true,
 };
 
 beforeAll(() => {
-  // happy-dom lacks this; LogViewer relies on it while streaming.
   Element.prototype.scrollIntoView = vi.fn();
 });
 
@@ -104,7 +112,7 @@ function openPanel(w, label) {
   return btn.trigger("click");
 }
 
-describe("PodsView — pod panels close on namespace switch", () => {
+describe("PodsView - pod panels close on namespace switch", () => {
   it("closes the log panel and stops its stream when the namespace changes", async () => {
     const w = mountView();
     await openPanel(w, "open logs");
@@ -153,13 +161,26 @@ describe("PodsView — pod panels close on namespace switch", () => {
     w.unmount();
   });
 
+  it("opening network files closes the other panels", async () => {
+    const w = mountView();
+    await openPanel(w, "open details");
+    await nextTick();
+    expect(w.find("pod-detail-stub").exists()).toBe(true);
+
+    await openPanel(w, "open files");
+    await nextTick();
+    expect(w.find("pod-files-view-stub").exists()).toBe(true);
+
+    expect(w.find("pod-detail-stub").exists()).toBe(false);
+    w.unmount();
+  });
+
   it("still closes pod panels when the context changes", async () => {
     const w = mountView();
     await openPanel(w, "open logs");
     await flushPromises();
     expect(w.findComponent(LogViewer).exists()).toBe(true);
 
-    // Reconnecting to another cluster changes the context name.
     setConnection({ name: "other-ctx", namespace: "kube-system" });
     await nextTick();
     await flushPromises();
@@ -170,23 +191,17 @@ describe("PodsView — pod panels close on namespace switch", () => {
   });
 });
 
-describe("PodsView — reconnect reloads open pod panels", () => {
-  // Regression: after a failed connect the state is untouched; when the retry
-  // succeeds, setConnection runs again with identical values (same context,
-  // same namespace). An open log panel must restart its stream with fresh
-  // data instead of keeping the stream from the dead connection.
+describe("PodsView - reconnect reloads open pod panels", () => {
   it("restarts an open log stream when reconnecting to the same context", async () => {
     const w = mountView();
     await openPanel(w, "open logs");
     await flushPromises(); // LogViewer mounts and starts the stream
     expect(api.startLogStream).toHaveBeenCalledTimes(1);
 
-    // Successful retry after a failed attempt: same context, same namespace.
     setConnection({ name: "test-ctx", namespace: "default" });
     await nextTick();
     await flushPromises();
 
-    // The panel remounts: the old stream is stopped and a fresh one starts.
     expect(api.stopLogStream).toHaveBeenCalledWith("stream-1");
     expect(api.startLogStream).toHaveBeenCalledTimes(2);
     expect(w.findComponent(LogViewer).exists()).toBe(true);

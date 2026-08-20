@@ -16,6 +16,10 @@ type settings struct {
 	// and acknowledged responsibility for changes they make. Once true the
 	// wizard is not shown again.
 	WelcomeSeen bool `json:"welcomeSeen"`
+	// Experimental unlocks features that are still being evaluated. They are
+	// hidden and inert while false, so they can be removed without breaking
+	// anyone's workflow if they prove unnecessary.
+	Experimental bool `json:"experimental"`
 }
 
 // settingsPath returns the location of the persisted settings file, creating no

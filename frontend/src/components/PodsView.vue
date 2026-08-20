@@ -5,12 +5,14 @@ import PodList from "./PodList.vue";
 import PodDetail from "./PodDetail.vue";
 import LogViewer from "./LogViewer.vue";
 import YamlViewer from "./YamlViewer.vue";
+import PodFilesView from "./PodFilesView.vue";
 
 const { state } = useStore();
 
 const logTarget = ref(null); // { pod, container }
 const detailPod = ref(null); // pod name
 const yamlPod = ref(null); // pod name for YAML view
+const filesTarget = ref(null); // { pod, container } for network files
 
 // A context (cluster) or namespace switch invalidates any open pod panels:
 // the pod names belong to the previous scope, so close them instead of
@@ -26,12 +28,14 @@ watch(
     logTarget.value = null;
     detailPod.value = null;
     yamlPod.value = null;
+    filesTarget.value = null;
   },
 );
 
 function openLogs(target) {
   logTarget.value = target;
   yamlPod.value = null;
+  filesTarget.value = null;
 }
 function closeLogs() {
   logTarget.value = null;
@@ -40,6 +44,7 @@ function closeLogs() {
 function openDetails(podName) {
   detailPod.value = podName;
   yamlPod.value = null;
+  filesTarget.value = null;
 }
 function closeDetails() {
   detailPod.value = null;
@@ -49,14 +54,33 @@ function openPodYaml(podName) {
   yamlPod.value = podName;
   detailPod.value = null;
   logTarget.value = null;
+  filesTarget.value = null;
+}
+
+function openFiles(target) {
+  filesTarget.value = target;
+  // Network files replaces the other panels: three col-lg-6 panels would
+  // wrap awkwardly and split a screen-reader user across regions.
+  detailPod.value = null;
+  logTarget.value = null;
+  yamlPod.value = null;
+}
+function closeFiles() {
+  filesTarget.value = null;
 }
 
 const logKey = computed(() =>
   logTarget.value ? `${logTarget.value.pod}/${logTarget.value.container}` : "",
 );
 
+const filesKey = computed(() =>
+  filesTarget.value
+    ? `${filesTarget.value.pod}/${filesTarget.value.container}`
+    : "",
+);
+
 const anyPodPanel = computed(
-  () => !!(logTarget.value || detailPod.value || yamlPod.value),
+  () => !!(logTarget.value || detailPod.value || yamlPod.value || filesTarget.value),
 );
 </script>
 
@@ -67,6 +91,7 @@ const anyPodPanel = computed(
         @view-logs="openLogs"
         @view-details="openDetails"
         @view-yaml="openPodYaml"
+        @view-network-files="openFiles"
       />
     </div>
     <div v-if="detailPod" class="col-lg-6 grid-col" style="min-height: 24rem">
@@ -93,6 +118,15 @@ const anyPodPanel = computed(
         kind="Pod"
         :name="yamlPod"
         @close="yamlPod = null"
+      />
+    </div>
+    <div v-if="filesTarget" class="col-lg-6 grid-col" style="min-height: 24rem">
+      <PodFilesView
+        :key="`${filesKey}:${state.connectionEpoch}`"
+        :namespace="state.namespace"
+        :pod="filesTarget.pod"
+        :container="filesTarget.container"
+        @close="closeFiles"
       />
     </div>
   </div>

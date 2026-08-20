@@ -15,7 +15,7 @@ import NodesView from "./components/NodesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
-const { state, announce, clearFlash } = useStore();
+const { state, announce, clearFlash, setExperimental } = useStore();
 
 let flashTimer = null;
 watch(
@@ -56,6 +56,7 @@ onMounted(async () => {
   try {
     const s = await api.getSettings();
     showWelcome.value = !s.welcomeSeen;
+    setExperimental(!!s.experimental);
   } catch {
     showWelcome.value = true;
   }
