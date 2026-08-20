@@ -99,7 +99,12 @@ onMounted(focusCurrentHeading);
         ></button>
       </div>
 
-      <h1 :id="current.headingId" ref="headingEl" class="h3 mt-3 mb-2" tabindex="-1">
+      <h1
+        :id="current.headingId"
+        ref="headingEl"
+        class="h3 mt-3 mb-2"
+        tabindex="-1"
+      >
         {{ current.title }}
       </h1>
 

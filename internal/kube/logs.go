@@ -1,6 +1,7 @@
 package kube
 
 import (
+	"bytes"
 	"context"
 	"io"
 
@@ -36,4 +37,63 @@ func (c *Client) StreamLogs(ctx context.Context, namespace, pod string, o LogOpt
 
 	req := cs.CoreV1().Pods(namespace).GetLogs(pod, opts)
 	return req.Stream(ctx)
+}
+
+// LogChunkSize caps the size of a single token the log splitter yields, which
+// in turn bounds the bufio.Scanner buffer. A single log line is never allowed
+// to exceed this; longer lines are delivered in pieces instead of killing the
+// stream with "token too long".
+const LogChunkSize = 64 * 1024
+
+// LogSplitter is a bufio.SplitFunc that yields one token per log line, like
+// bufio.ScanLines, except it cannot fail: a line longer than LogChunkSize is
+// yielded in LogChunkSize pieces so the scanner buffer stays bounded. The
+// caller distinguishes a line from a piece of a line via LastWasPartial.
+type LogSplitter struct {
+	partial bool
+}
+
+// Split implements bufio.SplitFunc. Trailing CRLF endings are stripped, same
+// as bufio.ScanLines, so emitted lines match what the caller saw before.
+func (s *LogSplitter) Split(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		s.partial = false
+		return i + 1, dropCR(data[:i]), nil
+	}
+	if atEOF {
+		if len(data) == 0 {
+			s.partial = false
+			return 0, nil, nil
+		}
+		// A final line without a trailing newline, possibly longer than one
+		// piece: emit pieces first, then the remainder as a complete line.
+		if len(data) > LogChunkSize {
+			s.partial = true
+			return LogChunkSize, data[:LogChunkSize], nil
+		}
+		s.partial = false
+		return len(data), dropCR(data), nil
+	}
+	// No newline yet and more input may arrive. Cap the token so the scanner
+	// buffer never needs to grow beyond LogChunkSize.
+	if len(data) >= LogChunkSize {
+		n := LogChunkSize
+		if n > 1 && data[n-1] == '\r' {
+			n-- // could be the CR half of a CRLF split here; keep it with its LF
+		}
+		s.partial = true
+		return n, data[:n], nil
+	}
+	return 0, nil, nil // need more data
+}
+
+// LastWasPartial reports whether the last yielded token was a piece of a line
+// that has not ended yet.
+func (s *LogSplitter) LastWasPartial() bool { return s.partial }
+
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[:len(data)-1]
+	}
+	return data
 }

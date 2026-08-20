@@ -51,8 +51,13 @@ let streamKey = "";
 let offLine = () => {};
 let offEnd = () => {};
 let offErr = () => {};
+let offPart = () => {};
+let partial = ""; // unfinished tail of a long line arriving in pieces
 
 const MAX_LINES = 20000; // cap memory for long-running streams
+// A line that never ends (runaway writer) is flushed here so the partial
+// buffer cannot grow without bound; later pieces start a fresh line.
+const MAX_PARTIAL = 1024 * 1024;
 const MAX_REGEX_LEN = 500; // guard against catastrophic backtracking (ReDoS)
 const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested quantifier
 
@@ -334,13 +339,25 @@ async function start() {
     );
 
     offLine = onEvent(`log:${streamKey}`, (line) => {
-      lines.value.push(line);
-      if (lines.value.length > MAX_LINES) {
-        lines.value.splice(0, lines.value.length - MAX_LINES);
+      if (partial) {
+        line = partial + line;
+        partial = "";
       }
-      scrollToBottom();
+      pushLine(line);
+    });
+    offPart = onEvent(`log:part:${streamKey}`, (chunk) => {
+      partial += chunk;
+      if (partial.length > MAX_PARTIAL) {
+        pushLine(partial); // runaway line: bound memory, show what we have
+        partial = "";
+      }
     });
     offEnd = onEvent(`log:end:${streamKey}`, () => {
+      if (partial) {
+        // The stream died mid-line; show the remainder as a final line.
+        pushLine(partial);
+        partial = "";
+      }
       streaming.value = false;
       announce(`Log stream for ${props.container} ended.`);
     });
@@ -363,7 +380,9 @@ async function stop() {
   offLine();
   offEnd();
   offErr();
-  offLine = offEnd = offErr = () => {};
+  offPart();
+  offLine = offEnd = offErr = offPart = () => {};
+  partial = "";
   if (streamKey) {
     try {
       await api.stopLogStream(streamKey);
@@ -379,7 +398,17 @@ function clear() {
   lines.value = [];
   currentMatch.value = -1;
   activeRow.value = -1;
+  partial = ""; // don't prepend pre-clear pieces to the next line
   announce("Log view cleared.");
+}
+
+// Append a finished line and keep the raw buffer bounded.
+function pushLine(text) {
+  lines.value.push(text);
+  if (lines.value.length > MAX_LINES) {
+    lines.value.splice(0, lines.value.length - MAX_LINES);
+  }
+  scrollToBottom();
 }
 
 // --- export ---------------------------------------------------------------

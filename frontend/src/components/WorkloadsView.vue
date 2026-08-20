@@ -525,7 +525,6 @@ defineExpose({ load });
                             </button>
                           </li>
                           <li v-if="canScale(w)" role="presentation">
-
                             <button
                               type="button"
                               role="menuitem"
