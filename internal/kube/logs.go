@@ -65,8 +65,7 @@ func (s *LogSplitter) Split(data []byte, atEOF bool) (advance int, token []byte,
 			s.partial = false
 			return 0, nil, nil
 		}
-		// A final line without a trailing newline, possibly longer than one
-		// piece: emit pieces first, then the remainder as a complete line.
+
 		if len(data) > LogChunkSize {
 			s.partial = true
 			return LogChunkSize, data[:LogChunkSize], nil
@@ -74,8 +73,7 @@ func (s *LogSplitter) Split(data []byte, atEOF bool) (advance int, token []byte,
 		s.partial = false
 		return len(data), dropCR(data), nil
 	}
-	// No newline yet and more input may arrive. Cap the token so the scanner
-	// buffer never needs to grow beyond LogChunkSize.
+
 	if len(data) >= LogChunkSize {
 		n := LogChunkSize
 		if n > 1 && data[n-1] == '\r' {
