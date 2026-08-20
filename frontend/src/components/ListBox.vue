@@ -9,6 +9,8 @@
  *   Enter / Space        select the focused option
  *   printable characters  type-ahead: jump to the next option whose label
  *                         starts with the typed string
+ *   Ctrl/Cmd+C           (opt-in, copyOnCtrlC) emit `copy` for the focused
+ *                         option instead of treating "c" as type-ahead
  *
  * Selection does NOT follow focus, because selecting a namespace triggers a
  * network load; users move with arrows and confirm with Enter/Space/click.
@@ -29,9 +31,17 @@ const props = defineProps({
   // Value of the option whose context menu is currently open ("" = none), so
   // the kebab button and its row can expose aria-expanded truthfully.
   contextOpenValue: { type: String, default: "" },
+  // When true, Ctrl/Cmd+C inside the list emits `copy` with the focused
+  // option instead of feeding "c" into type-ahead. Lists opt in per use case.
+  copyOnCtrlC: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(["update:modelValue", "select", "context-action"]);
+const emit = defineEmits([
+  "update:modelValue",
+  "select",
+  "context-action",
+  "copy",
+]);
 
 const uid = useId();
 const listRef = ref(null);
@@ -103,6 +113,21 @@ function typeahead(char) {
 }
 
 function onKeydown(e) {
+  // Ctrl/Cmd+C: copy the focused option for lists that opt in. Must run before
+  // the type-ahead branch, which would otherwise treat "c" as a jump key.
+  if (
+    props.copyOnCtrlC &&
+    (e.ctrlKey || e.metaKey) &&
+    (e.key === "c" || e.key === "C")
+  ) {
+    const opt = props.options[activeIndex.value];
+    if (opt) {
+      e.preventDefault();
+      emit("copy", opt.value, opt.label);
+    }
+    return;
+  }
+
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();

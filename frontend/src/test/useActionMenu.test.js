@@ -34,7 +34,7 @@ function makeComponent() {
   });
 }
 
-describe("useActionMenu — open / close / focus", () => {
+describe("useActionMenu - open / close / focus", () => {
   it("opens the menu and focuses the first enabled menuitem", async () => {
     const wrapper = mount(makeComponent(), { attachTo: document.body });
     const trigger = wrapper.find("#actions-btn-item1");
@@ -113,7 +113,7 @@ describe("useActionMenu — open / close / focus", () => {
   });
 });
 
-describe("useActionMenu — positioning", () => {
+describe("useActionMenu - positioning", () => {
   it("anchors the menu to the trigger's viewport position", async () => {
     const wrapper = mount(makeComponent(), { attachTo: document.body });
     const trigger = wrapper.find("#actions-btn-item1");
@@ -170,7 +170,7 @@ describe("useActionMenu — positioning", () => {
     await nextTick();
 
     // A wheel/arrow scroll inside the menu (overflow-y: auto) is interaction,
-    // not the page moving — the menu must survive it.
+    // not the page moving - the menu must survive it.
     const menu = document.querySelector('[data-menu="item1"]');
     menu.dispatchEvent(new Event("scroll", { bubbles: true }));
     await nextTick();
@@ -215,7 +215,7 @@ describe("useActionMenu — positioning", () => {
   });
 });
 
-describe("useActionMenu — keyboard navigation", () => {
+describe("useActionMenu - keyboard navigation", () => {
   it("Escape closes the menu and returns focus", async () => {
     const wrapper = mount(makeComponent(), { attachTo: document.body });
 
@@ -365,7 +365,7 @@ describe("useActionMenu — keyboard navigation", () => {
   });
 });
 
-describe("useActionMenu — click outside", () => {
+describe("useActionMenu - click outside", () => {
   it("closes the menu when clicking outside", async () => {
     const wrapper = mount(makeComponent(), { attachTo: document.body });
 
@@ -378,6 +378,24 @@ describe("useActionMenu — click outside", () => {
     const outside = document.createElement("div");
     document.body.appendChild(outside);
     outside.click();
+
+    expect(wrapper.vm.menuOpen).toBe("");
+
+    document.body.removeChild(outside);
+    wrapper.unmount();
+  });
+
+  it("closes the menu when right-clicking outside (contextmenu)", async () => {
+    const wrapper = mount(makeComponent(), { attachTo: document.body });
+
+    wrapper.vm.openMenu("item1");
+    await nextTick();
+    await nextTick();
+    expect(wrapper.vm.menuOpen).toBe("item1");
+
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+    outside.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
 
     expect(wrapper.vm.menuOpen).toBe("");
 
@@ -411,7 +429,7 @@ describe("useActionMenu — click outside", () => {
     await nextTick();
     expect(wrapper.vm.menuOpen).toBe("item1");
 
-    // Click the trigger button itself — should not be treated as "outside"
+    // Click the trigger button itself - should not be treated as "outside"
     const trigger = document.getElementById("actions-btn-item1");
     trigger?.click();
 
@@ -423,3 +441,86 @@ describe("useActionMenu — click outside", () => {
     wrapper.unmount();
   });
 });
+
+describe("useActionMenu - custom getTrigger", () => {
+  it("returns focus to the element supplied by getTrigger on Escape", async () => {
+    // A row-style trigger (like the namespace listbox option) has no
+    // `actions-btn-<key>` id; the consumer provides its own lookup.
+    const customTarget = document.createElement("button");
+    document.body.appendChild(customTarget);
+
+    try {
+      const wrapper = mount(
+        makeCustomTriggerComponent(() => customTarget),
+        { attachTo: document.body },
+      );
+
+      wrapper.vm.openMenu("item1");
+      await nextTick();
+      await nextTick();
+
+      const menu = document.querySelector('[data-menu="item1"]');
+      menu?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      await nextTick();
+
+      expect(wrapper.vm.menuOpen).toBe("");
+      expect(document.activeElement).toBe(customTarget);
+
+      wrapper.unmount();
+    } finally {
+      // Never leak the probe into <body> for later tests, even on failure.
+      document.body.removeChild(customTarget);
+    }
+  });
+
+  it("focusTriggerAndAct focuses the custom trigger before running fn", async () => {
+    const customTarget = document.createElement("button");
+    document.body.appendChild(customTarget);
+    const fn = vi.fn();
+
+    try {
+      const wrapper = mount(
+        makeCustomTriggerComponent(() => customTarget),
+        { attachTo: document.body },
+      );
+
+      wrapper.vm.openMenu("item1");
+      await nextTick();
+      await nextTick();
+
+      wrapper.vm.focusTriggerAndAct("item1", fn);
+
+      expect(wrapper.vm.menuOpen).toBe("");
+      expect(document.activeElement).toBe(customTarget);
+      expect(fn).not.toHaveBeenCalled();
+
+      await nextTick();
+      expect(fn).toHaveBeenCalled();
+
+      wrapper.unmount();
+    } finally {
+      document.body.removeChild(customTarget);
+    }
+  });
+});
+
+// Shared harness for the custom-trigger tests: a menu with no actions button,
+// only the element getTrigger returns.
+function makeCustomTriggerComponent(getTrigger) {
+  return defineComponent({
+    setup() {
+      const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
+        useActionMenu(null, { getTrigger });
+      return { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown };
+    },
+    template: `
+      <div v-if="menuOpen === 'item1'" data-menu="item1" @keydown="onMenuKeydown($event, 'item1')">
+        <button role="menuitem" @click="closeMenu('item1')">View</button>
+        <button role="menuitem" @click="closeMenu('item1')">Edit</button>
+      </div>
+    `,
+  });
+}
+

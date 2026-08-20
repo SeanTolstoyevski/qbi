@@ -103,7 +103,11 @@ describe("NamespaceList — selection", () => {
 describe("NamespaceList — delete flow", () => {
   // The context menu is teleported to <body>, so the wrapper cannot find it.
   const menu = () => document.querySelector('[role="menu"]');
-  const menuItem = () => document.querySelector('[role="menuitem"]');
+  // "Copy name" is now the first menuitem; target the destructive one.
+  const menuItem = () =>
+    [...document.querySelectorAll('[role="menuitem"]')].find((b) =>
+      b.textContent.includes("Delete namespace"),
+    );
 
   async function mountConnected() {
     api.listNamespaces.mockResolvedValue(NS);
@@ -176,13 +180,17 @@ describe("NamespaceList — delete flow", () => {
     );
     await nextTick();
     expect(menu()).toBeNull();
+    // Convention: focus returns to the trigger — the active list option.
+    expect(document.activeElement).toBe(
+      document.querySelector('[role="option"][tabindex="0"]'),
+    );
     w.unmount();
   });
 
   it("closes the menu when clicking outside", async () => {
     const w = await mountConnected();
     await openMenuFor(w, "default");
-    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await nextTick();
     expect(menu()).toBeNull();
     w.unmount();
@@ -196,6 +204,166 @@ describe("NamespaceList — delete flow", () => {
     clearConnection();
     await nextTick();
     expect(menu()).toBeNull();
+    w.unmount();
+  });
+});
+
+describe("NamespaceList — menu keyboard navigation", () => {
+  // The context menu is teleported to <body>, so the wrapper cannot find it.
+  const menu = () => document.querySelector('[role="menu"]');
+  const items = () =>
+    [...document.querySelectorAll('[role="menuitem"]:not(:disabled)')].map(
+      (b) => {
+        // The visually-hidden namespace name is a11y-only; strip it.
+        const clone = b.cloneNode(true);
+        clone.querySelectorAll(".visually-hidden").forEach((n) => n.remove());
+        return clone.textContent.trim();
+      },
+    );
+  const key = (k, opts = {}) =>
+    menu().dispatchEvent(
+      new KeyboardEvent("keydown", { key: k, bubbles: true, ...opts }),
+    );
+
+  async function mountConnected() {
+    api.listNamespaces.mockResolvedValue(NS);
+    setConnection({ name: "test-ctx", namespace: "default" });
+    return mountList();
+  }
+
+  async function openMenuFor(w, ns) {
+    const opt = w.findAll('[role="option"]').find((o) => o.text().includes(ns));
+    await opt.find(".qba-option-menu-btn").trigger("click");
+    await nextTick();
+  }
+
+  it("offers both actions and focuses the first on open", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    expect(items()).toEqual(["Copy name", "Delete namespace"]);
+    expect(document.activeElement.textContent).toContain("Copy name");
+    w.unmount();
+  });
+
+  it("ArrowDown moves focus to the next action", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    key("ArrowDown");
+    expect(document.activeElement.textContent).toContain("Delete namespace");
+    w.unmount();
+  });
+
+  it("ArrowDown wraps from the last action back to the first", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    key("ArrowDown");
+    key("ArrowDown");
+    expect(document.activeElement.textContent).toContain("Copy name");
+    w.unmount();
+  });
+
+  it("ArrowUp moves to the previous action and wraps", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    key("ArrowUp"); // wraps: last action
+    expect(document.activeElement.textContent).toContain("Delete namespace");
+    key("ArrowUp");
+    expect(document.activeElement.textContent).toContain("Copy name");
+    w.unmount();
+  });
+
+  it("End jumps to the last action and Home back to the first", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    key("End");
+    expect(document.activeElement.textContent).toContain("Delete namespace");
+    key("Home");
+    expect(document.activeElement.textContent).toContain("Copy name");
+    w.unmount();
+  });
+
+  it("Tab closes the menu without returning focus", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    key("Tab");
+    await nextTick();
+    expect(menu()).toBeNull();
+    w.unmount();
+  });
+});
+
+describe("NamespaceList — copy", () => {
+  const menu = () => document.querySelector('[role="menu"]');
+  const menuItems = () => [...document.querySelectorAll('[role="menuitem"]')];
+  const copyItem = () =>
+    menuItems().find((b) => b.textContent.includes("Copy name"));
+
+  let writeText;
+
+  beforeEach(() => {
+    writeText = vi.fn();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  async function mountConnected() {
+    api.listNamespaces.mockResolvedValue(NS);
+    setConnection({ name: "test-ctx", namespace: "default" });
+    return mountList();
+  }
+
+  async function openMenuFor(w, ns) {
+    const opt = w.findAll('[role="option"]').find((o) => o.text().includes(ns));
+    await opt.find(".qba-option-menu-btn").trigger("click");
+    await nextTick();
+  }
+
+  it("offers Copy name in the context menu before the destructive action", async () => {
+    const w = await mountConnected();
+    await openMenuFor(w, "default");
+    expect(copyItem()).not.toBeUndefined();
+    expect(copyItem().textContent).toContain("default");
+    // Initial focus lands on the safe action, not Delete.
+    expect(document.activeElement).toBe(copyItem());
+    w.unmount();
+  });
+
+  it("copies the namespace name from the context menu and closes it", async () => {
+    writeText.mockResolvedValue(undefined);
+    const w = await mountConnected();
+    await openMenuFor(w, "kube-system");
+    copyItem().click();
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith("kube-system");
+    expect(menu()).toBeNull();
+    w.unmount();
+  });
+
+  it("copies the focused namespace name on Ctrl+C", async () => {
+    writeText.mockResolvedValue(undefined);
+    const w = await mountConnected();
+    // Focus starts aligned with the selected namespace ("default").
+    await w
+      .find('[role="listbox"]')
+      .trigger("keydown", { key: "c", ctrlKey: true });
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith("default");
+    w.unmount();
+  });
+
+  it("copies the option under focus after moving, not the selection", async () => {
+    writeText.mockResolvedValue(undefined);
+    const w = await mountConnected();
+    await w.find('[role="listbox"]').trigger("keydown", { key: "ArrowDown" });
+    await w
+      .find('[role="listbox"]')
+      .trigger("keydown", { key: "c", ctrlKey: true });
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith("kube-system");
+    expect(state.namespace).toBe("default"); // selection unchanged
     w.unmount();
   });
 });

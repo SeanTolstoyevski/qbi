@@ -149,6 +149,54 @@ describe("ListBox - type-ahead", () => {
   });
 });
 
+describe("ListBox - copy on Ctrl/Cmd+C (opt-in)", () => {
+  it("emits 'copy' with the focused option when copyOnCtrlC is true", async () => {
+    const w = mountListBox({ copyOnCtrlC: true });
+    await w.find("ul").trigger("keydown", { key: "ArrowDown" });
+    await w.find("ul").trigger("keydown", { key: "c", ctrlKey: true });
+    expect(w.emitted("copy")).toEqual([["kube-system", "kube-system"]]);
+
+    expect(w.findAll("[role=option]")[1].attributes("tabindex")).toBe("0");
+    w.unmount();
+  });
+
+  it("supports Cmd+C (mac)", async () => {
+    const w = mountListBox({ copyOnCtrlC: true });
+    await w.find("ul").trigger("keydown", { key: "C", metaKey: true });
+    expect(w.emitted("copy")).toEqual([["default", "default"]]);
+    w.unmount();
+  });
+
+  it("does not emit 'copy' when copyOnCtrlC is false (default)", async () => {
+    const w = mountListBox();
+    await w.find("ul").trigger("keydown", { key: "c", ctrlKey: true });
+    expect(w.emitted("copy")).toBeUndefined();
+    w.unmount();
+  });
+
+  it("does not treat plain 'c' as copy when copyOnCtrlC is true", async () => {
+    const w = mountListBox({ copyOnCtrlC: true });
+    await w.find("ul").trigger("keydown", { key: "c" });
+    expect(w.emitted("copy")).toBeUndefined();
+    w.unmount();
+  });
+
+  it("type-ahead still works when copyOnCtrlC is true", async () => {
+    const w = mountListBox({ copyOnCtrlC: true });
+    await w.find("ul").trigger("keydown", { key: "m" });
+    // 'monitoring' is index 2
+    expect(w.findAll("[role=option]")[2].attributes("tabindex")).toBe("0");
+    w.unmount();
+  });
+
+  it("does not emit 'copy' on Ctrl+C when there are no options", async () => {
+    const w = mountListBox({ copyOnCtrlC: true, options: [] });
+    await w.find("ul").trigger("keydown", { key: "c", ctrlKey: true });
+    expect(w.emitted("copy")).toBeUndefined();
+    w.unmount();
+  });
+});
+
 describe("ListBox - option list changes", () => {
   it("clamps active index when options shrink below it", async () => {
     const w = mountListBox();

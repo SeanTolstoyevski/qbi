@@ -1,7 +1,7 @@
 /*
  * Generic action-menu composable. Keyboard navigation, focus management, and
  * click-outside dismissal for the dropdown action menus used across resource
- * list views (PodList, WorkloadsView, NetworkingView).
+ * list views (PodList, WorkloadsView, NetworkingView, NamespaceList).
  *
  * The menu convention:
  *   - Trigger button:  id="actions-btn-<key>"
@@ -22,18 +22,27 @@
  * The composable handles its own document-level click-outside listener (mounted
  * capture-phase) and cleans up on unmount, so the consumer's <script setup> block
  * does not need onMounted / onUnmounted boilerplate.
+ *
+ * Options:
+ *   getTrigger(key) - optional. Returns the element focus returns to when the
+ *                     menu closes. Defaults to the trigger button
+ *                     `#actions-btn-<key>`; views whose "trigger" is a list row
+ *                     rather than a dedicated button pass their own lookup.
  */
 
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 
-export function useActionMenu(externalRef) {
+export function useActionMenu(externalRef, options = {}) {
   const menuOpen = externalRef || ref(""); // key of the currently open action menu
+  const getTrigger =
+    options.getTrigger ||
+    ((key) => document.getElementById(`actions-btn-${key}`));
 
   function openMenu(key) {
     menuOpen.value = key;
     nextTick(() => {
       const menu = document.querySelector(`[data-menu="${key}"]`);
-      const btn = document.getElementById(`actions-btn-${key}`);
+      const btn = getTrigger(key);
       if (menu && btn) {
         const r = btn.getBoundingClientRect();
         const vw = window.innerWidth || 800;
@@ -63,7 +72,7 @@ export function useActionMenu(externalRef) {
   function closeMenu(key, { skipFocus = false } = {}) {
     menuOpen.value = "";
     if (!skipFocus) {
-      nextTick(() => document.getElementById(`actions-btn-${key}`)?.focus());
+      nextTick(() => getTrigger(key)?.focus());
     }
   }
 
@@ -75,7 +84,7 @@ export function useActionMenu(externalRef) {
    */
   function focusTriggerAndAct(key, fn) {
     menuOpen.value = "";
-    const btn = document.getElementById(`actions-btn-${key}`);
+    const btn = getTrigger(key);
     btn?.focus();
     nextTick(fn);
   }
@@ -123,7 +132,18 @@ export function useActionMenu(externalRef) {
   function onDocClick(e) {
     if (!menuOpen.value) return;
     const menu = document.querySelector(`[data-menu="${menuOpen.value}"]`);
-    const btn = document.getElementById(`actions-btn-${menuOpen.value}`);
+    const btn = getTrigger(menuOpen.value);
+    if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
+      menuOpen.value = "";
+    }
+  }
+
+  // Right-click fires contextmenu, not click; without this a menu stays open
+  // after the user right-clicks somewhere else (until Escape/left-click).
+  function onDocContextMenu(e) {
+    if (!menuOpen.value) return;
+    const menu = document.querySelector(`[data-menu="${menuOpen.value}"]`);
+    const btn = getTrigger(menuOpen.value);
     if (!menu?.contains(e.target) && !btn?.contains(e.target)) {
       menuOpen.value = "";
     }
@@ -155,16 +175,16 @@ export function useActionMenu(externalRef) {
 
   onMounted(() => {
     document.addEventListener("click", onDocClick, true);
+    document.addEventListener("contextmenu", onDocContextMenu, true);
     document.addEventListener("scroll", onDocScroll, true);
     window.addEventListener("resize", onWinResize);
   });
   onUnmounted(() => {
     document.removeEventListener("click", onDocClick, true);
+    document.removeEventListener("contextmenu", onDocContextMenu, true);
     document.removeEventListener("scroll", onDocScroll, true);
     window.removeEventListener("resize", onWinResize);
   });
-
-  // ── exports ─────────────────────────────────────────────────────────────
 
   return { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown };
 }
