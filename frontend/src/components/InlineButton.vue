@@ -1,4 +1,3 @@
-
 <script setup>
 /* 
   InlineButton.vue — icon-first inline copy button for dense rows.

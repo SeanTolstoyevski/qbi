@@ -15,17 +15,15 @@ const props = defineProps({
 const emit = defineEmits(["close"]);
 const { announce } = useStore();
 
-// --- raw log buffer --------------------------------------------------------
 const lines = ref([]);
 const streaming = ref(false);
 const error = ref("");
 
-// --- stream options (require a restart to take effect) ---------------------
 const tail = ref(500); // history lines to fetch: number, or -1 for "all"
 const timestamps = ref(false);
 const previous = ref(false); // logs from the previous (crashed) container
 
-// History choices keep numeric values: -1 means "all" (matches the API).
+// History choices keep numeric values: -1 means all
 const TAIL_OPTIONS = [
   { value: 100, label: "100 lines" },
   { value: 500, label: "500 lines" },
@@ -33,11 +31,9 @@ const TAIL_OPTIONS = [
   { value: -1, label: "All" },
 ];
 
-// --- view options ----------------------------------------------------------
 const autoScroll = ref(true);
 const wrap = ref(true);
 
-// --- search / filter -------------------------------------------------------
 const query = ref("");
 const useRegex = ref(false);
 const caseSensitive = ref(false);
@@ -51,9 +47,13 @@ let streamKey = "";
 let offLine = () => {};
 let offEnd = () => {};
 let offErr = () => {};
+let offPart = () => {};
+let partial = ""; // unfinished tail of a long line arriving in pieces
 
-const MAX_LINES = 20000; // cap memory for long-running streams
-const MAX_REGEX_LEN = 500; // guard against catastrophic backtracking (ReDoS)
+const MAX_LINES = 20000; 
+
+const MAX_PARTIAL = 1024 * 1024;
+const MAX_REGEX_LEN = 500;
 const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested quantifier
 
 function validateRegexSource(source) {
@@ -66,8 +66,6 @@ function validateRegexSource(source) {
   return "";
 }
 
-// Compile the search query into a matcher, keeping any error separate. This is
-// a pure computed (no side effects) so it is safe to read during render.
 const compiled = computed(() => {
   const q = query.value;
   if (!q) return { re: null, error: "" };
@@ -96,8 +94,6 @@ function lineMatches(text) {
   return m.test(text);
 }
 
-// The lines actually rendered, each annotated with its original index and
-// pre-split highlight segments when a search is active.
 const visibleLines = computed(() => {
   const m = matcher.value;
   const out = [];
@@ -115,16 +111,10 @@ const visibleLines = computed(() => {
   return out;
 });
 
-// Derive the count from visibleLines, which already walked every line and
-// computed hit flags — avoids a second O(n) pass on every incoming log line.
-// With the "only matches" filter on, every visible line is a hit, so counting
-// hits is correct in both modes.
 const matchCount = computed(() =>
   visibleLines.value.reduce((n, l) => n + (l.hit ? 1 : 0), 0),
 );
 
-// Split a line into { text, hit } segments so matches can be wrapped in <mark>
-// without using v-html (avoids any injection from log content).
 function segmentize(text, regex) {
   const segs = [];
   let last = 0;
@@ -141,10 +131,8 @@ function segmentize(text, regex) {
   return segs;
 }
 
-// --- match navigation ------------------------------------------------------
 const currentMatch = ref(-1);
 
-// Indices (into visibleLines) that contain a match.
 const matchRows = computed(() =>
   visibleLines.value.reduce((acc, l, i) => {
     if (l.hit) acc.push(i);
@@ -175,7 +163,6 @@ function onSearchEnter(e) {
   gotoMatch(e.shiftKey ? -1 : 1);
 }
 
-// Announce match totals as the user refines the search.
 watch([query, useRegex, caseSensitive], () => {
   currentMatch.value = -1;
   if (!query.value) return;
@@ -186,11 +173,6 @@ watch([query, useRegex, caseSensitive], () => {
   }
 });
 
-// --- line navigation (desktop-style) --------------------------------------
-// Logs behave like a simple list: the focused line carries a roving tabindex
-// so arrow keys move between lines, Home/End jump, PageUp/PageDown page, and
-// Ctrl+C copies the focused line. This mirrors a desktop list view rather
-// than a plain scrolling text pane.
 const activeRow = ref(-1); // roving-focus index into visibleLines
 
 function focusRow(row) {
@@ -207,8 +189,6 @@ function moveRow(to) {
   focusRow(i);
 }
 
-// Estimate a page as one viewport of lines, so PageUp/PageDown feel natural
-// even when long lines wrap.
 function pageSize() {
   const height = logEl.value?.clientHeight || 0;
   const first = logEl.value?.querySelector(".log-line");
@@ -299,7 +279,6 @@ function onLineClick(row) {
   activeRow.value = row;
 }
 
-// Keep the focused row valid when filtering hides lines.
 watch(
   () => visibleLines.value.length,
   (len) => {
@@ -307,7 +286,6 @@ watch(
   },
 );
 
-// --- streaming lifecycle ---------------------------------------------------
 async function scrollToBottom() {
   if (!autoScroll.value) return;
   await nextTick();
@@ -334,13 +312,25 @@ async function start() {
     );
 
     offLine = onEvent(`log:${streamKey}`, (line) => {
-      lines.value.push(line);
-      if (lines.value.length > MAX_LINES) {
-        lines.value.splice(0, lines.value.length - MAX_LINES);
+      if (partial) {
+        line = partial + line;
+        partial = "";
       }
-      scrollToBottom();
+      pushLine(line);
+    });
+    offPart = onEvent(`log:part:${streamKey}`, (chunk) => {
+      partial += chunk;
+      if (partial.length > MAX_PARTIAL) {
+        pushLine(partial); // runaway line: bound memory, show what we have
+        partial = "";
+      }
     });
     offEnd = onEvent(`log:end:${streamKey}`, () => {
+      if (partial) {
+        // The stream died mid-line; show the remainder as a final line.
+        pushLine(partial);
+        partial = "";
+      }
       streaming.value = false;
       announce(`Log stream for ${props.container} ended.`);
     });
@@ -363,7 +353,9 @@ async function stop() {
   offLine();
   offEnd();
   offErr();
-  offLine = offEnd = offErr = () => {};
+  offPart();
+  offLine = offEnd = offErr = offPart = () => {};
+  partial = "";
   if (streamKey) {
     try {
       await api.stopLogStream(streamKey);
@@ -379,10 +371,19 @@ function clear() {
   lines.value = [];
   currentMatch.value = -1;
   activeRow.value = -1;
+  partial = ""; // don't prepend pre-clear pieces to the next line
   announce("Log view cleared.");
 }
 
-// --- export ---------------------------------------------------------------
+// Append a finished line and keep the raw buffer bounded.
+function pushLine(text) {
+  lines.value.push(text);
+  if (lines.value.length > MAX_LINES) {
+    lines.value.splice(0, lines.value.length - MAX_LINES);
+  }
+  scrollToBottom();
+}
+
 // When an "only matches" filter is active, export what the user currently sees
 // so the saved file matches the on-screen investigation.
 function exportContent() {
@@ -411,7 +412,6 @@ async function copyAll() {
   await copyToClipboard(exportContent(), "Logs");
 }
 
-// Restart when the target changes, or when stream-level options change.
 watch(
   () => [props.namespace, props.pod, props.container],
   () => start(),

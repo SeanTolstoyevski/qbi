@@ -1022,9 +1022,18 @@ func (s *Service) StartLogStream(namespace, pod, container string, opts LogStrea
 		}()
 
 		scanner := bufio.NewScanner(stream)
-		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		scanner.Buffer(make([]byte, 0, kube.LogChunkSize), kube.LogChunkSize)
+		splitter := new(kube.LogSplitter)
+		scanner.Split(splitter.Split)
 		for scanner.Scan() {
-			runtime.EventsEmit(s.app.ctx, "log:"+key, scanner.Text())
+			text := scanner.Text()
+			if splitter.LastWasPartial() {
+				// Piece of a line longer than LogChunkSize; the frontend
+				// reassembles pieces before showing the line.
+				runtime.EventsEmit(s.app.ctx, "log:part:"+key, text)
+			} else {
+				runtime.EventsEmit(s.app.ctx, "log:"+key, text)
+			}
 		}
 		if err := scanner.Err(); err != nil && ctx.Err() == nil {
 			slog.Warn("log stream error", "key", key, "error", err)

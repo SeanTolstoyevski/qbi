@@ -258,3 +258,91 @@ describe("LogViewer - ReDoS protection", () => {
     w.unmount();
   });
 });
+
+describe("LogViewer - partial lines", () => {
+  it("reassembles a long line arriving as part events", async () => {
+    const w = await mountLogViewer();
+    listeners["log:part:stream-1"]?.("abcdef");
+    listeners["log:part:stream-1"]?.("ghijkl");
+    listeners["log:stream-1"]?.("rest");
+    await nextTick();
+    await nextTick();
+    const lines = w.findAll(".log-line");
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text()).toBe("abcdefghijklrest");
+    w.unmount();
+  });
+
+  it("keeps complete lines separate from partial pieces", async () => {
+    const w = await mountLogViewer();
+    await pushLine("first");
+    listeners["log:part:stream-1"]?.("part1-");
+    listeners["log:stream-1"]?.("part2");
+    await pushLine("third");
+    const texts = w.findAll(".log-line").map((l) => l.text());
+    expect(texts).toEqual(["first", "part1-part2", "third"]);
+    w.unmount();
+  });
+
+  it("flushes an unfinished partial line when the stream ends", async () => {
+    const w = await mountLogViewer();
+    listeners["log:part:stream-1"]?.("dangling");
+    listeners["log:end:stream-1"]?.();
+    await nextTick();
+    await nextTick();
+    const texts = w.findAll(".log-line").map((l) => l.text());
+    expect(texts).toEqual(["dangling"]);
+    w.unmount();
+  });
+
+  it("bounds memory when a line never ends", async () => {
+    const w = await mountLogViewer();
+    const huge = "x".repeat(1024 * 1024 + 10); // MAX_PARTIAL + slack
+    listeners["log:part:stream-1"]?.(huge);
+    listeners["log:part:stream-1"]?.("more");
+    listeners["log:stream-1"]?.("tail");
+    await nextTick();
+    await nextTick();
+    const texts = w.findAll(".log-line").map((l) => l.text());
+    expect(texts).toHaveLength(2);
+    expect(texts[0].length).toBe(1024 * 1024 + 10);
+    expect(texts[1]).toBe("moretail");
+    w.unmount();
+  });
+
+  it("clearing resets the partial buffer", async () => {
+    const w = await mountLogViewer();
+    listeners["log:part:stream-1"]?.("stale");
+    await nextTick();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Clear")
+      .trigger("click");
+    await pushLine("fresh");
+    const texts = w.findAll(".log-line").map((l) => l.text());
+    expect(texts).toEqual(["fresh"]);
+    w.unmount();
+  });
+
+  it("resets the partial buffer when the stream restarts", async () => {
+    const w = await mountLogViewer();
+    listeners["log:part:stream-1"]?.("leftover");
+    await nextTick();
+    // Stop then Restart via the toolbar: start() → stop() clears the partial
+    // buffer before the new stream registers.
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Stop")
+      .trigger("click");
+    await flushPromises();
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Restart")
+      .trigger("click");
+    await flushPromises();
+    await pushLine("fresh");
+    const texts = w.findAll(".log-line").map((l) => l.text());
+    expect(texts).toEqual(["fresh"]);
+    w.unmount();
+  });
+});
