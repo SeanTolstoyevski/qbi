@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import ServiceCreate from "../components/ServiceCreate.vue";
 import { chooseCombobox } from "./combobox.js";
@@ -19,7 +20,7 @@ beforeEach(() => {
 
 async function mountForm() {
   const w = mount(ServiceCreate, {
-    props: { namespace: "default", openerId: "svc-create-btn" },
+    props: { namespace: "default" },
     attachTo: document.body,
   });
   await flushPromises();
@@ -239,5 +240,24 @@ describe("ServiceCreate — YAML preview", () => {
     expect(api.renderServiceYaml).not.toHaveBeenCalled();
     expect(w.find('[role="alert"]').text()).toContain("Name is required.");
     w.unmount();
+  });
+
+  it("returns focus to the opener element when the panel closes", async () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Open service form";
+    document.body.appendChild(trigger);
+    trigger.focus();
+    try {
+      const w = mount(ServiceCreate, {
+        props: { namespace: "default", opener: trigger },
+        attachTo: document.body,
+      });
+      await flushPromises();
+      w.unmount();
+      await nextTick();
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      document.body.removeChild(trigger);
+    }
   });
 });

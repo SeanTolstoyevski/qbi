@@ -15,7 +15,9 @@ import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
+  opener: { type: Object, default: null },
 });
+
 const emit = defineEmits(["close", "created"]);
 const { announce } = useStore();
 
@@ -33,6 +35,7 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 

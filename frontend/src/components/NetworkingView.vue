@@ -22,25 +22,36 @@ const deleting = ref(""); // service name while a deletion is in flight
 const inspectTarget = ref(null); // IngressInfo being inspected
 const detailRef = ref(null); // IngressDetail component instance (for reload)
 const deletingIng = ref(""); // ingress name while a deletion is in flight
+const svcCreateBtn = ref(null);
+const ingCreateBtn = ref(null);
 
-// ── Action menu (same convention as PodList) ────────────────────────────────
+const actionTriggers = {};
+const menuEls = {};
+
+function setActionTrigger(key, el) {
+  if (el) actionTriggers[key] = el;
+  else delete actionTriggers[key];
+}
+
+function setMenuEl(key, el) {
+  if (el) menuEls[key] = el;
+  else delete menuEls[key];
+}
+
 const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
-  useActionMenu();
+  useActionMenu(null, { triggerRefs: actionTriggers, menuRefs: menuEls });
 
-// The create/edit panels are separate focus-managed screens (like the pod
-// panels); only one side panel is open at a time. Every panel receives its
-// trigger button's id as openerId so focus returns to exactly that button on
-// close — even when panels swap in the same render pass, where the outgoing
-// panel's focus-return would otherwise overwrite the captured opener.
 function openCreateService() {
   inspectTarget.value = null;
   createIngressOpen.value = false;
   editTarget.value = "";
   createServiceOpen.value = true;
 }
+
 function closeCreateService() {
   createServiceOpen.value = false;
 }
+
 async function onServiceCreated() {
   createServiceOpen.value = false;
   await load();
@@ -52,6 +63,7 @@ function openCreateIngress() {
   editTarget.value = "";
   createIngressOpen.value = true;
 }
+
 function closeCreateIngress() {
   createIngressOpen.value = false;
 }
@@ -93,19 +105,11 @@ async function onIngressDeleted() {
   await load();
 }
 
-// The ingress is being edited from its detail panel: swap to the edit form.
-// Both panels capture their openers by explicit id (openerId), so the swap
-// ordering — the detail's focus-return runs in the same flush — cannot leak
-// focus to the wrong button: closing the edit form returns to the row's
-// Edit button.
 function onIngressEdit(name) {
   inspectTarget.value = null;
   editTarget.value = name;
 }
 
-// A namespace switch invalidates all side panels: their content belongs to
-// the previous namespace. Watch-triggered reloads must NOT close them (a
-// user mid-form would lose their work on a busy cluster).
 watch(
   () => state.namespace,
   () => {
@@ -117,8 +121,6 @@ watch(
   },
 );
 
-// Deleting a service is a confirmed row action; only the load-balancing
-// entry is removed, the backing pods keep running.
 async function removeService(svc) {
   deleting.value = svc.name;
   try {
@@ -137,9 +139,6 @@ async function removeService(svc) {
   }
 }
 
-// Deleting an ingress is a confirmed row action: the backend asks for
-// explicit confirmation before removing only the routing rules (services and
-// pods keep running).
 async function removeIngress(ing) {
   deletingIng.value = ing.name;
   try {
@@ -247,6 +246,7 @@ defineExpose({ load });
       <div class="d-flex align-items-center gap-2">
         <button
           id="svc-create-btn"
+          ref="svcCreateBtn"
           type="button"
           class="btn btn-sm btn-outline-primary"
           :disabled="createServiceOpen || !state.connected || !state.namespace"
@@ -256,6 +256,7 @@ defineExpose({ load });
         </button>
         <button
           id="ing-create-btn"
+          ref="ingCreateBtn"
           type="button"
           class="btn btn-sm btn-outline-primary"
           :disabled="createIngressOpen || !state.connected || !state.namespace"
@@ -316,6 +317,7 @@ defineExpose({ load });
                   <div class="dropdown">
                     <button
                       :id="`actions-btn-svc-${svc.name}`"
+                      :ref="(el) => setActionTrigger(`svc-${svc.name}`, el)"
                       type="button"
                       class="btn btn-sm btn-outline-secondary dropdown-toggle"
                       aria-haspopup="menu"
@@ -336,6 +338,7 @@ defineExpose({ load });
                     <ul
                       v-if="menuOpen === `svc-${svc.name}`"
                       :id="`menu-svc-${svc.name}`"
+                      :ref="(el) => setMenuEl(`svc-${svc.name}`, el)"
                       role="menu"
                       :aria-label="`Actions for service ${svc.name}`"
                       class="dropdown-menu show"
@@ -468,6 +471,7 @@ defineExpose({ load });
                   <div class="dropdown">
                     <button
                       :id="`actions-btn-ing-${ing.name}`"
+                      :ref="(el) => setActionTrigger(`ing-${ing.name}`, el)"
                       type="button"
                       class="btn btn-sm btn-outline-secondary dropdown-toggle"
                       aria-haspopup="menu"
@@ -488,6 +492,7 @@ defineExpose({ load });
                     <ul
                       v-if="menuOpen === `ing-${ing.name}`"
                       :id="`menu-ing-${ing.name}`"
+                      :ref="(el) => setMenuEl(`ing-${ing.name}`, el)"
                       role="menu"
                       :aria-label="`Actions for ingress ${ing.name}`"
                       class="dropdown-menu show"
@@ -661,7 +666,7 @@ defineExpose({ load });
       <div v-if="createServiceOpen" class="col-lg-5" style="min-height: 24rem">
         <ServiceCreate
           :namespace="state.namespace"
-          opener-id="svc-create-btn"
+          :opener="svcCreateBtn"
           @close="closeCreateService"
           @created="onServiceCreated"
         />
@@ -673,7 +678,7 @@ defineExpose({ load });
       >
         <IngressCreate
           :namespace="state.namespace"
-          opener-id="ing-create-btn"
+          :opener="ingCreateBtn"
           @close="closeCreateIngress"
           @created="onIngressCreated"
         />
@@ -683,7 +688,7 @@ defineExpose({ load });
           :key="'edit-' + editTarget"
           :namespace="state.namespace"
           :ingress-name="editTarget"
-          :opener-id="`actions-btn-ing-${editTarget}`"
+          :opener="actionTriggers[`ing-${editTarget}`]"
           @close="closeEditIngress"
           @saved="onIngressSaved"
         />
@@ -694,7 +699,7 @@ defineExpose({ load });
           :key="inspectTarget.name"
           :namespace="state.namespace"
           :name="inspectTarget.name"
-          :opener-id="`actions-btn-ing-${inspectTarget.name}`"
+          :opener="actionTriggers[`ing-${inspectTarget.name}`]"
           @close="closeInspect"
           @deleted="onIngressDeleted"
           @edit="onIngressEdit"

@@ -44,12 +44,17 @@ const emit = defineEmits([
 ]);
 
 const uid = useId();
-const listRef = ref(null);
 // The roving-focus index. Distinct from the selected value: you can move focus
 // to explore options without changing the current selection.
 const activeIndex = ref(0);
 
-// Keep the focus index aligned with the current selection when it changes.
+const optionEls = new Map();
+
+function setOptionRef(value, el) {
+  if (el) optionEls.set(value, el);
+  else optionEls.delete(value);
+}
+
 watch(
   () => props.modelValue,
   (val) => {
@@ -59,7 +64,6 @@ watch(
   { immediate: true },
 );
 
-// Clamp focus if the option list shrinks (e.g. after filtering).
 watch(
   () => props.options.length,
   (len) => {
@@ -72,9 +76,7 @@ function optionDomId(i) {
 }
 
 function focusOption(i) {
-  nextTick(() => {
-    listRef.value?.querySelector(`[data-index="${i}"]`)?.focus();
-  });
+  nextTick(() => optionEls.get(props.options[i]?.value)?.focus());
 }
 
 function move(to) {
@@ -92,7 +94,6 @@ function select(i) {
   emit("select", opt.value);
 }
 
-// --- type-ahead ------------------------------------------------------------
 let typeBuffer = "";
 let typeTimer = null;
 
@@ -102,7 +103,7 @@ function typeahead(char) {
   typeTimer = setTimeout(() => (typeBuffer = ""), 600);
 
   const len = props.options.length;
-  // Search starting just after the current option so repeated presses cycle.
+  
   for (let step = 1; step <= len; step++) {
     const i = (activeIndex.value + step) % len;
     if (props.options[i].label.toLowerCase().startsWith(typeBuffer)) {
@@ -113,8 +114,6 @@ function typeahead(char) {
 }
 
 function onKeydown(e) {
-  // Ctrl/Cmd+C: copy the focused option for lists that opt in. Must run before
-  // the type-ahead branch, which would otherwise treat "c" as a jump key.
   if (
     props.copyOnCtrlC &&
     (e.ctrlKey || e.metaKey) &&
@@ -168,15 +167,14 @@ function onContextMenu(e, i) {
   e.preventDefault();
   activeIndex.value = i;
   focusOption(i);
-  // For keyboard-triggered contextmenu events, clientX/Y may be 0; fall back
-  // to the element's bottom-left corner so the menu appears nearby.
+
   const rect = e.currentTarget.getBoundingClientRect();
   const x = e.clientX || rect.left;
   const y = e.clientY || rect.bottom;
   emit("context-action", { value: props.options[i].value, x, y });
 }
 
-// ⋮ button click: open context menu anchored below the button itself.
+
 function onMenuBtnClick(e, i) {
   e.stopPropagation();
   activeIndex.value = i;
@@ -189,12 +187,16 @@ function onMenuBtnClick(e, i) {
   });
 }
 
-defineExpose({ focusActive: () => focusOption(activeIndex.value) });
+defineExpose({
+  focusActive: () => focusOption(activeIndex.value),
+
+  activeOptionEl: () =>
+    optionEls.get(props.options[activeIndex.value]?.value) || null,
+});
 </script>
 
 <template>
   <ul
-    ref="listRef"
     class="list-group qba-listbox"
     role="listbox"
     :aria-label="ariaLabel"
@@ -204,6 +206,7 @@ defineExpose({ focusActive: () => focusOption(activeIndex.value) });
     <li
       v-for="(opt, i) in options"
       :id="optionDomId(i)"
+      :ref="(el) => setOptionRef(opt.value, el)"
       :key="opt.value"
       :data-index="i"
       class="list-group-item list-group-item-action qba-option-row"

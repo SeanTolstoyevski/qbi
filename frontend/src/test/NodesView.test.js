@@ -1,22 +1,16 @@
-/*
- * Tests for NodesView.vue - the cluster nodes table with metrics and filter.
- *
- * We cover:
- *   - Renders every node returned by the API
- *   - Cluster resources card renders when metrics are available
- *   - Degrades gracefully when metrics are unavailable
- *   - Filter matches name / role
- *   - Copy button copies the node name
- */
-
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import { nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import NodesView from "../components/NodesView.vue";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
 
 vi.mock("../api.js", () => ({
-  api: { listNodes: vi.fn(), listNodeMetrics: vi.fn() },
+  api: {
+    listNodes: vi.fn(),
+    listNodeMetrics: vi.fn(),
+    getResourceYaml: vi.fn().mockResolvedValue("apiVersion: v1\nkind: Node\n"),
+  },
   onEvent: vi.fn(() => () => {}),
 }));
 
@@ -183,6 +177,20 @@ describe("NodesView - refresh button", () => {
     await flushPromises();
     expect(api.listNodes).toHaveBeenCalledTimes(1);
     expect(api.listNodeMetrics).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+});
+
+describe("NodesView - YAML panel focus", () => {
+  it("returns focus to the row YAML button when the panel closes", async () => {
+    const w = await mountNodes();
+    const yamlBtn = w.findAll("button").find((b) => b.text().includes("YAML"));
+    await yamlBtn.trigger("click");
+    await flushPromises();
+    const closeBtn = w.findAll("button").find((b) => b.text() === "Close");
+    await closeBtn.trigger("click");
+    await nextTick();
+    expect(document.activeElement).toBe(yamlBtn.element);
     w.unmount();
   });
 });

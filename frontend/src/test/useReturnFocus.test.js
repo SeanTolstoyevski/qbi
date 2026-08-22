@@ -2,9 +2,9 @@
  * Tests for useReturnFocus.js
  *
  * This composable has three jobs:
- *   1. Capture document.activeElement at mount time (the trigger button).
+ *   1. Capture the opener element passed by the parent (the trigger button).
  *   2. Move focus to the overlay's heading after mount.
- *   3. Return focus to the trigger on unmount, and close on Escape.
+ *   3. Return focus to the opener on unmount, and close on Escape.
  *
  * We mount a minimal wrapper component so the Vue lifecycle hooks fire
  * exactly as they do in production.
@@ -15,15 +15,16 @@ import { mount } from "@vue/test-utils";
 import { defineComponent, ref, nextTick } from "vue";
 import { useReturnFocus } from "../useReturnFocus.js";
 
-// A tiny overlay component that mirrors real usage.
-function makeOverlay(onClose = vi.fn(), openerId = null) {
+// A tiny overlay component that mirrors real usage. The opener is an element
+// handed down by the parent (template refs in production).
+function makeOverlay(onClose = vi.fn(), opener = null) {
   return defineComponent({
-    props: { openerId: { type: String, default: null } },
+    props: { opener: { type: Object, default: null } },
     setup(props) {
       const headingEl = ref(null);
       const { onKeydown } = useReturnFocus({
         focusTarget: headingEl,
-        openerId: props.openerId || openerId,
+        opener: props.opener || opener,
         onClose,
       });
       return { headingEl, onKeydown };
@@ -46,7 +47,9 @@ describe("useReturnFocus — focus capture and return", () => {
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
 
-    const wrapper = mount(makeOverlay(), { attachTo: document.body });
+    const wrapper = mount(makeOverlay(vi.fn(), trigger), {
+      attachTo: document.body,
+    });
     await nextTick();
 
     // Unmounting should return focus to the trigger.
@@ -66,12 +69,8 @@ describe("useReturnFocus — focus capture and return", () => {
     wrapper.unmount();
   });
 
-  it("captures the opener by id when a different element has focus", async () => {
-    // Panel swaps: the outgoing panel's focus-return can leave a stale
-    // element focused when the new panel mounts. An explicit openerId must
-    // win over document.activeElement.
+  it("captures the explicit opener even when a different element has focus", async () => {
     const trigger = document.createElement("button");
-    trigger.id = "open-overlay";
     trigger.textContent = "Open overlay";
     document.body.appendChild(trigger);
     const elsewhere = document.createElement("button");
@@ -79,7 +78,7 @@ describe("useReturnFocus — focus capture and return", () => {
     document.body.appendChild(elsewhere);
     elsewhere.focus(); // activeElement is NOT the trigger
 
-    const wrapper = mount(makeOverlay(vi.fn(), "open-overlay"), {
+    const wrapper = mount(makeOverlay(vi.fn(), trigger), {
       attachTo: document.body,
     });
     await nextTick();
@@ -91,28 +90,7 @@ describe("useReturnFocus — focus capture and return", () => {
     document.body.removeChild(elsewhere);
   });
 
-  it("falls back to activeElement when the opener id is not found", async () => {
-    const trigger = document.createElement("button");
-    trigger.textContent = "Open overlay";
-    document.body.appendChild(trigger);
-    trigger.focus();
-
-    const wrapper = mount(makeOverlay(vi.fn(), "missing-id"), {
-      attachTo: document.body,
-    });
-    await nextTick();
-    wrapper.unmount();
-    await nextTick();
-    expect(document.activeElement).toBe(trigger);
-
-    document.body.removeChild(trigger);
-  });
-
-  it("retries focus when the trigger is disabled at unmount time", async () => {
-    // A trigger button is often disabled while its panel is open. If it is
-    // still disabled at unmount, focus() is a silent no-op and the user
-    // lands on <body>; the deferred retry (after the close re-render
-    // re-enables the button) must bring focus back.
+  it("does not move focus when no opener was provided", async () => {
     const trigger = document.createElement("button");
     trigger.textContent = "Open overlay";
     document.body.appendChild(trigger);
@@ -120,10 +98,30 @@ describe("useReturnFocus — focus capture and return", () => {
 
     const wrapper = mount(makeOverlay(), { attachTo: document.body });
     await nextTick();
+    const heading = wrapper.find("h2").element;
+    expect(document.activeElement).toBe(heading);
+
+    wrapper.unmount();
+    await nextTick();
+    expect(document.activeElement).not.toBe(trigger);
+
+    document.body.removeChild(trigger);
+  });
+
+  it("retries focus when the trigger is disabled at unmount time", async () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Open overlay";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const wrapper = mount(makeOverlay(vi.fn(), trigger), {
+      attachTo: document.body,
+    });
+    await nextTick();
 
     trigger.disabled = true;
     wrapper.unmount();
-    trigger.disabled = false; // the close re-render re-enables it
+    trigger.disabled = false;
     await nextTick();
     expect(document.activeElement).toBe(trigger);
 
@@ -136,7 +134,9 @@ describe("useReturnFocus — focus capture and return", () => {
     document.body.appendChild(trigger);
     trigger.focus();
 
-    const wrapper = mount(makeOverlay(), { attachTo: document.body });
+    const wrapper = mount(makeOverlay(vi.fn(), trigger), {
+      attachTo: document.body,
+    });
     await nextTick();
 
     document.body.removeChild(trigger);

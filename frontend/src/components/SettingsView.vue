@@ -2,29 +2,15 @@
 import { ref, onMounted } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
+import { useDarkMode } from "../useTheme.js";
 
 const { state, announce, setAutoRefresh, setExperimental } = useStore();
 
-const THEME_KEY = "qba.theme"; // frontend-only preference: no backend round-trip
-const darkMode = ref(localStorage.getItem(THEME_KEY) === "dark");
-
-function applyTheme(dark) {
-  if (dark) {
-    document.documentElement.setAttribute("data-bs-theme", "dark");
-  } else {
-    document.documentElement.removeAttribute("data-bs-theme");
-  }
-}
+const { isDark, toggle } = useDarkMode();
 
 function toggleDarkMode(e) {
   const dark = e.target.checked;
-  darkMode.value = dark;
-  applyTheme(dark);
-  try {
-    localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
-  } catch {
-    /* storage may be unavailable; remembering is best-effort */
-  }
+  toggle(dark);
   announce(dark ? "Dark mode enabled." : "Dark mode disabled.");
 }
 
@@ -64,7 +50,11 @@ async function toggleExperimental() {
   try {
     await api.setExperimental(next);
     setExperimental(next);
-    announce(next ? "Experimental features enabled." : "Experimental features disabled.");
+    announce(
+      next
+        ? "Experimental features enabled."
+        : "Experimental features disabled.",
+    );
   } catch (e) {
     error.value = String(e);
     announce(`Failed to save setting: ${error.value}`, "assertive");
@@ -91,11 +81,11 @@ async function toggleExperimental() {
           class="form-check-input"
           type="checkbox"
           role="switch"
-          :checked="darkMode"
+          :checked="isDark"
           @change="toggleDarkMode"
         />
         <label class="form-check-label" for="dark-mode-toggle">
-          {{ darkMode ? "Enabled" : "Disabled" }}
+          {{ isDark ? "Enabled" : "Disabled" }}
         </label>
       </div>
     </div>

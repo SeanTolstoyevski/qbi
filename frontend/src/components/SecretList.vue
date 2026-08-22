@@ -263,6 +263,7 @@ defineExpose({ load });
           :key="'create'"
           :namespace="state.namespace"
           :mode="mode"
+          :opener="createBtn"
           @close="closeCreate"
           @created="onCreated"
         />

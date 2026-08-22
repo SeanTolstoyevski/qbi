@@ -10,6 +10,7 @@ const props = defineProps({
   namespace: { type: String, required: true },
   pod: { type: String, required: true },
   container: { type: String, default: "" },
+  opener: { type: Object, default: null },
 });
 
 const emit = defineEmits(["close"]);
@@ -22,6 +23,7 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 
@@ -115,16 +117,13 @@ load();
         <p v-if="s.error" class="text-danger small" role="alert">
           {{ s.error }}
         </p>
-        <p v-else-if="!s.content" class="text-muted small">
-          File is empty.
-        </p>
+        <p v-else-if="!s.content" class="text-muted small">File is empty.</p>
         <pre
           v-else
           role="document"
           class="border rounded p-2 small font-monospace mb-0"
           style="white-space: pre; tab-size: 2"
-          >{{ s.content }}</pre
-        >
+          >{{ s.content }}</pre>
       </section>
     </div>
   </section>

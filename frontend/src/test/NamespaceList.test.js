@@ -221,7 +221,7 @@ describe("NamespaceList — menu keyboard navigation", () => {
       },
     );
   const key = (k, opts = {}) =>
-    menu().dispatchEvent(
+    document.activeElement.dispatchEvent(
       new KeyboardEvent("keydown", { key: k, bubbles: true, ...opts }),
     );
 

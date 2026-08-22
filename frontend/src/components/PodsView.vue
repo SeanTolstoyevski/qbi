@@ -13,15 +13,8 @@ const logTarget = ref(null); // { pod, container }
 const detailPod = ref(null); // pod name
 const yamlPod = ref(null); // pod name for YAML view
 const filesTarget = ref(null); // { pod, container } for network files
+const panelOpener = ref(null);
 
-// A context (cluster) or namespace switch invalidates any open pod panels:
-// the pod names belong to the previous scope, so close them instead of
-// showing stale data or erroring on a pod that doesn't exist in the new
-// namespace. The getter returns a string (not an array — a fresh array
-// instance always differs, so the watcher would fire on every reconnect too)
-// so it fires only on a real scope change. Reconnecting to the same context
-// keeps the same key: the panels stay open and the connection epoch in their
-// :key remounts them with fresh data.
 watch(
   () => JSON.stringify([state.context?.name, state.namespace]),
   () => {
@@ -32,8 +25,9 @@ watch(
   },
 );
 
-function openLogs(target) {
+function openLogs(target, opener) {
   logTarget.value = target;
+  panelOpener.value = opener || null;
   yamlPod.value = null;
   filesTarget.value = null;
 }
@@ -41,8 +35,9 @@ function closeLogs() {
   logTarget.value = null;
 }
 
-function openDetails(podName) {
+function openDetails(podName, opener) {
   detailPod.value = podName;
+  panelOpener.value = opener || null;
   yamlPod.value = null;
   filesTarget.value = null;
 }
@@ -50,15 +45,17 @@ function closeDetails() {
   detailPod.value = null;
 }
 
-function openPodYaml(podName) {
+function openPodYaml(podName, opener) {
   yamlPod.value = podName;
+  panelOpener.value = opener || null;
   detailPod.value = null;
   logTarget.value = null;
   filesTarget.value = null;
 }
 
-function openFiles(target) {
+function openFiles(target, opener) {
   filesTarget.value = target;
+  panelOpener.value = opener || null;
   // Network files replaces the other panels: three col-lg-6 panels would
   // wrap awkwardly and split a screen-reader user across regions.
   detailPod.value = null;
@@ -80,7 +77,13 @@ const filesKey = computed(() =>
 );
 
 const anyPodPanel = computed(
-  () => !!(logTarget.value || detailPod.value || yamlPod.value || filesTarget.value),
+  () =>
+    !!(
+      logTarget.value ||
+      detailPod.value ||
+      yamlPod.value ||
+      filesTarget.value
+    ),
 );
 </script>
 
@@ -99,6 +102,7 @@ const anyPodPanel = computed(
         :key="`${detailPod}:${state.connectionEpoch}`"
         :namespace="state.namespace"
         :pod="detailPod"
+        :opener="panelOpener"
         @close="closeDetails"
       />
     </div>
@@ -108,6 +112,7 @@ const anyPodPanel = computed(
         :namespace="state.namespace"
         :pod="logTarget.pod"
         :container="logTarget.container"
+        :opener="panelOpener"
         @close="closeLogs"
       />
     </div>
@@ -117,6 +122,7 @@ const anyPodPanel = computed(
         :namespace="state.namespace"
         kind="Pod"
         :name="yamlPod"
+        :opener="panelOpener"
         @close="yamlPod = null"
       />
     </div>
@@ -126,6 +132,7 @@ const anyPodPanel = computed(
         :namespace="state.namespace"
         :pod="filesTarget.pod"
         :container="filesTarget.container"
+        :opener="panelOpener"
         @close="closeFiles"
       />
     </div>

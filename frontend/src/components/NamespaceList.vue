@@ -52,21 +52,22 @@ const listBoxRef = ref(null);
 const menuRef = ref(null);
 const menuX = ref(0);
 const menuY = ref(0);
+let firstMenuItem = null;
+
+function setFirstMenuItem(el) {
+  firstMenuItem = el;
+}
 
 const { menuOpen, closeMenu, onMenuKeydown } = useActionMenu(null, {
-  getTrigger: () =>
-    listBoxRef.value?.$el?.querySelector('[role="option"][tabindex="0"]'),
+  getTrigger: () => listBoxRef.value?.activeOptionEl(),
+  getMenu: () => menuRef.value,
 });
 
 function openMenu({ value, x, y }) {
   menuX.value = x;
   menuY.value = y;
   menuOpen.value = value;
-  nextTick(() => {
-    menuRef.value
-      ?.querySelector('[role="menuitem"]:not(:disabled)')
-      ?.focus();
-  });
+  nextTick(() => firstMenuItem?.focus());
 }
 
 async function removeFromMenu() {
@@ -107,8 +108,6 @@ watch(
   { immediate: true },
 );
 
-// A failed reconnect tears the connection down; an open action menu must not
-// survive it — its Delete action would still hit the (now unverified) cluster.
 watch(
   () => state.connected,
   (connected) => {
@@ -202,6 +201,7 @@ defineExpose({ load, listReady, focusList });
       @keydown="onMenuKeydown($event, menuOpen)"
     >
       <button
+        :ref="setFirstMenuItem"
         role="menuitem"
         type="button"
         class="qba-ns-menu-item"

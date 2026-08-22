@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, nextTick, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onUnmounted } from "vue";
 import { api } from "../api.js";
 import { useWatch, watchAnnouncement } from "../useWatch.js";
 import { useStore } from "../store.js";
@@ -63,16 +63,37 @@ const suspending = ref(""); // cron job name while a suspend/resume is in flight
 const createDeployOpen = ref(false); // Deployment create panel
 const cjCreateBtn = ref(null);
 const deployCreateBtn = ref(null);
-const cronActionBtns = {};
 
-function setCronActionBtn(name, el) {
-  if (el) cronActionBtns[name] = el;
-  else delete cronActionBtns[name];
+const actionTriggers = {};
+const menuEls = {};
+const cronLogFirstBtns = {};
+const jobYamlBtns = {};
+
+function setActionTrigger(key, el) {
+  if (el) actionTriggers[key] = el;
+  else delete actionTriggers[key];
+}
+
+function setMenuEl(key, el) {
+  if (el) menuEls[key] = el;
+  else delete menuEls[key];
+}
+
+// Capture only the first container button (index 0) of the cron log chooser.
+function setCronLogFirstBtn(name, el, index) {
+  if (index !== 0) return;
+  if (el) cronLogFirstBtns[name] = el;
+  else delete cronLogFirstBtns[name];
+}
+
+function setJobYamlBtn(name, el) {
+  if (el) jobYamlBtns[name] = el;
+  else delete jobYamlBtns[name];
 }
 
 // ── Action menu (same convention as PodList) ────────────────────────────────
 const { menuOpen, openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
-  useActionMenu();
+  useActionMenu(null, { triggerRefs: actionTriggers, menuRefs: menuEls });
 
 async function load() {
   if (!state.namespace) return;
@@ -143,8 +164,10 @@ onUnmounted(() => clearTimeout(rolloutTimer));
 // CronJobs have no logs of their own — they create Jobs, which create Pods.
 // "Logs" resolves the newest run's pod and streams it with the shared viewer;
 // multi-container pods get an inline chooser, mirroring the pod flow.
+const logTargetOpener = ref(null); // row trigger for focus return from LogViewer
+
 async function openCronLogs(cj) {
-  cronActionBtns[cj.name]?.focus();
+  actionTriggers[`cj-${cj.name}`]?.focus();
   try {
     const detail = await api.getCronJobDetail(state.namespace, cj.name);
     const run = detail?.runs?.find((r) => r.pods?.length);
@@ -153,6 +176,7 @@ async function openCronLogs(cj) {
       announce(`Cron job ${cj.name} has no recent runs to show logs for.`);
       return;
     }
+    logTargetOpener.value = actionTriggers[`cj-${cj.name}`] || null;
     if (pod.containers.length <= 1) {
       logTarget.value = {
         pod: pod.name,
@@ -164,11 +188,7 @@ async function openCronLogs(cj) {
         pod: pod.name,
         containers: pod.containers,
       };
-      nextTick(() =>
-        document
-          .querySelector(`[data-cj-log-group="${cj.name}"] button`)
-          ?.focus(),
-      );
+      nextTick(() => cronLogFirstBtns[cj.name]?.focus());
     }
   } catch (e) {
     announce(`Failed to load cron job runs: ${String(e)}`, "assertive");
@@ -183,9 +203,9 @@ function pickCronLog(pod, container) {
 function closeLogs() {
   logTarget.value = null;
   cronLogChooser.value = null;
+  logTargetOpener.value = null;
 }
 
-// ── Deployment create panel ────────────────────────────────────────────────
 function openCreateDeploy() {
   deployCreateBtn.value?.focus();
   createDeployOpen.value = true;
@@ -211,7 +231,7 @@ function closeCreate() {
 }
 
 function openEdit(cj) {
-  cronActionBtns[cj.name]?.focus();
+  actionTriggers[`cj-${cj.name}`]?.focus();
   editTarget.value = cj;
 }
 function closeEdit() {
@@ -332,6 +352,20 @@ async function applyScale(w) {
 function openYaml(kind, name) {
   yamlTarget.value = { kind, name };
 }
+
+const yamlOpener = computed(() => {
+  const t = yamlTarget.value;
+  if (!t) return null;
+  if (t.kind === "Job") return jobYamlBtns[t.name] || null;
+  if (t.kind === "CronJob") return actionTriggers[`cj-${t.name}`] || null;
+  return actionTriggers[`w-${t.kind}-${t.name}`] || null;
+});
+
+const cronEditOpener = computed(() =>
+  editTarget.value
+    ? actionTriggers[`cj-${editTarget.value.name}`] || null
+    : null,
+);
 
 // A workload is degraded if it is not fully ready (ready count < desired).
 function degraded(w) {
@@ -481,6 +515,10 @@ defineExpose({ load });
                       <div class="dropdown">
                         <button
                           :id="`actions-btn-w-${w.kind}-${w.name}`"
+                          :ref="
+                            (el) =>
+                              setActionTrigger(`w-${w.kind}-${w.name}`, el)
+                          "
                           type="button"
                           class="btn btn-sm btn-outline-secondary dropdown-toggle"
                           aria-haspopup="menu"
@@ -501,6 +539,7 @@ defineExpose({ load });
                         <ul
                           v-if="menuOpen === `w-${w.kind}-${w.name}`"
                           :id="`menu-w-${w.kind}-${w.name}`"
+                          :ref="(el) => setMenuEl(`w-${w.kind}-${w.name}`, el)"
                           role="menu"
                           :aria-label="`Actions for ${w.kind} ${w.name}`"
                           class="dropdown-menu show"
@@ -675,6 +714,7 @@ defineExpose({ load });
                   <td>{{ j.age }}</td>
                   <td>
                     <button
+                      :ref="(el) => setJobYamlBtn(j.name, el)"
                       type="button"
                       class="btn btn-sm btn-outline-secondary"
                       @click="openYaml('Job', j.name)"
@@ -752,7 +792,7 @@ defineExpose({ load });
                       <div class="dropdown">
                         <button
                           :id="`actions-btn-cj-${cj.name}`"
-                          :ref="(el) => setCronActionBtn(cj.name, el)"
+                          :ref="(el) => setActionTrigger(`cj-${cj.name}`, el)"
                           type="button"
                           class="btn btn-sm btn-outline-secondary dropdown-toggle"
                           aria-haspopup="menu"
@@ -773,6 +813,7 @@ defineExpose({ load });
                         <ul
                           v-if="menuOpen === `cj-${cj.name}`"
                           :id="`menu-cj-${cj.name}`"
+                          :ref="(el) => setMenuEl(`cj-${cj.name}`, el)"
                           role="menu"
                           :aria-label="`Actions for cron job ${cj.name}`"
                           class="dropdown-menu show"
@@ -849,8 +890,9 @@ defineExpose({ load });
                         </legend>
                         <div class="d-flex flex-wrap gap-2">
                           <button
-                            v-for="c in cronLogChooser.containers"
+                            v-for="(c, i) in cronLogChooser.containers"
                             :key="c"
+                            :ref="(el) => setCronLogFirstBtn(cj.name, el, i)"
                             type="button"
                             class="btn btn-sm btn-secondary"
                             @click="pickCronLog(cronLogChooser.pod, c)"
@@ -966,6 +1008,7 @@ defineExpose({ load });
               :namespace="state.namespace"
               :kind="yamlTarget.kind"
               :name="yamlTarget.name"
+              :opener="yamlOpener"
               @close="yamlTarget = null"
             />
           </div>
@@ -975,12 +1018,14 @@ defineExpose({ load });
               :namespace="state.namespace"
               :pod="logTarget.pod"
               :container="logTarget.container"
+              :opener="logTargetOpener"
               @close="closeLogs"
             />
           </div>
           <div v-if="createOpen" class="mb-3">
             <CronJobCreate
               :namespace="state.namespace"
+              :opener="cjCreateBtn"
               @close="closeCreate"
               @created="onCronCreated"
             />
@@ -990,6 +1035,7 @@ defineExpose({ load });
               :key="editTarget.name"
               :namespace="state.namespace"
               :cron-job="editTarget"
+              :opener="cronEditOpener"
               @close="closeEdit"
               @saved="onCronSaved"
             />
@@ -997,6 +1043,7 @@ defineExpose({ load });
           <div v-if="createDeployOpen">
             <DeploymentCreate
               :namespace="state.namespace"
+              :opener="deployCreateBtn"
               @close="closeCreateDeploy"
               @created="onDeployCreated"
             />

@@ -10,6 +10,7 @@ const props = defineProps({
   namespace: { type: String, required: true },
   pod: { type: String, required: true },
   container: { type: String, required: true },
+  opener: { type: Object, default: null },
 });
 
 const emit = defineEmits(["close"]);
@@ -23,7 +24,6 @@ const tail = ref(500); // history lines to fetch: number, or -1 for "all"
 const timestamps = ref(false);
 const previous = ref(false); // logs from the previous (crashed) container
 
-// History choices keep numeric values: -1 means all
 const TAIL_OPTIONS = [
   { value: 100, label: "100 lines" },
   { value: 500, label: "500 lines" },
@@ -50,7 +50,7 @@ let offErr = () => {};
 let offPart = () => {};
 let partial = ""; // unfinished tail of a long line arriving in pieces
 
-const MAX_LINES = 20000; 
+const MAX_LINES = 20000;
 
 const MAX_PARTIAL = 1024 * 1024;
 const MAX_REGEX_LEN = 500;
@@ -244,7 +244,6 @@ function onLogKeydown(e) {
       moveRow(0);
       break;
     case "End":
-      // The tail is the newest content: land there and resume following.
       e.preventDefault();
       moveRow(len - 1);
       autoScroll.value = true;
@@ -327,7 +326,6 @@ async function start() {
     });
     offEnd = onEvent(`log:end:${streamKey}`, () => {
       if (partial) {
-        // The stream died mid-line; show the remainder as a final line.
         pushLine(partial);
         partial = "";
       }
@@ -425,6 +423,7 @@ onBeforeUnmount(stop);
 // open, and close on Escape (handled in onSectionKeydown below).
 const { onKeydown: onReturnFocusKeydown } = useReturnFocus({
   focusTarget: headingEl,
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 

@@ -37,6 +37,19 @@ const networkFirstButton = {};
 const experimentalTriggers = {};
 const experimentalItems = {};
 
+const actionTriggers = {};
+const menuEls = {};
+
+function setActionTrigger(name, el) {
+  if (el) actionTriggers[name] = el;
+  else delete actionTriggers[name];
+}
+
+function setMenuEl(name, el) {
+  if (el) menuEls[name] = el;
+  else delete menuEls[name];
+}
+
 watch(menuOpen, (open) => {
   if (!open) experimentalOpen.value = "";
 });
@@ -68,7 +81,7 @@ function setExperimentalItem(name, el) {
 }
 
 const { openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
-  useActionMenu(menuOpen);
+  useActionMenu(menuOpen, { triggerRefs: actionTriggers, menuRefs: menuEls });
 
 async function load() {
   if (!state.namespace) return;
@@ -108,7 +121,7 @@ const filtered = computed(() => {
 function openLogs(pod) {
   if (pod.containers.length <= 1) {
     const container = pod.containers[0] || pod.name;
-    emit("view-logs", { pod: pod.name, container });
+    emit("view-logs", { pod: pod.name, container }, actionTriggers[pod.name]);
     return;
   }
   if (expanded.value === pod.name) {
@@ -120,7 +133,7 @@ function openLogs(pod) {
 }
 
 function viewLogs(pod, container) {
-  emit("view-logs", { pod: pod.name, container });
+  emit("view-logs", { pod: pod.name, container }, actionTriggers[pod.name]);
 }
 
 async function openShell(pod) {
@@ -151,10 +164,11 @@ async function execShell(pod, container) {
 
 function openNetworkFiles(pod) {
   if (pod.containers.length <= 1) {
-    emit("view-network-files", {
-      pod: pod.name,
-      container: pod.containers[0] || pod.name,
-    });
+    emit(
+      "view-network-files",
+      { pod: pod.name, container: pod.containers[0] || pod.name },
+      actionTriggers[pod.name],
+    );
     return;
   }
   if (networkExpanded.value === pod.name) {
@@ -166,7 +180,11 @@ function openNetworkFiles(pod) {
 }
 
 function viewNetworkFiles(pod, container) {
-  emit("view-network-files", { pod: pod.name, container });
+  emit(
+    "view-network-files",
+    { pod: pod.name, container },
+    actionTriggers[pod.name],
+  );
 }
 
 function toggleExperimental(podName) {
@@ -208,7 +226,7 @@ function onExperimentalTriggerKeydown(e, podName) {
 
 function onExperimentalMenuKeydown(e, podName) {
   const items = experimentalItems[podName] ?? [];
-  const idx = items.indexOf(document.activeElement);
+  const idx = items.indexOf(e.target);
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
@@ -355,6 +373,7 @@ defineExpose({ load });
                   <div class="dropdown">
                     <button
                       :id="`actions-btn-${pod.name}`"
+                      :ref="(el) => setActionTrigger(pod.name, el)"
                       type="button"
                       class="btn btn-sm btn-outline-secondary dropdown-toggle"
                       aria-haspopup="menu"
@@ -375,6 +394,7 @@ defineExpose({ load });
                     <ul
                       v-if="menuOpen === pod.name"
                       :id="`menu-${pod.name}`"
+                      :ref="(el) => setMenuEl(pod.name, el)"
                       role="menu"
                       :aria-label="`Actions for pod ${pod.name}`"
                       class="dropdown-menu show"
@@ -388,7 +408,11 @@ defineExpose({ load });
                           class="dropdown-item"
                           @click="
                             focusTriggerAndAct(pod.name, () =>
-                              emit('view-details', pod.name),
+                              emit(
+                                'view-details',
+                                pod.name,
+                                actionTriggers[pod.name],
+                              ),
                             )
                           "
                         >
@@ -402,7 +426,11 @@ defineExpose({ load });
                           class="dropdown-item"
                           @click="
                             focusTriggerAndAct(pod.name, () =>
-                              emit('view-yaml', pod.name),
+                              emit(
+                                'view-yaml',
+                                pod.name,
+                                actionTriggers[pod.name],
+                              ),
                             )
                           "
                         >

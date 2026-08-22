@@ -9,7 +9,7 @@ import PanelHeader from "./PanelHeader.vue";
 const props = defineProps({
   namespace: { type: String, required: true },
   name: { type: String, required: true },
-  openerId: { type: String, default: null }, // id of the trigger button for focus return
+  opener: { type: Object, default: null },
 });
 
 const emit = defineEmits(["close", "deleted", "edit"]);
@@ -20,10 +20,11 @@ const loading = ref(false);
 const error = ref("");
 const header = ref(null);
 const yamlOpen = ref(false);
+const yamlBtn = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
-  openerId: props.openerId,
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 
@@ -117,6 +118,7 @@ defineExpose({ load });
           Delete<span class="visually-hidden"> ingress {{ name }}</span>
         </button>
         <button
+          ref="yamlBtn"
           type="button"
           class="btn btn-sm btn-outline-secondary"
           :disabled="yamlOpen"
@@ -141,6 +143,7 @@ defineExpose({ load });
       :namespace="namespace"
       kind="Ingress"
       :name="name"
+      :opener="yamlBtn"
       @close="yamlOpen = false"
     />
 

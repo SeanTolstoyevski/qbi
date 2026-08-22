@@ -25,6 +25,7 @@ import {
 
 const props = defineProps({
   namespace: { type: String, required: true },
+  opener: { type: Object, default: null },
 });
 const emit = defineEmits(["close", "created"]);
 const { announce } = useStore();
@@ -70,10 +71,10 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 
-// ── spec helpers ────────────────────────────────────────────────────────────
 
 function buildPayload() {
   const f = form.value;
@@ -102,7 +103,7 @@ function buildPayload() {
 }
 
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-// Kubernetes quantity: digits, optional decimal, optional unit suffix.
+
 const QUANTITY = /^\d+(\.\d+)?(n|u|m|k|M|G|T|P|E|Ki|Mi|Gi|Ti|Pi|Ei)?$/;
 
 function validate() {
@@ -128,7 +129,7 @@ function validate() {
       return `Invalid ${label} "${q.trim()}". Use Kubernetes quantities, e.g. 100m, 128Mi.`;
     }
   }
-  // Validate label keys and values.
+  
   for (const r of f.labels) {
     const k = r.key.trim();
     if (k) {
@@ -142,6 +143,7 @@ function validate() {
   }
   return "";
 }
+
 async function togglePreview() {
   error.value = "";
   const v = validate();

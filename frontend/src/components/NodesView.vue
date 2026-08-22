@@ -16,9 +16,13 @@ const metricsError = ref("");
 const loading = ref(false);
 const error = ref("");
 const yamlTarget = ref(null); // node name
+const nodeYamlBtns = {};
 
-// Nodes are cluster-scoped, so this view depends only on the connection, not on
-// the selected namespace.
+function setNodeYamlBtn(name, el) {
+  if (el) nodeYamlBtns[name] = el;
+  else delete nodeYamlBtns[name];
+}
+
 async function load() {
   if (!state.connected) return;
   loading.value = true;
@@ -27,8 +31,6 @@ async function load() {
   try {
     const list = await api.listNodes();
     nodes.value = list || [];
-    // Live usage comes from the Metrics API; a missing metrics-server degrades
-    // to capacity-only rather than failing the whole nodes screen.
     try {
       nodeMetrics.value = await api.listNodeMetrics();
       metricsError.value = "";
@@ -45,14 +47,12 @@ async function load() {
   }
 }
 
-// Per-node usage keyed by name for the table cells.
 const metricByName = computed(() => {
   const map = {};
   for (const m of nodeMetrics.value?.nodes || []) map[m.name] = m;
   return map;
 });
 
-// Live filtering over the loaded nodes; matches name, internal IP or role.
 const filteredNodes = computed(() => {
   const q = filter.value.trim().toLowerCase();
   if (!q) return nodes.value;
@@ -64,9 +64,6 @@ const filteredNodes = computed(() => {
   );
 });
 
-// Reload on connect and on every reconnect: reconnecting to the same context
-// leaves `state.connected` unchanged, so the epoch is what triggers the fresh
-// load. load() itself guards on state.connected.
 watch(() => [state.connected, state.connectionEpoch], load, {
   immediate: true,
 });
@@ -234,6 +231,7 @@ defineExpose({ load });
               <td>{{ n.age }}</td>
               <td>
                 <button
+                  :ref="(el) => setNodeYamlBtn(n.name, el)"
                   type="button"
                   class="btn btn-sm btn-outline-secondary"
                   @click="yamlTarget = n.name"
@@ -258,6 +256,7 @@ defineExpose({ load });
           namespace=""
           kind="Node"
           :name="yamlTarget"
+          :opener="nodeYamlBtns[yamlTarget]"
           @close="yamlTarget = null"
         />
       </div>

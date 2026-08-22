@@ -1,37 +1,18 @@
-/*
- * Tests for PodList.vue
- *
- * PodList is the most action-dense component: it renders pods, emits events
- * to open detail/logs/YAML panels, and calls api.deletePod. We mock api.js
- * entirely so tests run without a Kubernetes cluster.
- *
- * We test:
- *   - Renders pods returned by api.listPods
- *   - Shows loading and error states
- *   - "Details", "YAML", "Logs" buttons emit the correct events
- *   - Delete button calls api.deletePod and reloads on success
- *   - Delete button shows a spinner and is disabled while in-flight
- *   - Cancel (api.deletePod returns false) does not reload
- *   - Owner column shows controller name or "-" for bare pods
- */
-
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 
-// Mock api.js BEFORE importing anything that depends on it.
 vi.mock("../api.js", () => ({
   api: {
     listPods: vi.fn(),
     deletePod: vi.fn(),
   },
-  // PodList subscribes to "watch:pods" on mount; provide a no-op subscriber.
+
   onEvent: vi.fn(() => () => {}),
 }));
 
 import { api } from "../api.js";
 import PodList from "../components/PodList.vue";
-// Import the store singleton that the component also uses - same module instance.
 import { useStore } from "../store.js";
 
 const { setConnection, setNamespace, setExperimental } = useStore();
@@ -157,7 +138,9 @@ describe("PodList - action buttons", () => {
     await openActions(w);
     await findBtn(w, "Details").trigger("click");
     await flushPromises(); // the emit is deferred to a nextTick via focusTriggerAndAct
-    expect(w.emitted("view-details")).toEqual([["web-abc12"]]);
+    expect(w.emitted("view-details")).toEqual([
+      ["web-abc12", expect.any(HTMLElement)],
+    ]);
     w.unmount();
   });
 
@@ -166,7 +149,9 @@ describe("PodList - action buttons", () => {
     await openActions(w);
     await findBtn(w, "YAML").trigger("click");
     await flushPromises();
-    expect(w.emitted("view-yaml")).toEqual([["web-abc12"]]);
+    expect(w.emitted("view-yaml")).toEqual([
+      ["web-abc12", expect.any(HTMLElement)],
+    ]);
     w.unmount();
   });
 
@@ -176,7 +161,7 @@ describe("PodList - action buttons", () => {
     await findBtn(w, "Logs").trigger("click");
     await flushPromises();
     expect(w.emitted("view-logs")).toEqual([
-      [{ pod: "web-abc12", container: "web" }],
+      [{ pod: "web-abc12", container: "web" }, expect.any(HTMLElement)],
     ]);
     w.unmount();
   });
@@ -359,7 +344,7 @@ describe("PodList - network files (experimental submenu)", () => {
     await findBtn(w, "Network files").trigger("click");
     await flushPromises();
     expect(w.emitted("view-network-files")).toEqual([
-      [{ pod: "web-abc12", container: "web" }],
+      [{ pod: "web-abc12", container: "web" }, expect.any(HTMLElement)],
     ]);
     w.unmount();
   });
@@ -380,7 +365,7 @@ describe("PodList - network files (experimental submenu)", () => {
     await w.find('[data-network-group="multi"] button').trigger("click");
     await flushPromises();
     expect(w.emitted("view-network-files")).toEqual([
-      [{ pod: "multi", container: "app" }],
+      [{ pod: "multi", container: "app" }, expect.any(HTMLElement)],
     ]);
     w.unmount();
   });
@@ -414,9 +399,7 @@ describe("PodList - network files (experimental submenu)", () => {
     const w = await mountPodList();
     await openActions(w);
     await openExperimental(w);
-    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe(
-      "true",
-    );
+    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe("true");
 
     await document.activeElement.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
@@ -482,9 +465,7 @@ describe("PodList - network files (experimental submenu)", () => {
     const w = await mountPodList();
     await openActions(w);
     await openExperimental(w);
-    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe(
-      "true",
-    );
+    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe("true");
 
     setExperimental(false);
     await nextTick();
@@ -506,9 +487,7 @@ describe("PodList - network files (experimental submenu)", () => {
     await nextTick();
     await openActions(w);
     await openExperimental(w);
-    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe(
-      "true",
-    );
+    expect(findBtn(w, "Experimental").attributes("aria-expanded")).toBe("true");
 
     await findBtn(w, "Network files…").trigger("click");
     await nextTick();
