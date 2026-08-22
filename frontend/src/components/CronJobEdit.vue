@@ -40,7 +40,6 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-
 async function submit() {
   error.value = "";
   if (!validSchedule(form.value.schedule)) {

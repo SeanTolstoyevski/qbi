@@ -36,14 +36,14 @@ describe("SettingsView - loading", () => {
     api.getSettings.mockResolvedValue({ autoRefresh: true });
     const w = await mountSettings();
     expect(w.find("#auto-refresh-toggle").element.checked).toBe(true);
-    expect(w.text()).toContain("Enabled");
+    expect(w.text()).toContain("Auto-refresh: On");
     w.unmount();
   });
 
   it("defaults to disabled when the saved setting is off", async () => {
     const w = await mountSettings();
     expect(w.find("#auto-refresh-toggle").element.checked).toBe(false);
-    expect(w.text()).toContain("Disabled");
+    expect(w.text()).toContain("Auto-refresh: Off");
     w.unmount();
   });
 
@@ -51,6 +51,61 @@ describe("SettingsView - loading", () => {
     api.getSettings.mockRejectedValue(new Error("storage unavailable"));
     const w = await mountSettings();
     expect(w.find('[role="alert"]').text()).toContain("storage unavailable");
+    w.unmount();
+  });
+});
+
+describe("SettingsView - switch labels", () => {
+  const SWITCHES = [
+    {
+      name: "Dark mode",
+      input: "#dark-mode-toggle",
+      labelFor: "dark-mode-toggle",
+    },
+    {
+      name: "Auto-refresh",
+      input: "#auto-refresh-toggle",
+      labelFor: "auto-refresh-toggle",
+    },
+    {
+      name: "Experimental features",
+      input: "#experimental-toggle",
+      labelFor: "experimental-toggle",
+    },
+  ];
+
+  it("names every switch after its setting and shows On/Off", async () => {
+    const w = await mountSettings();
+    for (const sw of SWITCHES) {
+      const input = w.find(sw.input);
+      expect(input.attributes("role")).toBe("switch");
+      const label = w.find(`label[for="${sw.labelFor}"]`);
+      expect(label.exists()).toBe(true);
+      expect(label.text()).toContain(sw.name);
+      expect(label.text()).toMatch(/: (On|Off)$/);
+    }
+    w.unmount();
+  });
+
+  it("keeps the state text out of the accessible name", async () => {
+    const w = await mountSettings();
+    for (const sw of SWITCHES) {
+      const stateSpan = w.find(
+        `label[for="${sw.labelFor}"] span[aria-hidden="true"]`,
+      );
+      expect(stateSpan.exists()).toBe(true);
+      expect(stateSpan.text()).toMatch(/^: (On|Off)$/);
+    }
+    w.unmount();
+  });
+
+  it("updates the visible state text on toggle", async () => {
+    const w = await mountSettings();
+    const label = w.find('label[for="dark-mode-toggle"]');
+    expect(label.text()).toBe("Dark mode: Off");
+    await w.find("#dark-mode-toggle").setValue(true);
+    await rAF();
+    expect(label.text()).toBe("Dark mode: On");
     w.unmount();
   });
 });
@@ -65,7 +120,7 @@ describe("SettingsView - dark mode", () => {
     localStorage.setItem("qba.theme", "dark");
     const w = await mountSettings();
     expect(w.find("#dark-mode-toggle").element.checked).toBe(true);
-    expect(w.text()).toContain("Enabled");
+    expect(w.text()).toContain("Dark mode: On");
     w.unmount();
   });
 
@@ -99,7 +154,7 @@ describe("SettingsView - toggling auto-refresh", () => {
     await rAF();
     expect(api.setAutoRefresh).toHaveBeenCalledWith(true);
     expect(state.autoRefresh).toBe(true);
-    expect(w.text()).toContain("Enabled");
+    expect(w.text()).toContain("Auto-refresh: On");
     expect(state.status).toContain("Auto-refresh enabled.");
     w.unmount();
   });
@@ -112,7 +167,7 @@ describe("SettingsView - toggling auto-refresh", () => {
     await rAF();
     expect(api.setAutoRefresh).toHaveBeenCalledWith(false);
     expect(state.autoRefresh).toBe(false);
-    expect(w.text()).toContain("Disabled");
+    expect(w.text()).toContain("Auto-refresh: Off");
     expect(state.status).toContain("Auto-refresh disabled.");
     w.unmount();
   });
@@ -124,7 +179,7 @@ describe("SettingsView - toggling auto-refresh", () => {
     await flushPromises();
     expect(w.find('[role="alert"]').text()).toContain("save failed");
     expect(state.autoRefresh).toBe(false);
-    expect(w.text()).toContain("Disabled");
+    expect(w.text()).toContain("Auto-refresh: Off");
     w.unmount();
   });
 

@@ -85,7 +85,7 @@ async function toggleExperimental() {
           @change="toggleDarkMode"
         />
         <label class="form-check-label" for="dark-mode-toggle">
-          {{ isDark ? "Enabled" : "Disabled" }}
+          Dark mode<span aria-hidden="true">: {{ isDark ? "On" : "Off" }}</span>
         </label>
       </div>
     </div>
@@ -111,7 +111,9 @@ async function toggleExperimental() {
           @change="toggleAutoRefresh"
         />
         <label class="form-check-label" for="auto-refresh-toggle">
-          {{ state.autoRefresh ? "Enabled" : "Disabled" }}
+          Auto-refresh<span aria-hidden="true"
+            >: {{ state.autoRefresh ? "On" : "Off" }}</span
+          >
           <span v-if="saving" class="visually-hidden"> — saving…</span>
         </label>
       </div>
@@ -138,7 +140,9 @@ async function toggleExperimental() {
           @change="toggleExperimental"
         />
         <label class="form-check-label" for="experimental-toggle">
-          {{ state.experimental ? "Enabled" : "Disabled" }}
+          Experimental features<span aria-hidden="true"
+            >: {{ state.experimental ? "On" : "Off" }}</span
+          >
           <span v-if="saving" class="visually-hidden"> — saving…</span>
         </label>
       </div>

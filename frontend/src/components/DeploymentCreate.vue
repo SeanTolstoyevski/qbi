@@ -75,7 +75,6 @@ const { onKeydown } = useReturnFocus({
   onClose: () => emit("close"),
 });
 
-
 function buildPayload() {
   const f = form.value;
   return {
@@ -129,7 +128,7 @@ function validate() {
       return `Invalid ${label} "${q.trim()}". Use Kubernetes quantities, e.g. 100m, 128Mi.`;
     }
   }
-  
+
   for (const r of f.labels) {
     const k = r.key.trim();
     if (k) {

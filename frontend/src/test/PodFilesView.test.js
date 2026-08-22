@@ -99,9 +99,7 @@ describe("PodFilesView - actions", () => {
   it("copies the hosts content via its Copy button", async () => {
     const w = mountView();
     await flushPromises();
-    const copyBtn = w
-      .findAll("button")
-      .find((b) => b.text().includes("Copy"));
+    const copyBtn = w.findAll("button").find((b) => b.text().includes("Copy"));
     await copyBtn.trigger("click");
     await flushPromises();
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(FILES.hosts);

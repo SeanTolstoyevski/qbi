@@ -8,7 +8,7 @@ import { ref, watchEffect } from "vue";
  * document themselves).
  */
 
-const THEME_KEY = "qba.theme"; 
+const THEME_KEY = "qba.theme";
 const isDark = ref(false);
 
 function readStored() {

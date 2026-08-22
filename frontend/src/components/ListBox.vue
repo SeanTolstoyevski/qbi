@@ -103,7 +103,7 @@ function typeahead(char) {
   typeTimer = setTimeout(() => (typeBuffer = ""), 600);
 
   const len = props.options.length;
-  
+
   for (let step = 1; step <= len; step++) {
     const i = (activeIndex.value + step) % len;
     if (props.options[i].label.toLowerCase().startsWith(typeBuffer)) {
@@ -173,7 +173,6 @@ function onContextMenu(e, i) {
   const y = e.clientY || rect.bottom;
   emit("context-action", { value: props.options[i].value, x, y });
 }
-
 
 function onMenuBtnClick(e, i) {
   e.stopPropagation();
