@@ -20,6 +20,7 @@ import Combobox from "./Combobox.vue";
 const props = defineProps({
   namespace: { type: String, required: true },
   cronJob: { type: Object, required: true },
+  opener: { type: Object, default: null },
 });
 const emit = defineEmits(["close", "saved"]);
 const { announce } = useStore();
@@ -35,10 +36,9 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
-
-// A cron schedule is exactly five whitespace-separated fields; validated in cronJobHelpers.js.
 
 async function submit() {
   error.value = "";

@@ -8,7 +8,12 @@ import InlineButton from "./InlineButton.vue";
 import { phaseBadgeClass } from "../statusClasses.js";
 const { state, announce } = useStore();
 
-const emit = defineEmits(["view-logs", "view-details", "view-yaml"]);
+const emit = defineEmits([
+  "view-logs",
+  "view-details",
+  "view-yaml",
+  "view-network-files",
+]);
 
 const pods = ref([]);
 const filter = ref("");
@@ -16,27 +21,77 @@ const loading = ref(false);
 const error = ref("");
 const expanded = ref(""); // pod name whose log container chooser is open
 const shellExpanded = ref(""); // pod name whose shell container chooser is open
+const networkExpanded = ref(""); // pod whose network-files chooser is open
+const experimentalOpen = ref(""); // pod whose Experimental submenu is open
 const deleting = ref(""); // pod name currently being deleted
 const openingShell = ref(""); // pod name while terminal is launching
 const menuOpen = ref(""); // pod name whose action menu is open
-const shellGroups = {};
 
-function setShellGroup(name, el) {
-  if (el) shellGroups[name] = el;
-  else delete shellGroups[name];
+// Template-ref maps, keyed by pod name. Focus management reads these instead
+// of querying the document: the ref callback fires after a chooser/submenu
+// mounts and receives null (dropping the entry) when it unmounts — e.g. on a
+// namespace switch — so focus always targets a live element.
+const logFirstButton = {};
+const shellFirstButton = {};
+const networkFirstButton = {};
+const experimentalTriggers = {};
+const experimentalItems = {};
+
+const actionTriggers = {};
+const menuEls = {};
+
+function setActionTrigger(name, el) {
+  if (el) actionTriggers[name] = el;
+  else delete actionTriggers[name];
+}
+
+function setMenuEl(name, el) {
+  if (el) menuEls[name] = el;
+  else delete menuEls[name];
+}
+
+watch(menuOpen, (open) => {
+  if (!open) experimentalOpen.value = "";
+});
+
+watch(
+  () => state.experimental,
+  (on) => {
+    if (!on) experimentalOpen.value = "";
+  },
+);
+
+// Capture only the first container button (index 0) of a chooser: that is the
+// element focus moves to when the chooser opens.
+function captureFirstButton(map, name, el, index) {
+  if (index !== 0) return;
+  if (el) map[name] = el;
+  else delete map[name];
+}
+
+function setExperimentalTrigger(name, el) {
+  if (el) experimentalTriggers[name] = el;
+  else delete experimentalTriggers[name];
+}
+
+function setExperimentalItem(name, el) {
+  if (!el) return;
+  if (!experimentalItems[name]) experimentalItems[name] = [];
+  experimentalItems[name].push(el);
 }
 
 const { openMenu, closeMenu, focusTriggerAndAct, onMenuKeydown } =
-  useActionMenu(menuOpen);
+  useActionMenu(menuOpen, { triggerRefs: actionTriggers, menuRefs: menuEls });
 
 async function load() {
   if (!state.namespace) return;
   loading.value = true;
   error.value = "";
-  // A namespace switch invalidates per-pod UI (container choosers, action
-  // menus): they name pods that no longer exist in the new namespace.
+
   expanded.value = "";
   shellExpanded.value = "";
+  networkExpanded.value = "";
+  experimentalOpen.value = "";
   menuOpen.value = "";
   try {
     const list = await api.listPods(state.namespace);
@@ -50,7 +105,6 @@ async function load() {
   }
 }
 
-// Live filtering over the loaded pods; matches name, owner or node.
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
   if (!q) return pods.value;
@@ -67,7 +121,7 @@ const filtered = computed(() => {
 function openLogs(pod) {
   if (pod.containers.length <= 1) {
     const container = pod.containers[0] || pod.name;
-    emit("view-logs", { pod: pod.name, container });
+    emit("view-logs", { pod: pod.name, container }, actionTriggers[pod.name]);
     return;
   }
   if (expanded.value === pod.name) {
@@ -75,19 +129,13 @@ function openLogs(pod) {
     return;
   }
   expanded.value = pod.name;
-  nextTick(() => {
-    document
-      .querySelector(`[data-container-group="${pod.name}"] button`)
-      ?.focus();
-  });
+  nextTick(() => logFirstButton[pod.name]?.focus());
 }
 
 function viewLogs(pod, container) {
-  emit("view-logs", { pod: pod.name, container });
+  emit("view-logs", { pod: pod.name, container }, actionTriggers[pod.name]);
 }
 
-// Opening a shell: same pattern as logs — single container launches
-// immediately; multiple containers reveal an inline chooser.
 async function openShell(pod) {
   if (pod.containers.length <= 1) {
     await execShell(pod, pod.containers[0] || "");
@@ -98,7 +146,7 @@ async function openShell(pod) {
     return;
   }
   shellExpanded.value = pod.name;
-  nextTick(() => shellGroups[pod.name]?.querySelector("button")?.focus());
+  nextTick(() => shellFirstButton[pod.name]?.focus());
 }
 
 async function execShell(pod, container) {
@@ -111,6 +159,102 @@ async function execShell(pod, container) {
     announce(`Failed to open shell for ${pod.name}: ${String(e)}`, "assertive");
   } finally {
     openingShell.value = "";
+  }
+}
+
+function openNetworkFiles(pod) {
+  if (pod.containers.length <= 1) {
+    emit(
+      "view-network-files",
+      { pod: pod.name, container: pod.containers[0] || pod.name },
+      actionTriggers[pod.name],
+    );
+    return;
+  }
+  if (networkExpanded.value === pod.name) {
+    networkExpanded.value = "";
+    return;
+  }
+  networkExpanded.value = pod.name;
+  nextTick(() => networkFirstButton[pod.name]?.focus());
+}
+
+function viewNetworkFiles(pod, container) {
+  emit(
+    "view-network-files",
+    { pod: pod.name, container },
+    actionTriggers[pod.name],
+  );
+}
+
+function toggleExperimental(podName) {
+  const opening = experimentalOpen.value !== podName;
+  experimentalOpen.value = opening ? podName : "";
+  if (opening) {
+    experimentalItems[podName] = [];
+    nextTick(() => experimentalItems[podName]?.[0]?.focus());
+  }
+}
+
+function closeExperimentalMenu() {
+  experimentalOpen.value = "";
+}
+
+function onExperimentalTriggerKeydown(e, podName) {
+  switch (e.key) {
+    case "ArrowRight":
+      e.preventDefault();
+      e.stopPropagation();
+      if (experimentalOpen.value !== podName) {
+        toggleExperimental(podName);
+      } else {
+        experimentalItems[podName]?.[0]?.focus();
+      }
+      break;
+    case "ArrowLeft":
+      e.preventDefault();
+      e.stopPropagation();
+      closeExperimentalMenu();
+      break;
+    case "ArrowUp":
+    case "Home":
+    case "End":
+      closeExperimentalMenu();
+      break;
+  }
+}
+
+function onExperimentalMenuKeydown(e, podName) {
+  const items = experimentalItems[podName] ?? [];
+  const idx = items.indexOf(e.target);
+  switch (e.key) {
+    case "ArrowDown":
+      e.preventDefault();
+      e.stopPropagation();
+      items[(idx + 1) % items.length]?.focus();
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      e.stopPropagation();
+      items[(idx - 1 + items.length) % items.length]?.focus();
+      break;
+    case "Home":
+      e.preventDefault();
+      e.stopPropagation();
+      items[0]?.focus();
+      break;
+    case "End":
+      e.preventDefault();
+      e.stopPropagation();
+      items[items.length - 1]?.focus();
+      break;
+    case "ArrowLeft":
+    case "Escape":
+      e.preventDefault();
+      e.stopPropagation();
+      closeExperimentalMenu();
+      experimentalTriggers[podName]?.focus();
+      break;
   }
 }
 
@@ -229,6 +373,7 @@ defineExpose({ load });
                   <div class="dropdown">
                     <button
                       :id="`actions-btn-${pod.name}`"
+                      :ref="(el) => setActionTrigger(pod.name, el)"
                       type="button"
                       class="btn btn-sm btn-outline-secondary dropdown-toggle"
                       aria-haspopup="menu"
@@ -249,6 +394,7 @@ defineExpose({ load });
                     <ul
                       v-if="menuOpen === pod.name"
                       :id="`menu-${pod.name}`"
+                      :ref="(el) => setMenuEl(pod.name, el)"
                       role="menu"
                       :aria-label="`Actions for pod ${pod.name}`"
                       class="dropdown-menu show"
@@ -262,7 +408,11 @@ defineExpose({ load });
                           class="dropdown-item"
                           @click="
                             focusTriggerAndAct(pod.name, () =>
-                              emit('view-details', pod.name),
+                              emit(
+                                'view-details',
+                                pod.name,
+                                actionTriggers[pod.name],
+                              ),
                             )
                           "
                         >
@@ -276,7 +426,11 @@ defineExpose({ load });
                           class="dropdown-item"
                           @click="
                             focusTriggerAndAct(pod.name, () =>
-                              emit('view-yaml', pod.name),
+                              emit(
+                                'view-yaml',
+                                pod.name,
+                                actionTriggers[pod.name],
+                              ),
                             )
                           "
                         >
@@ -313,6 +467,58 @@ defineExpose({ load });
                           Shell{{ pod.containers.length > 1 ? "\u2026" : "" }}
                         </button>
                       </li>
+                      <li v-if="state.experimental" role="presentation">
+                        <button
+                          :ref="(el) => setExperimentalTrigger(pod.name, el)"
+                          type="button"
+                          role="menuitem"
+                          aria-haspopup="menu"
+                          :aria-expanded="experimentalOpen === pod.name"
+                          :aria-controls="`experimental-menu-${pod.name}`"
+                          class="dropdown-item d-flex align-items-center justify-content-between"
+                          @click.stop="toggleExperimental(pod.name)"
+                          @keydown="
+                            onExperimentalTriggerKeydown($event, pod.name)
+                          "
+                        >
+                          Experimental
+                          <i
+                            :class="
+                              experimentalOpen === pod.name
+                                ? 'bi-chevron-down'
+                                : 'bi-chevron-right'
+                            "
+                            class="bi ms-2"
+                            aria-hidden="true"
+                          ></i>
+                        </button>
+                        <ul
+                          v-if="experimentalOpen === pod.name"
+                          :id="`experimental-menu-${pod.name}`"
+                          role="menu"
+                          :aria-label="`Experimental actions for pod ${pod.name}`"
+                          class="list-unstyled mb-0 ms-3 border-start"
+                          @keydown="onExperimentalMenuKeydown($event, pod.name)"
+                        >
+                          <li role="presentation">
+                            <button
+                              :ref="(el) => setExperimentalItem(pod.name, el)"
+                              type="button"
+                              role="menuitem"
+                              class="dropdown-item"
+                              @click="
+                                focusTriggerAndAct(pod.name, () =>
+                                  openNetworkFiles(pod),
+                                )
+                              "
+                            >
+                              Network files{{
+                                pod.containers.length > 1 ? "\u2026" : ""
+                              }}
+                            </button>
+                          </li>
+                        </ul>
+                      </li>
                       <li role="separator" class="dropdown-divider"></li>
                       <li role="presentation">
                         <button
@@ -344,8 +550,12 @@ defineExpose({ load });
                     </legend>
                     <div class="d-flex flex-wrap gap-2">
                       <button
-                        v-for="c in pod.containers"
+                        v-for="(c, i) in pod.containers"
                         :key="c"
+                        :ref="
+                          (el) =>
+                            captureFirstButton(logFirstButton, pod.name, el, i)
+                        "
                         type="button"
                         class="btn btn-sm btn-secondary"
                         @click="
@@ -362,22 +572,62 @@ defineExpose({ load });
                 v-if="pod.containers.length > 1 && shellExpanded === pod.name"
               >
                 <td :id="`shell-containers-${pod.name}`" colspan="7">
-                  <fieldset
-                    class="mb-0"
-                    :data-shell-group="pod.name"
-                    :ref="(el) => setShellGroup(pod.name, el)"
-                  >
+                  <fieldset class="mb-0" :data-shell-group="pod.name">
                     <legend class="h6 small text-body-secondary">
                       Choose a container to open a shell
                     </legend>
                     <div class="d-flex flex-wrap gap-2">
                       <button
-                        v-for="c in pod.containers"
+                        v-for="(c, i) in pod.containers"
                         :key="c"
+                        :ref="
+                          (el) =>
+                            captureFirstButton(
+                              shellFirstButton,
+                              pod.name,
+                              el,
+                              i,
+                            )
+                        "
                         type="button"
                         class="btn btn-sm btn-secondary"
                         @click="
                           focusTriggerAndAct(pod.name, () => execShell(pod, c))
+                        "
+                      >
+                        {{ c }}
+                      </button>
+                    </div>
+                  </fieldset>
+                </td>
+              </tr>
+              <tr
+                v-if="pod.containers.length > 1 && networkExpanded === pod.name"
+              >
+                <td :id="`network-containers-${pod.name}`" colspan="7">
+                  <fieldset class="mb-0" :data-network-group="pod.name">
+                    <legend class="h6 small text-body-secondary">
+                      Choose a container to read network files
+                    </legend>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button
+                        v-for="(c, i) in pod.containers"
+                        :key="c"
+                        :ref="
+                          (el) =>
+                            captureFirstButton(
+                              networkFirstButton,
+                              pod.name,
+                              el,
+                              i,
+                            )
+                        "
+                        type="button"
+                        class="btn btn-sm btn-secondary"
+                        @click="
+                          focusTriggerAndAct(pod.name, () =>
+                            viewNetworkFiles(pod, c),
+                          )
                         "
                       >
                         {{ c }}

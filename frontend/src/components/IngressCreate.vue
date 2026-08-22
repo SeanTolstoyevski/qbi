@@ -35,8 +35,9 @@ import {
 const props = defineProps({
   namespace: { type: String, required: true },
   ingressName: { type: String, default: null }, // null = create mode
-  openerId: { type: String, default: null }, // id of the trigger button for focus return
+  opener: { type: Object, default: null },
 });
+
 const emit = defineEmits(["close", "created", "saved"]);
 const { announce } = useStore();
 
@@ -95,7 +96,7 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
-  openerId: props.openerId,
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 

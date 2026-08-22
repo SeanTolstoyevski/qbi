@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
+import { copyToClipboard } from "../clipboard.js";
+import { useActionMenu } from "../useActionMenu.js";
 import ListBox from "./ListBox.vue";
 
 const { state, announce, setNamespace } = useStore();
@@ -46,45 +48,31 @@ function select(name) {
   announce(`Namespace ${name} selected.`);
 }
 
-// ── Context menu ────────────────────────────────────────────────────────────
 const listBoxRef = ref(null);
 const menuRef = ref(null);
-const menuOpen = ref(false);
-const menuNs = ref("");
 const menuX = ref(0);
 const menuY = ref(0);
+let firstMenuItem = null;
+
+function setFirstMenuItem(el) {
+  firstMenuItem = el;
+}
+
+const { menuOpen, closeMenu, onMenuKeydown } = useActionMenu(null, {
+  getTrigger: () => listBoxRef.value?.activeOptionEl(),
+  getMenu: () => menuRef.value,
+});
 
 function openMenu({ value, x, y }) {
-  menuNs.value = value;
   menuX.value = x;
   menuY.value = y;
-  menuOpen.value = true;
-  nextTick(() => {
-    menuRef.value?.querySelector('[role="menuitem"]')?.focus();
-  });
+  menuOpen.value = value;
+  nextTick(() => firstMenuItem?.focus());
 }
-
-function closeMenu(returnFocus = false) {
-  menuOpen.value = false;
-  menuNs.value = "";
-  if (returnFocus) {
-    nextTick(() => listBoxRef.value?.focusActive());
-  }
-}
-
-// Close on click outside the menu.
-function onDocMouseDown(e) {
-  if (menuOpen.value && menuRef.value && !menuRef.value.contains(e.target)) {
-    closeMenu(false);
-  }
-}
-
-onMounted(() => document.addEventListener("mousedown", onDocMouseDown));
-onUnmounted(() => document.removeEventListener("mousedown", onDocMouseDown));
 
 async function removeFromMenu() {
-  const name = menuNs.value;
-  closeMenu(false);
+  const name = menuOpen.value;
+  closeMenu(name, { skipFocus: true });
   deleting.value = true;
   error.value = "";
   try {
@@ -102,6 +90,16 @@ async function removeFromMenu() {
   }
 }
 
+function copyFromMenu() {
+  const name = menuOpen.value;
+  closeMenu(name); // convention: focus returns to the list option
+  copyToClipboard(name, `Namespace ${name}`);
+}
+
+function copyFromList(value) {
+  copyToClipboard(value, `Namespace ${value}`);
+}
+
 watch(
   () => [state.connected, state.context?.name, state.connectionEpoch],
   ([connected, ctxName]) => {
@@ -110,12 +108,10 @@ watch(
   { immediate: true },
 );
 
-// A failed reconnect tears the connection down; an open action menu must not
-// survive it — its Delete action would still hit the (now unverified) cluster.
 watch(
   () => state.connected,
   (connected) => {
-    if (!connected) closeMenu(false);
+    if (!connected) closeMenu(menuOpen.value, { skipFocus: true });
   },
 );
 
@@ -181,13 +177,14 @@ defineExpose({ load, listReady, focusList });
         ref="listBoxRef"
         class="scroll-pane"
         aria-label="Namespaces"
-        described-by="ns-list-hint"
         :options="options"
         :has-context-menu="true"
-        :context-open-value="menuNs"
+        :context-open-value="menuOpen"
+        :copy-on-ctrl-c="true"
         :model-value="state.namespace"
         @select="select"
         @context-action="openMenu"
+        @copy="copyFromList"
       />
     </template>
   </section>
@@ -197,11 +194,22 @@ defineExpose({ load, listReady, focusList });
       v-if="menuOpen"
       ref="menuRef"
       role="menu"
-      :aria-label="`Namespace ${menuNs} actions`"
+      :aria-label="`Namespace ${menuOpen} actions`"
       class="qba-ns-menu"
+      :data-menu="menuOpen"
       :style="{ top: menuY + 'px', left: menuX + 'px' }"
-      @keydown.esc.prevent="closeMenu(true)"
+      @keydown="onMenuKeydown($event, menuOpen)"
     >
+      <button
+        :ref="setFirstMenuItem"
+        role="menuitem"
+        type="button"
+        class="qba-ns-menu-item"
+        @click="copyFromMenu"
+      >
+        Copy name
+        <span class="visually-hidden">{{ menuOpen }}</span>
+      </button>
       <button
         role="menuitem"
         type="button"
@@ -215,7 +223,7 @@ defineExpose({ load, listReady, focusList });
           aria-hidden="true"
         ></span>
         Delete namespace
-        <span class="visually-hidden">{{ menuNs }}</span>
+        <span class="visually-hidden">{{ menuOpen }}</span>
       </button>
     </div>
   </Teleport>
@@ -244,11 +252,17 @@ defineExpose({ load, listReady, focusList });
   white-space: nowrap;
 }
 
-.qba-ns-menu-item:hover,
+.qba-ns-menu-item:not(:disabled):hover,
 .qba-ns-menu-item:focus {
-  background: var(--bs-danger-bg-subtle, #f8d7da);
-  outline: 2px solid var(--bs-danger);
+  background: var(--bs-secondary-bg-subtle, #e2e3e5);
+  outline: 2px solid var(--bs-secondary);
   outline-offset: -2px;
+}
+
+.qba-ns-menu-item.text-danger:not(:disabled):hover,
+.qba-ns-menu-item.text-danger:focus {
+  background: var(--bs-danger-bg-subtle, #f8d7da);
+  outline-color: var(--bs-danger);
 }
 
 .qba-ns-menu-item:disabled {

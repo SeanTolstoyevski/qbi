@@ -27,6 +27,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		KubeconfigPath: filepath.Join("some", "kubeconfig"),
 		AutoRefresh:    true,
 		WelcomeSeen:    true,
+		Experimental:   true,
 	}
 	if err := saveSettings(want); err != nil {
 		t.Fatal(err)
@@ -47,6 +48,13 @@ func TestWelcomeSeenDefaultsFalse(t *testing.T) {
 	setUserConfigDir(t)
 	if got := loadSettings().WelcomeSeen; got {
 		t.Error("WelcomeSeen must default to false so the wizard shows on first launch")
+	}
+}
+
+func TestExperimentalDefaultsFalse(t *testing.T) {
+	setUserConfigDir(t)
+	if got := loadSettings().Experimental; got {
+		t.Error("Experimental must default to false so unproven features stay hidden")
 	}
 }
 

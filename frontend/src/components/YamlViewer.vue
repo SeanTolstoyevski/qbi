@@ -10,6 +10,7 @@ const props = defineProps({
   namespace: { type: String, default: "" }, // empty for cluster-scoped
   kind: { type: String, required: true },
   name: { type: String, required: true },
+  opener: { type: Object, default: null },
 });
 
 const emit = defineEmits(["close"]);
@@ -22,6 +23,7 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 

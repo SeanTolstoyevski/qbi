@@ -25,8 +25,10 @@ import PanelHeader from "./PanelHeader.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
+
   // "transparent" | "base64"
   mode: { type: String, default: "transparent" },
+  opener: { type: Object, default: null },
 });
 const emit = defineEmits(["close", "created"]);
 const { announce } = useStore();
@@ -48,11 +50,10 @@ const yamlError = ref("");
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 
-// Common secret types offered in the type combobox. The field is free-text,
-// so unusual types can still be typed; the combobox only suggests.
 const SECRET_TYPES = [
   "Opaque",
   "kubernetes.io/tls",

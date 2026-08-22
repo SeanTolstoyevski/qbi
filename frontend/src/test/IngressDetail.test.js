@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import IngressDetail from "../components/IngressDetail.vue";
 import { useStore } from "../store.js";
@@ -185,6 +186,20 @@ describe("IngressDetail - actions", () => {
       "web",
     );
     expect(w.text()).toContain("kind: Ingress");
+    w.unmount();
+  });
+
+  it("returns focus to the YAML button when the YAML sub-view closes", async () => {
+    api.getIngressDetail.mockResolvedValue(healthy);
+    const w = mountDetail();
+    await flushPromises();
+    const yamlBtn = findBtn(w, "YAML");
+    await yamlBtn.trigger("click");
+    await flushPromises();
+    const closes = w.findAll("button").filter((b) => b.text() === "Close");
+    await closes[closes.length - 1].trigger("click");
+    await nextTick();
+    expect(document.activeElement).toBe(yamlBtn.element);
     w.unmount();
   });
 

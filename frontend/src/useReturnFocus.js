@@ -12,40 +12,35 @@ import { onMounted, onBeforeUnmount, nextTick } from "vue";
  *     heading) so the reader lands on the new content.
  *   - Wires Escape to close the screen.
  *
- * The opener is captured in onMounted. Pass `openerId` (the id of the trigger
- * button) when the trigger is not guaranteed to be document.activeElement at
- * mount time — in particular when panels swap in the same render pass: the
- * outgoing panel's focus-return runs after the new trigger was pre-focused
- * but before the new panel mounts, so an activeElement-based capture would
- * record the *previous* panel's button. With an explicit id the capture is
- * deterministic regardless of flush ordering.
+ * The opener is captured in onMounted. Pass `opener` (the trigger element)
+ * when the trigger is not guaranteed to be document.activeElement at mount
+ * panel's focus-return runs after the new trigger was pre-focused but before
+ * time — in particular when panels swap in the same render pass: the outgoing
+ * the new panel mounts, so capturing at mount would record the *previous*
+ * panel's button. With an explicit element the capture is deterministic
+ * regardless of flush ordering. Parents keep trigger elements in template
+ * refs and hand them down as props.
  *
  * Usage inside a `<script setup>` overlay component:
  *
  *   const headingEl = ref(null);
  *   const { onKeydown } = useReturnFocus({
  *     focusTarget: headingEl,
- *     openerId: props.openerId,
+ *     opener: props.opener,
  *     onClose: () => emit("close"),
  *   });
  *   // in the template, bind @keydown="onKeydown" on the root element and put
  *   // ref="headingEl" tabindex="-1" on the heading.
  *
- * The trigger element must still exist in the document when the screen closes
- * (it normally does — the list that spawned the screen stays mounted).
+ * The trigger element must still be connected when the screen closes (it
+ * normally does — the list that spawned the screen stays mounted).
  */
-export function useReturnFocus({ focusTarget, onClose, openerId } = {}) {
-  let opener = null;
+export function useReturnFocus({ focusTarget, onClose, opener } = {}) {
+  let openerEl = null;
 
   onMounted(() => {
-    const byId = openerId ? document.getElementById(openerId) : null;
-    const active = document.activeElement;
-    opener =
-      byId instanceof HTMLElement
-        ? byId
-        : active instanceof HTMLElement
-          ? active
-          : null;
+    const o = opener?.value instanceof HTMLElement ? opener.value : opener;
+    openerEl = o instanceof HTMLElement ? o : null;
     nextTick(() => focusTarget?.value?.focus?.());
   });
 
@@ -53,22 +48,17 @@ export function useReturnFocus({ focusTarget, onClose, openerId } = {}) {
   // disabled or removed element makes focus() a silent no-op, which would
   // strand the user on <body>.
   function focusIfPossible(el) {
-    if (!document.contains(el) || el.disabled) return false;
+    if (!el?.isConnected || el.disabled) return false;
     el.focus();
-    return document.activeElement === el;
+    return el.matches(":focus");
   }
 
   onBeforeUnmount(() => {
-    const target = opener;
+    const target = openerEl;
     if (target && !focusIfPossible(target)) {
-      // The opener can be disabled or not yet re-enabled at unmount time (a
-      // trigger button that is disabled while its panel is open). Retry once
-      // the render that closed the panel has settled — by then the button is
-      // enabled again and focus() lands. Capture the element: `opener` is
-      // cleared right after this hook runs.
       nextTick(() => focusIfPossible(target));
     }
-    opener = null;
+    openerEl = null;
   });
 
   function onKeydown(e) {

@@ -50,7 +50,11 @@ beforeEach(() => {
   setConnection({ name: "test-ctx", namespace: "default" });
   setNamespace("default");
   vi.clearAllMocks();
-  api.getSettings.mockResolvedValue({ autoRefresh: false, welcomeSeen: true });
+  api.getSettings.mockResolvedValue({
+    autoRefresh: false,
+    welcomeSeen: true,
+    experimental: false,
+  });
   api.acknowledgeWelcome.mockResolvedValue();
 });
 
@@ -160,6 +164,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: false,
+      experimental: false,
     });
     const w = mountApp();
     await flushPromises();
@@ -174,6 +179,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: false,
+      experimental: false,
     });
     const w = mountApp();
     await flushPromises();
@@ -193,6 +199,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: false,
+      experimental: false,
     });
     const w = mountApp();
     await flushPromises();
@@ -209,6 +216,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: false,
+      experimental: false,
     });
     api.acknowledgeWelcome.mockRejectedValue(new Error("save failed"));
     const w = mountApp();
@@ -224,6 +232,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: true,
+      experimental: false,
     });
     const w = mountApp();
     await flushPromises();
@@ -243,6 +252,7 @@ describe("App - welcome wizard", () => {
     api.getSettings.mockResolvedValue({
       autoRefresh: false,
       welcomeSeen: false,
+      experimental: false,
     });
     const w = mountApp();
     await flushPromises();

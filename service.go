@@ -45,14 +45,19 @@ func (s *Service) BuildInfo() version.BuildInfo {
 
 // AppSettings is the settings payload exchanged with the frontend.
 type AppSettings struct {
-	AutoRefresh bool `json:"autoRefresh"`
-	WelcomeSeen bool `json:"welcomeSeen"`
+	AutoRefresh  bool `json:"autoRefresh"`
+	WelcomeSeen  bool `json:"welcomeSeen"`
+	Experimental bool `json:"experimental"`
 }
 
 // GetSettings returns the current persisted settings.
 func (s *Service) GetSettings() AppSettings {
 	st := loadSettings()
-	return AppSettings{AutoRefresh: st.AutoRefresh, WelcomeSeen: st.WelcomeSeen}
+	return AppSettings{
+		AutoRefresh:  st.AutoRefresh,
+		WelcomeSeen:  st.WelcomeSeen,
+		Experimental: st.Experimental,
+	}
 }
 
 // AcknowledgeWelcome records that the user has read the first-launch welcome
@@ -81,6 +86,25 @@ func (s *Service) SetAutoRefresh(enabled bool) error {
 		s.watcher.Stop()
 	}
 	return nil
+}
+
+// SetExperimental persists the experimental-features switch. Experimental
+// features stay hidden and inert while disabled, so they can be removed
+// later without breaking anyone's workflow.
+func (s *Service) SetExperimental(enabled bool) error {
+	st := loadSettings()
+	st.Experimental = enabled
+	if err := saveSettings(st); err != nil {
+		return s.opErr("SetExperimental", err)
+	}
+	return nil
+}
+
+// experimentalEnabled reports whether the persisted experimental-features
+// switch is on. Gated Service methods check this themselves: the flag must be
+// enforced server-side, not just hidden in the UI.
+func experimentalEnabled() bool {
+	return loadSettings().Experimental
 }
 
 // SetWatchNamespace (re)starts namespace-scoped watch streams for the given
@@ -347,6 +371,39 @@ func (s *Service) ListJobs(namespace string) ([]kube.JobInfo, error) {
 // pods; for multi-container pods the caller should pass the chosen container.
 func (s *Service) OpenShell(namespace, pod, container string) error {
 	return s.opErr("OpenShell", s.app.kube.OpenShell(namespace, pod, container))
+}
+
+// GetPodNetworkFiles returns the pod's own DNS view — /etc/hosts and
+// /etc/resolv.conf read via kubectl exec. It is an experimental feature: the
+// call is refused while the experimental switch is off, so the gate is
+// enforced server-side rather than only hidden in the UI. Read-only, so no
+// confirmation is needed. Per-file errors are folded into the payload; only
+// when both reads fail does the call itself fail.
+func (s *Service) GetPodNetworkFiles(namespace, pod, container string) (kube.PodNetworkFiles, error) {
+	if !experimentalEnabled() {
+		return kube.PodNetworkFiles{}, s.opErr("GetPodNetworkFiles",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+	ctx, cancel := s.opCtx()
+	defer cancel()
+
+	files := kube.PodNetworkFiles{Container: container}
+	if content, err := s.app.kube.PodFile(ctx, namespace, pod, container, "/etc/hosts"); err != nil {
+		files.HostsError = err.Error()
+	} else {
+		files.Hosts = content
+	}
+	if content, err := s.app.kube.PodFile(ctx, namespace, pod, container, "/etc/resolv.conf"); err != nil {
+		files.ResolvConfError = err.Error()
+	} else {
+		files.ResolvConf = content
+	}
+	if files.HostsError != "" && files.ResolvConfError != "" {
+		return kube.PodNetworkFiles{}, s.opErr("GetPodNetworkFiles",
+			fmt.Errorf("could not read pod network files — hosts: %s; resolv.conf: %s",
+				files.HostsError, files.ResolvConfError))
+	}
+	return files, nil
 }
 
 // ListCronJobs returns CronJobs in a namespace.

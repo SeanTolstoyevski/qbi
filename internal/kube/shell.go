@@ -32,16 +32,26 @@ func buildKubectlArgs(c *Client, namespace, pod, container string) []string {
 		"exec", "-it", pod,
 		"-n", namespace,
 	}
+	args = append(args, kubectlBaseArgs(c)...)
+	if container != "" {
+		args = append(args, "-c", container)
+	}
+	args = append(args, "--", "sh")
+	return args
+}
+
+// kubectlBaseArgs returns the kubectl flags that pin a spawned kubectl
+// process to the cluster qbi is currently inspecting, regardless of the
+// user's ambient KUBECONFIG or current-context setting. Shared by every
+// subprocess that talks to the cluster (shell, pod file reads).
+func kubectlBaseArgs(c *Client) []string {
+	var args []string
 	if ctx := c.CurrentContext(); ctx != "" {
 		args = append(args, "--context", ctx)
 	}
 	if kp := c.KubeconfigPath(); kp != "" {
 		args = append(args, "--kubeconfig", kp)
 	}
-	if container != "" {
-		args = append(args, "-c", container)
-	}
-	args = append(args, "--", "sh")
 	return args
 }
 

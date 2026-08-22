@@ -9,6 +9,7 @@ import { phaseBadgeClass, containerReadyBadgeClass } from "../statusClasses.js";
 const props = defineProps({
   namespace: { type: String, required: true },
   pod: { type: String, required: true },
+  opener: { type: Object, default: null },
 });
 
 const emit = defineEmits(["close"]);
@@ -21,10 +22,9 @@ const loading = ref(false);
 const error = ref("");
 const header = ref(null);
 
-// Return focus to the trigger button on close, land focus on the heading on
-// open, and close on Escape.
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 
@@ -35,9 +35,6 @@ async function load() {
   metricsError.value = "";
   try {
     detail.value = await api.getPod(props.namespace, props.pod);
-    // Live usage is loaded once, alongside the detail — deliberately no
-    // polling. A missing metrics-server is not a hard error; the inline
-    // "metrics unavailable" note replaces the values.
     try {
       metrics.value = await api.getPodMetrics(props.namespace, props.pod);
     } catch (e) {

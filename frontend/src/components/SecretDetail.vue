@@ -47,14 +47,20 @@ const detailError = ref("");
 const submode = ref("view"); // "view" | "edit" | "yaml"
 
 const headingEl = ref(null);
-const tablistEl = ref(null);
 
-// ── view mode ──────────────────────────────────────────────────────────────
+const submodeTabEls = {};
+
+function setSubmodeTab(m, el) {
+  if (el) submodeTabEls[m] = el;
+  else delete submodeTabEls[m];
+}
+
 const revealed = ref({}); // entry.key -> bool
 
 function displayValue(entry) {
   return props.mode === "base64" ? entry.base64 : entry.value;
 }
+
 // Binary values have no readable text in transparent mode, so there is
 // nothing to reveal or copy; in base64 mode they are ordinary strings.
 function isRevealable(entry) {
@@ -313,12 +319,9 @@ function selectSubmode(m) {
   else if (m === "yaml") enterYaml();
   else submode.value = "view";
   // APG tabs: activating a tab keeps focus on it so arrow keys keep working.
-  nextTick(() =>
-    tablistEl.value?.querySelector(`#secret-submode-${m}`)?.focus(),
-  );
+  nextTick(() => submodeTabEls[m]?.focus());
 }
 
-// Escape returns through the layers: confirm dialog → edit/YAML → view → close.
 function onKeydown(e) {
   if (e.key !== "Escape") return;
   if (confirming.value) {
@@ -367,7 +370,6 @@ function onKeydown(e) {
       </div>
 
       <div
-        ref="tablistEl"
         role="tablist"
         aria-label="Secret editor"
         class="nav nav-tabs mb-2"
@@ -376,6 +378,7 @@ function onKeydown(e) {
         <button
           v-for="m in SUBMODES"
           :id="`secret-submode-${m}`"
+          :ref="(el) => setSubmodeTab(m, el)"
           :key="m"
           type="button"
           role="tab"

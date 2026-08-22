@@ -63,6 +63,19 @@ type PodDetail struct {
 	Containers  []ContainerStatusInfo `json:"containers"`
 }
 
+// PodNetworkFiles is the pod's own DNS view: the two files that decide how
+// the container resolves names — /etc/hosts (static aliases, e.g.
+// `10.0.0.5 abc.ofb.local`) and /etc/resolv.conf (DNS servers and search
+// domains). Per-file errors are folded in so one unreadable file never hides
+// the other.
+type PodNetworkFiles struct {
+	Container       string `json:"container"`
+	Hosts           string `json:"hosts"`
+	HostsError      string `json:"hostsError"`
+	ResolvConf      string `json:"resolvConf"`
+	ResolvConfError string `json:"resolvConfError"`
+}
+
 // SecretInfo is a lightweight view of a Kubernetes secret (no values).
 type SecretInfo struct {
 	Name string   `json:"name"`

@@ -19,7 +19,7 @@ import Combobox from "./Combobox.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
-  openerId: { type: String, default: null }, // id of the trigger button for focus return
+  opener: { type: Object, default: null },
 });
 const emit = defineEmits(["close", "created"]);
 const { announce } = useStore();
@@ -36,7 +36,6 @@ const form = ref({
   externalIPs: [""],
 });
 
-// Choice lists for the form's comboboxes (values match the k8s API enums).
 const SVC_TYPES = [
   { value: "ClusterIP", label: "ClusterIP (internal only)" },
   { value: "NodePort", label: "NodePort (external via node IP)" },
@@ -56,7 +55,7 @@ const header = ref(null);
 
 const { onKeydown } = useReturnFocus({
   focusTarget: computed(() => header.value?.headingEl),
-  openerId: props.openerId,
+  opener: props.opener,
   onClose: () => emit("close"),
 });
 

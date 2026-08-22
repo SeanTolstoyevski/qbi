@@ -20,8 +20,13 @@ const wrapper = ref(null);
 const open = ref(false);
 const activeIndex = ref(-1);
 
-// Normalize string options to { value, label } so all modes rely on one
-// shape; plain strings use themselves as both value and label.
+const optionEls = new Map();
+
+function setOptionEl(value, el) {
+  if (el) optionEls.set(value, el);
+  else optionEls.delete(value);
+}
+
 const optionList = computed(() =>
   props.options.map((o) =>
     typeof o === "string" ? { value: o, label: o } : o,
@@ -81,8 +86,8 @@ function optionId(i) {
 }
 
 function scrollActiveIntoView() {
-  wrapper.value
-    ?.querySelector(`#${optionId(activeIndex.value)}`)
+  optionEls
+    .get(filtered.value[activeIndex.value]?.value)
     ?.scrollIntoView?.({ block: "nearest" });
 }
 
@@ -258,6 +263,7 @@ function onBlur() {
       <li
         v-for="(opt, i) in filtered"
         :id="optionId(i)"
+        :ref="(el) => setOptionEl(opt.value, el)"
         :key="opt.value"
         :data-value="opt.value"
         role="option"

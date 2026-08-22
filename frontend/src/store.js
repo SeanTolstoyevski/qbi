@@ -50,7 +50,9 @@ const state = reactive({
   // sighted users guessing. Rendered aria-hidden: never double-announced.
   flashMsg: "",
   flashSeq: 0, // bumped per message; the UI watches it to restart the timer
-  autoRefresh: false, // persisted setting, loaded on mount
+  autoRefresh: false,
+
+  experimental: false,
 });
 
 // announce mirrors a message to the shared aria-live region.
@@ -99,6 +101,10 @@ function setAutoRefresh(enabled) {
   state.autoRefresh = enabled;
 }
 
+function setExperimental(enabled) {
+  state.experimental = enabled;
+}
+
 export function useStore() {
   return {
     state: readonly(state),
@@ -109,5 +115,6 @@ export function useStore() {
     clearConnection,
     setNamespace,
     setAutoRefresh,
+    setExperimental,
   };
 }

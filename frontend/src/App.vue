@@ -15,7 +15,7 @@ import NodesView from "./components/NodesView.vue";
 import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
-const { state, announce, clearFlash } = useStore();
+const { state, announce, clearFlash, setExperimental } = useStore();
 
 let flashTimer = null;
 watch(
@@ -29,10 +29,21 @@ watch(
 const showWelcome = ref(false);
 const welcomeError = ref("");
 
+const sectionHeadingRefs = {};
+const tabRefs = {};
+
+function setSectionHeading(name, el) {
+  if (el) sectionHeadingRefs[name] = el;
+  else delete sectionHeadingRefs[name];
+}
+
+function setTabRef(name, el) {
+  if (el) tabRefs[name] = el;
+  else delete tabRefs[name];
+}
+
 function focusSectionHeading() {
-  nextTick(() =>
-    document.getElementById(`section-heading-${section.value}`)?.focus(),
-  );
+  nextTick(() => sectionHeadingRefs[section.value]?.focus());
 }
 
 async function onWelcomeAcknowledged() {
@@ -56,6 +67,7 @@ onMounted(async () => {
   try {
     const s = await api.getSettings();
     showWelcome.value = !s.welcomeSeen;
+    setExperimental(!!s.experimental);
   } catch {
     showWelcome.value = true;
   }
@@ -83,7 +95,7 @@ function selectSection(name) {
   try {
     localStorage.setItem(SECTION_KEY, name);
   } catch {}
-  nextTick(() => document.getElementById(`section-heading-${name}`)?.focus());
+  nextTick(() => sectionHeadingRefs[name]?.focus());
 }
 
 const tabs = [
@@ -160,7 +172,7 @@ function onTabKeydown(e) {
   }
   e.preventDefault();
   selectTab(next);
-  nextTick(() => document.getElementById(`tab-${next}`)?.focus());
+  nextTick(() => tabRefs[next]?.focus());
 }
 </script>
 
@@ -218,6 +230,7 @@ function onTabKeydown(e) {
             <div v-show="section === 'cluster'">
               <h2
                 id="section-heading-cluster"
+                :ref="(el) => setSectionHeading('cluster', el)"
                 class="visually-hidden"
                 tabindex="-1"
               >
@@ -236,17 +249,30 @@ function onTabKeydown(e) {
             </div>
 
             <div v-show="section === 'settings'">
-              <h2 id="section-heading-settings" tabindex="-1">Settings</h2>
+              <h2
+                id="section-heading-settings"
+                :ref="(el) => setSectionHeading('settings', el)"
+                tabindex="-1"
+              >
+                Settings
+              </h2>
               <SettingsView />
             </div>
 
             <div v-show="section === 'about'">
-              <h2 id="section-heading-about" tabindex="-1">About</h2>
+              <h2
+                id="section-heading-about"
+                :ref="(el) => setSectionHeading('about', el)"
+                tabindex="-1"
+              >
+                About
+              </h2>
               <AboutView />
             </div>
             <div v-show="section === 'namespace'">
               <h2
                 id="section-heading-namespace"
+                :ref="(el) => setSectionHeading('namespace', el)"
                 class="visually-hidden"
                 tabindex="-1"
               >
@@ -285,6 +311,7 @@ function onTabKeydown(e) {
                     >
                       <button
                         :id="`tab-${t}`"
+                        :ref="(el) => setTabRef(t, el)"
                         class="nav-link text-capitalize"
                         :class="{ active: activeTab === t }"
                         type="button"
