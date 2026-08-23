@@ -3,16 +3,6 @@ build/
 /frontend/dist/
 /frontend/node_modules/
 frontend/wailsjs/
-!frontend/wailsjs/
-frontend/wailsjs/*
-!frontend/wailsjs/go/
-frontend/wailsjs/go/*
-!frontend/wailsjs/go/main/
-frontend/wailsjs/go/main/*
-!frontend/wailsjs/go/main/Service.js
-!frontend/wailsjs/runtime/
-frontend/wailsjs/runtime/*
-!frontend/wailsjs/runtime/runtime.js
 
 # Go
 *.exe
