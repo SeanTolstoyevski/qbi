@@ -7,4 +7,5 @@ const service = new Proxy(
   },
 );
 
+export const LogFrontend = (...args) => window.go.main.Service.LogFrontend(...args);
 export default service;
