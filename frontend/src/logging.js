@@ -1,22 +1,20 @@
-// Forwards uncaught frontend errors to the backend log so JS crashes can be
-// diagnosed together with backend failures. The backend applies the same
-// redaction as for its own logs, so no cluster data can leak.
+import { LogFrontend } from "../wailsjs/go/main/Service.js";
+
 const MAX_FORWARDED = 100;
 let forwarded = 0;
 
 export function forwardError(level, message, stack) {
   if (forwarded >= MAX_FORWARDED) return;
-  const svc = window.go?.main?.Service;
-  if (typeof svc?.LogFrontend !== "function") return;
-  forwarded += 1;
   try {
-    Promise.resolve(
-      svc.LogFrontend(
-        level,
-        String(message ?? "").slice(0, 2000),
-        String(stack ?? "").slice(0, 4000),
-      ),
-    ).catch(() => {});
+    // Throws synchronously when no Wails shell injected window.go — only
+    // count attempts that actually reached the backend.
+    const p = LogFrontend(
+      level,
+      String(message ?? "").slice(0, 2000),
+      String(stack ?? "").slice(0, 4000),
+    );
+    forwarded += 1;
+    p.catch(() => {});
   } catch {
     // Error reporting must never take the app down with it.
   }

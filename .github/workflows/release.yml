@@ -20,7 +20,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Read VERSION
         id: version
@@ -52,7 +52,7 @@ jobs:
           mv wails.json.tmp wails.json
 
       - name: Upload release context
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-context
           path: |
@@ -63,31 +63,55 @@ jobs:
   frontend:
     name: Frontend (tests + build)
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: prepare
-    defaults:
-      run:
-        working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - name: Install Wails Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Install Wails CLI (pinned to the go.mod version)
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      # main.go embeds all:frontend/dist, so bindings generation needs the
+      # directory present with at least one file on a fresh checkout.
+      - name: Prepare frontend/dist for bindings
+        run: mkdir -p frontend/dist && touch frontend/dist/index.html
+
+      - name: Generate Wails bindings
+        run: wails generate module -tags "webkit2_41"
+
       - name: Install frontend dependencies
         run: npm ci
+        working-directory: frontend
 
       - name: Run frontend tests
         run: npm test
+        working-directory: frontend
 
       - name: Build frontend bundle
         run: npm run build
+        working-directory: frontend
 
       - name: Upload frontend bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -99,7 +123,7 @@ jobs:
     timeout-minutes: 30
     needs: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Wails Linux build dependencies
         run: |
@@ -110,12 +134,12 @@ jobs:
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Download frontend bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist
@@ -157,10 +181,9 @@ jobs:
             binary: qbi
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
-      # Injected into the Go binary via Wails' -ldflags passthrough.
       LDFLAGS: -X qbi/internal/version.Version=${{ needs.prepare.outputs.version }} -X qbi/internal/version.Commit=${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Wails Linux build dependencies
         if: runner.os == 'Linux'
@@ -172,7 +195,7 @@ jobs:
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -180,7 +203,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
       - name: Download release context (wails.json templated with the version)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-context
           path: release-context
@@ -190,7 +213,7 @@ jobs:
         run: cp release-context/wails.json wails.json
 
       - name: Download frontend bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: frontend-dist
           path: frontend/dist
@@ -208,10 +231,6 @@ jobs:
             test -f "build/bin/${{ matrix.binary }}"
           fi
 
-      # Stage the raw build output only. The zips are created later in the
-      # release job: uploading an already-zipped archive here would make the
-      # artifact download a zip containing another zip, and raw files next to
-      # the zips would end up as release assets as well.
       - name: Stage build artifacts
         shell: pwsh
         run: |
@@ -227,7 +246,7 @@ jobs:
           Get-ChildItem dist | Select-Object Name, Length
 
       - name: Upload build assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qbi-${{ env.VERSION }}-${{ matrix.name }}
           path: dist/
@@ -239,10 +258,10 @@ jobs:
     timeout-minutes: 10
     needs: [prepare, build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download all build assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: qbi-*
@@ -268,7 +287,7 @@ jobs:
           cat checksums.txt
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           name: QBI v${{ needs.prepare.outputs.version }}
