@@ -1,4 +1,9 @@
-import { LogFrontend } from "../wailsjs/go/main/Service.js";
+// Forwards uncaught frontend errors to the backend log so JS crashes can be
+// diagnosed together with backend failures.
+import * as ServiceBindings from "../wailsjs/go/main/Service.js";
+
+const LogFrontend =
+  ServiceBindings.LogFrontend ?? ServiceBindings.default?.LogFrontend;
 
 const MAX_FORWARDED = 100;
 let forwarded = 0;

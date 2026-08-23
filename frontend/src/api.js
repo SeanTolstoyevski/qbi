@@ -1,5 +1,10 @@
-import * as Service from "../wailsjs/go/main/Service.js";
-import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime.js";
+import * as ServiceBindings from "../wailsjs/go/main/Service.js";
+import * as RuntimeBindings from "../wailsjs/runtime/runtime.js";
+
+const Service = ServiceBindings.default ?? ServiceBindings;
+const EventsOn = RuntimeBindings.EventsOn ?? RuntimeBindings.default?.EventsOn;
+const EventsOff =
+  RuntimeBindings.EventsOff ?? RuntimeBindings.default?.EventsOff;
 
 // Map low-level Go/Kubernetes error strings to short, actionable messages.
 // Raw client-go errors ("Forbidden", "context deadline exceeded") are cryptic

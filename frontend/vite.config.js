@@ -19,6 +19,11 @@ export default defineConfig({
     // Expose vi / describe / it / expect globally so tests read like plain
     // English without import noise at the top of every file.
     globals: true,
+    alias: {
+      "../wailsjs/go/main/Service.js": "/src/test/mocks/wails-service.js",
+      "../wailsjs/runtime/runtime.js": "/src/test/mocks/wails-runtime.js",
+      "../../wailsjs/runtime/runtime.js": "/src/test/mocks/wails-runtime.js",
+    },
     // Collect coverage with v8 (no extra binary needed).
     coverage: {
       provider: "v8",
