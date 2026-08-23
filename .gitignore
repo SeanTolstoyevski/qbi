@@ -18,6 +18,7 @@ frontend/wailsjs/
 *.pem
 .reasonix/
 frontend/package.json.md5
+
 # Generated LLM instruction copies (canonical source: .agent/agent.md, created
 # by scripts/setup-symlinks.sh). Root-anchored so they never accidentally match
 # .agent/agent.md on case-insensitive (Windows) systems.

@@ -26,6 +26,7 @@ Object.assign(window, {
   go: { main: { Service: serviceProxy } },
   runtime: {
     EventsOn: vi.fn(),
+    EventsOnMultiple: vi.fn(),
     EventsOff: vi.fn(),
     EventsEmit: vi.fn(),
   },

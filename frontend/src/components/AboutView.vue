@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../api.js";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime.js";
 
 const GITHUB_URL = "https://github.com/SeanTolstoyevski/qbi";
 
@@ -24,9 +25,12 @@ function formatBuildTime(raw) {
 }
 
 function openGitHub(e) {
-  if (window.runtime?.BrowserOpenURL) {
+  try {
+    BrowserOpenURL(GITHUB_URL);
+    // Only swallow navigation when the runtime actually handled the link.
     e.preventDefault();
-    window.runtime.BrowserOpenURL(GITHUB_URL);
+  } catch {
+    /* no Wails shell: let the anchor navigate normally */
   }
 }
 </script>

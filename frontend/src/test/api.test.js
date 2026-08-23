@@ -1,14 +1,15 @@
 /*
- * Tests for api.js - the Wails wrapper with friendly error mapping.
+ * Tests for api.js - the friendly-error choke point over the Wails-generated
+ * bindings (frontend/wailsjs).
  *
- * The service() function wraps every Wails-bound method once so raw client-go
- * errors ("Forbidden", "context deadline exceeded") become short, actionable
- * messages for a screen-reader user. We install throwaway Service objects and
- * assert the mapped messages.
+ * The generated bindings read window.go.main.Service at call time, so tests
+ * install throwaway Service objects and assert that raw client-go errors
+ * ("Forbidden", "context deadline exceeded") become short, actionable
+ * messages for a screen-reader user.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { api } from "../api.js";
+import { api, onEvent } from "../api.js";
 
 // Install a fresh Service object with the given methods for one test.
 function installService(methods) {
@@ -87,5 +88,24 @@ describe("api - friendly error mapping", () => {
     installService({ AcknowledgeWelcome: fn });
     await api.acknowledgeWelcome();
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects with a dev hint when the Wails shell is missing", async () => {
+    delete window.go.main.Service;
+    await expect(api.listPods("default")).rejects.toThrow(
+      "Wails bindings are not available",
+    );
+  });
+
+  it("onEvent subscribes and unsubscribes through the Wails runtime", () => {
+    const off = onEvent("log:x", () => {});
+    // The generated EventsOn binding delegates to EventsOnMultiple.
+    expect(window.runtime.EventsOnMultiple).toHaveBeenCalledWith(
+      "log:x",
+      expect.any(Function),
+      -1,
+    );
+    off();
+    expect(window.runtime.EventsOff).toHaveBeenCalledWith("log:x");
   });
 });
