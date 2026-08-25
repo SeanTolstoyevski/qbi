@@ -209,4 +209,31 @@ describe("ListBox - option list changes", () => {
     expect(w.findAll("[role=option]")[1].attributes("tabindex")).toBe("0");
     w.unmount();
   });
+
+  it("re-anchors to the selection when the list shrinks but keeps it", async () => {
+    const w = mountListBox({ modelValue: "monitoring" });
+    await w.find("ul").trigger("keydown", { key: "ArrowDown" });
+    await w.setProps({ options: OPTIONS.slice(1) });
+    await nextTick();
+    const rows = w.findAll("[role=option]");
+    expect(rows[1].text()).toContain("monitoring");
+    expect(rows[1].attributes("tabindex")).toBe("0");
+    w.unmount();
+  });
+
+  it("re-anchors to the selection when it comes back into view (filter cleared)", async () => {
+    const w = mountListBox({ modelValue: "monitoring" });
+    await w.find("ul").trigger("keydown", { key: "ArrowDown" });
+    await w.setProps({
+      options: OPTIONS.filter((o) => o.value !== "monitoring"),
+    });
+    await nextTick();
+    expect(w.findAll("[role=option]")[2].text()).toContain("logging");
+    await w.setProps({ options: OPTIONS });
+    await nextTick();
+    const rows = w.findAll("[role=option]");
+    expect(rows[2].text()).toContain("monitoring");
+    expect(rows[2].attributes("tabindex")).toBe("0");
+    w.unmount();
+  });
 });

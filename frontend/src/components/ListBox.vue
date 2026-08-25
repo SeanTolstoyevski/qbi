@@ -55,19 +55,26 @@ function setOptionRef(value, el) {
   else optionEls.delete(value);
 }
 
+function optionIndex(opts, value) {
+  return opts.findIndex((o) => o.value === value);
+}
+
 watch(
   () => props.modelValue,
   (val) => {
-    const i = props.options.findIndex((o) => o.value === val);
+    const i = optionIndex(props.options, val);
     if (i >= 0) activeIndex.value = i;
   },
   { immediate: true },
 );
 
 watch(
-  () => props.options.length,
-  (len) => {
-    if (activeIndex.value > len - 1) activeIndex.value = Math.max(0, len - 1);
+  () => props.options,
+  (opts) => {
+    const i = optionIndex(opts, props.modelValue);
+    if (i >= 0) activeIndex.value = i;
+    else if (activeIndex.value > opts.length - 1)
+      activeIndex.value = Math.max(0, opts.length - 1);
   },
 );
 
