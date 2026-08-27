@@ -103,6 +103,7 @@ export const api = {
   scaleWorkload: wrap(Service.ScaleWorkload),
   getResourceYaml: wrap(Service.GetResourceYAML),
   startLogStream: wrap(Service.StartLogStream),
+  followLogStream: wrap(Service.FollowLogStream),
   stopLogStream: wrap(Service.StopLogStream),
   saveLogs: wrap(Service.SaveLogs),
   getSettings: wrap(Service.GetSettings),
