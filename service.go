@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"qbi/internal/kube"
@@ -23,15 +25,26 @@ import (
 type Service struct {
 	app *App
 
-	mu      sync.Mutex
-	streams map[string]func()
+	mu        sync.Mutex
+	streams   map[string]*logStreamEntry
+	streamSeq atomic.Int64
 
 	watcher *kube.Watcher
 }
 
+type logStreamEntry struct {
+	ctx       context.Context
+	cancel    context.CancelFunc
+	started   bool
+	namespace string
+	pod       string
+	container string
+	opts      LogStreamOptions
+}
+
 // NewService creates the frontend-facing service.
 func NewService(app *App) *Service {
-	s := &Service{app: app, streams: make(map[string]func())}
+	s := &Service{app: app, streams: make(map[string]*logStreamEntry)}
 	s.watcher = kube.NewWatcher(app.kube, s.emitWatchEvent)
 	return s
 }
@@ -1038,76 +1051,167 @@ type LogStreamOptions struct {
 	Previous   bool `json:"previous"`
 }
 
-// StartLogStream begins following a container's logs. Log lines are emitted to
-// the frontend as "log:<key>" events; a "log:end:<key>" event signals the end.
-// The returned key must be passed to StopLogStream to stop following.
-func (s *Service) StartLogStream(namespace, pod, container string, opts LogStreamOptions) (string, error) {
-	key := streamKey(namespace, pod, container)
+const (
+	logBatchSize          = 200
+	logBatchFlushInterval = 50 * time.Millisecond
+)
 
+// finishStream removes the stream entry only if it is still the current one,
+// so a stale goroutine can never remove the entry of a newer stream.
+func (s *Service) finishStream(key string, entry *logStreamEntry) {
 	s.mu.Lock()
-	if _, exists := s.streams[key]; exists {
-		s.mu.Unlock()
-		return key, nil
+	if s.streams[key] == entry {
+		delete(s.streams, key)
+	}
+	s.mu.Unlock()
+}
+
+// StartLogStream reserves a fresh, unique stream key for a container's logs
+// and returns it WITHOUT opening the Kubernetes stream. The frontend must
+// call FollowLogStream(key) after subscribing to the stream's events: with
+// follow streams the kube API delivers the history first, and a fast pod can
+// produce it quicker than the frontend can register handlers, silently losing
+// the first lines. A unique key also isolates every restart — events emitted
+// by a previous stream, which keeps draining for a moment after its context
+// is cancelled, can never leak into the new one's namespace.
+func (s *Service) StartLogStream(namespace, pod, container string, opts LogStreamOptions) (string, error) {
+	key := fmt.Sprintf("%s#%d", streamKey(namespace, pod, container), s.streamSeq.Add(1))
+	ctx, cancel := context.WithCancel(s.app.ctx)
+	entry := &logStreamEntry{
+		ctx:       ctx,
+		cancel:    cancel,
+		namespace: namespace,
+		pod:       pod,
+		container: container,
+		opts:      opts,
+	}
+	s.mu.Lock()
+	s.streams[key] = entry
+	s.mu.Unlock()
+	return key, nil
+}
+
+// FollowLogStream opens the Kubernetes log stream for a reserved key and
+// starts pumping it to the frontend. Log lines are emitted as batched
+// "log:batch:<key>" events (oversized-line pieces as "log:part:<key>"); a
+// "log:end:<key>" event signals the end. The key must come from
+// StartLogStream and can be followed at most once.
+func (s *Service) FollowLogStream(key string) error {
+	s.mu.Lock()
+	entry, ok := s.streams[key]
+	if ok {
+		if entry.started {
+			ok = false
+		} else {
+			entry.started = true
+		}
+	}
+	s.mu.Unlock()
+	if !ok {
+		return s.opErr("FollowLogStream", fmt.Errorf("unknown or already-started stream key"))
 	}
 
-	ctx, cancel := context.WithCancel(s.app.ctx)
-	s.streams[key] = cancel
-	s.mu.Unlock()
-
-	stream, err := s.app.kube.StreamLogs(ctx, namespace, pod, kube.LogOptions{
-		Container:  container,
-		TailLines:  int64(opts.TailLines),
-		Timestamps: opts.Timestamps,
-		Previous:   opts.Previous,
+	stream, err := s.app.kube.StreamLogs(entry.ctx, entry.namespace, entry.pod, kube.LogOptions{
+		Container:  entry.container,
+		TailLines:  int64(entry.opts.TailLines),
+		Timestamps: entry.opts.Timestamps,
+		Previous:   entry.opts.Previous,
 	})
 	if err != nil {
-		s.mu.Lock()
-		delete(s.streams, key)
-		s.mu.Unlock()
-		cancel()
-		return "", s.opErr("StartLogStream", err)
+		entry.cancel()
+		s.finishStream(key, entry)
+		return s.opErr("FollowLogStream", err)
 	}
 
 	go func() {
 		defer stream.Close()
 		defer func() {
-			s.mu.Lock()
-			delete(s.streams, key)
-			s.mu.Unlock()
-			cancel()
+			entry.cancel()
 			runtime.EventsEmit(s.app.ctx, "log:end:"+key)
+			s.finishStream(key, entry)
 		}()
 
-		scanner := bufio.NewScanner(stream)
-		scanner.Buffer(make([]byte, 0, kube.LogChunkSize), kube.LogChunkSize)
-		splitter := new(kube.LogSplitter)
-		scanner.Split(splitter.Split)
-		for scanner.Scan() {
-			text := scanner.Text()
-			if splitter.LastWasPartial() {
-				// Piece of a line longer than LogChunkSize; the frontend
-				// reassembles pieces before showing the line.
-				runtime.EventsEmit(s.app.ctx, "log:part:"+key, text)
-			} else {
-				runtime.EventsEmit(s.app.ctx, "log:"+key, text)
-			}
+		emit := func(name string, data any) {
+			runtime.EventsEmit(s.app.ctx, name, data)
 		}
-		if err := scanner.Err(); err != nil && ctx.Err() == nil {
+		if err := pumpLogStream(key, stream, new(kube.LogSplitter), emit, logBatchFlushInterval, logBatchSize); err != nil && entry.ctx.Err() == nil {
 			slog.Warn("log stream error", "key", key, "error", err)
 			runtime.EventsEmit(s.app.ctx, "log:error:"+key, err.Error())
 		}
 	}()
 
-	return key, nil
+	return nil
 }
 
-// StopLogStream stops a running log stream identified by its key.
+// pumpLogStream reads log lines from r and forwards them to the frontend as
+// batched events. A pending batch is flushed before a partial piece so pieces
+// never overtake the lines that precede them; whatever is still pending is
+// flushed when the stream ends. The scan runs in its own goroutine because
+// bufio.Scanner blocks between lines: a select between scan results and the
+// flush ticker is what makes low-rate streams (2-5 lines/sec) appear on time.
+func pumpLogStream(key string, r io.Reader, splitter *kube.LogSplitter, emit func(name string, data any), flushInterval time.Duration, batchSize int) error {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, kube.LogChunkSize), kube.LogChunkSize)
+	scanner.Split(splitter.Split)
+
+	type item struct {
+		text    string
+		partial bool
+	}
+	items := make(chan item)
+	scanErr := make(chan error, 1)
+	go func() {
+		for scanner.Scan() {
+			items <- item{text: scanner.Text(), partial: splitter.LastWasPartial()}
+		}
+		scanErr <- scanner.Err()
+	}()
+
+	pending := make([]string, 0, batchSize)
+	flush := func() {
+		if len(pending) == 0 {
+			return
+		}
+		emit("log:batch:"+key, strings.Join(pending, "\n"))
+		pending = pending[:0]
+	}
+
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			flush()
+		case it := <-items:
+			if it.partial {
+				flush()
+				emit("log:part:"+key, it.text)
+				continue
+			}
+			pending = append(pending, it.text)
+			if len(pending) >= batchSize {
+				flush()
+			}
+		case err := <-scanErr:
+			flush()
+			return err
+		}
+	}
+}
+
+// StopLogStream stops a reserved or running log stream identified by its key.
+// A stream that was never followed has no goroutine to clean up after it, so
+// StopLogStream removes its entry itself.
 func (s *Service) StopLogStream(key string) {
 	s.mu.Lock()
-	cancel, ok := s.streams[key]
+	entry, ok := s.streams[key]
+	if ok && !entry.started {
+		delete(s.streams, key)
+	}
 	s.mu.Unlock()
 	if ok {
-		cancel()
+		entry.cancel()
 	}
 }
 
@@ -1127,7 +1231,7 @@ func (s *Service) SaveLogs(suggestedName, content string) (string, error) {
 		return "", s.opErr("SaveLogs", err)
 	}
 	if path == "" {
-		return "", nil // user cancelled
+		return "", nil
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return "", s.opErr("SaveLogs", err)

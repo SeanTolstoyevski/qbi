@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, nextTick } from "vue";
+import { ref, shallowRef, computed, watch, onBeforeUnmount, nextTick } from "vue";
 import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
@@ -16,7 +16,6 @@ const props = defineProps({
 const emit = defineEmits(["close"]);
 const { announce } = useStore();
 
-const lines = ref([]);
 const streaming = ref(false);
 const error = ref("");
 
@@ -44,7 +43,7 @@ const headingEl = ref(null);
 const searchEl = ref(null);
 
 let streamKey = "";
-let offLine = () => {};
+let offBatch = () => {};
 let offEnd = () => {};
 let offErr = () => {};
 let offPart = () => {};
@@ -55,6 +54,20 @@ const MAX_LINES = 20000;
 const MAX_PARTIAL = 1024 * 1024;
 const MAX_REGEX_LEN = 500;
 const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested quantifier
+
+const filtering = ref(false); // a search rebuild is in flight
+const matchCount = ref(0); // matching lines (kept live on append too)
+
+let rawLines = []; // {seq, text} — capped at MAX_LINES
+const view = shallowRef([]); // {seq, text, hit, segments|null} — filtered
+let matchRows = []; // seqs of matching rows, in view order (gotoMatch)
+let nextSeq = 0; // stable, never reused: v-for keys survive eviction
+let pendingLines = []; // lines waiting for a mid-rebuild flush
+let rebuilding = false; // a search rebuild is scanning/committing
+let rebuildToken = 0; // supersedes stale rebuilds
+
+const activeSeq = ref(-1); // roving-focus line
+const currentMatchSeq = ref(-1); // highlighted match
 
 function validateRegexSource(source) {
   if (source.length > MAX_REGEX_LEN) {
@@ -68,54 +81,43 @@ function validateRegexSource(source) {
 
 const compiled = computed(() => {
   const q = query.value;
-  if (!q) return { re: null, error: "" };
-  const flags = caseSensitive.value ? "g" : "gi";
+  if (!q) return { mode: "none", error: "" };
   if (useRegex.value) {
     const safetyError = validateRegexSource(q);
-    if (safetyError) return { re: null, error: safetyError };
+    if (safetyError) return { mode: "error", error: safetyError };
+    try {
+      return {
+        mode: "regex",
+        re: new RegExp(q, caseSensitive.value ? "g" : "gi"),
+        error: "",
+      };
+    } catch (e) {
+      return { mode: "error", error: String(e.message || e) };
+    }
   }
-  try {
-    const source = useRegex.value
-      ? q
-      : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return { re: new RegExp(source, flags), error: "" };
-  } catch (e) {
-    return { re: null, error: String(e.message || e) };
-  }
+  return {
+    mode: "plain",
+    needle: caseSensitive.value ? q : q.toLowerCase(),
+    sensitive: caseSensitive.value,
+    error: "",
+  };
 });
 
-const matcher = computed(() => compiled.value.re);
 const regexError = computed(() => compiled.value.error);
 
-function lineMatches(text) {
-  const m = matcher.value;
-  if (!m) return false;
-  m.lastIndex = 0;
-  return m.test(text);
+function lineMatches(text, matcher = compiled.value) {
+  if (matcher.mode === "plain") {
+    return matcher.sensitive
+      ? text.includes(matcher.needle)
+      : text.toLowerCase().includes(matcher.needle);
+  }
+  if (matcher.mode !== "regex") return false; // "none" or "error"
+  const re = matcher.re;
+  re.lastIndex = 0;
+  return re.test(text);
 }
 
-const visibleLines = computed(() => {
-  const m = matcher.value;
-  const out = [];
-  for (let i = 0; i < lines.value.length; i++) {
-    const text = lines.value[i];
-    const hit = m ? lineMatches(text) : false;
-    if (onlyMatches.value && m && !hit) continue;
-    out.push({
-      index: i,
-      text,
-      hit,
-      segments: hit ? segmentize(text, m) : null,
-    });
-  }
-  return out;
-});
-
-const matchCount = computed(() =>
-  visibleLines.value.reduce((n, l) => n + (l.hit ? 1 : 0), 0),
-);
-
-function segmentize(text, regex) {
+function segmentizeRegex(text, regex) {
   const segs = [];
   let last = 0;
   regex.lastIndex = 0;
@@ -131,62 +133,248 @@ function segmentize(text, regex) {
   return segs;
 }
 
-const currentMatch = ref(-1);
-
-const matchRows = computed(() =>
-  visibleLines.value.reduce((acc, l, i) => {
-    if (l.hit) acc.push(i);
-    return acc;
-  }, []),
-);
-
-function gotoMatch(step) {
-  const rows = matchRows.value;
-  if (rows.length === 0) return;
-  let pos = rows.indexOf(currentMatch.value);
-  pos =
-    pos === -1
-      ? step > 0
-        ? 0
-        : rows.length - 1
-      : (pos + step + rows.length) % rows.length;
-  currentMatch.value = rows[pos];
-  autoScroll.value = false; // stop fighting the user while they navigate
-  nextTick(() => {
-    const el = logEl.value?.querySelector(`[data-row="${currentMatch.value}"]`);
-    el?.scrollIntoView({ block: "center" });
-  });
-  announce(`Match ${pos + 1} of ${rows.length}.`);
+function segmentizePlain(text, needle, sensitive) {
+  const hay = sensitive ? text : text.toLowerCase();
+  const segs = [];
+  if (sensitive || hay.length === text.length) {
+    let last = 0;
+    let i;
+    while ((i = hay.indexOf(needle, last)) !== -1) {
+      if (i > last) segs.push({ text: text.slice(last, i), hit: false });
+      segs.push({ text: text.slice(i, i + needle.length), hit: true });
+      last = i + needle.length;
+    }
+    if (last < text.length) segs.push({ text: text.slice(last), hit: false });
+    return segs;
+  }
+  const chars = [];
+  const offsets = [];
+  for (let u = 0; u < text.length; ) {
+    const cp = text.codePointAt(u);
+    offsets.push(u);
+    chars.push(String.fromCodePoint(cp));
+    u += cp > 0xffff ? 2 : 1;
+  }
+  const needleChars = Array.from(needle);
+  let last = 0; // code-point cursor
+  let i = 0;
+  while (i <= chars.length - needleChars.length) {
+    let j = 0;
+    while (
+      j < needleChars.length &&
+      chars[i + j].toLowerCase().startsWith(needleChars[j])
+    )
+      j++;
+    if (j === needleChars.length) {
+      const startUnit = offsets[i];
+      const endUnit =
+        i + needleChars.length < chars.length
+          ? offsets[i + needleChars.length]
+          : text.length;
+      if (i > last) {
+        segs.push({ text: text.slice(offsets[last], startUnit), hit: false });
+      }
+      segs.push({ text: text.slice(startUnit, endUnit), hit: true });
+      last = i + needleChars.length;
+      i = last;
+    } else {
+      i++;
+    }
+  }
+  if (last < chars.length) {
+    segs.push({ text: text.slice(offsets[last]), hit: false });
+  }
+  return segs;
 }
 
-function onSearchEnter(e) {
-  gotoMatch(e.shiftKey ? -1 : 1);
+function segmentsFor(text, matcher) {
+  if (matcher.mode === "regex") return segmentizeRegex(text, matcher.re);
+  return segmentizePlain(text, matcher.needle, matcher.sensitive);
 }
 
-watch([query, useRegex, caseSensitive], () => {
-  currentMatch.value = -1;
-  if (!query.value) return;
-  if (regexError.value) {
-    announce(`Invalid pattern: ${regexError.value}`, "assertive");
-  } else {
-    announce(`${matchCount.value} matching lines.`);
+function sameSegments(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].hit !== b[i].hit || a[i].text !== b[i].text) return false;
+  }
+  return true;
+}
+
+function matchRowPos(seq) {
+  return matchRows.indexOf(seq);
+}
+
+function nextFrame(fn) {
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(fn);
+  else setTimeout(fn, 0);
+}
+
+// Append finished lines to the buffer. The backend already batches lines into
+// "log:batch" events (200 lines or 50ms), so one apply per event is all the
+// render batching needed; lines arriving mid-rebuild are queued until the
+// rebuilt view commits.
+function pushLines(lines) {
+  if (rebuilding) {
+    pendingLines.push(...lines);
+    return;
+  }
+  applyLines(lines);
+}
+
+function applyLines(batch) {
+  const matcher = compiled.value;
+  const filterActive = !!query.value && !matcher.error && onlyMatches.value;
+  const next = view.value.concat(); // copy entry references, append new ones
+  let addedHits = 0;
+  for (const text of batch) {
+    const seq = nextSeq++;
+    rawLines.push({ seq, text });
+    const hit = lineMatches(text, matcher);
+    if (filterActive && !hit) continue; // kept in the buffer, hidden by the filter
+    next.push({
+      seq,
+      text,
+      hit,
+      segments: hit ? segmentsFor(text, matcher) : null,
+    });
+    if (hit) {
+      matchRows.push(seq);
+      addedHits++;
+    }
+  }
+  matchCount.value += addedHits;
+
+  const drop = rawLines.length - MAX_LINES;
+  let refocusEvicted = false;
+  if (drop > 0) {
+    rawLines.splice(0, drop);
+    const firstSeq = rawLines[0].seq;
+    const viewCut = next.findIndex((e) => e.seq >= firstSeq);
+    if (viewCut > 0) next.splice(0, viewCut);
+    const rowCut = matchRows.findIndex((s) => s >= firstSeq);
+    if (rowCut > 0) {
+      matchCount.value = Math.max(0, matchCount.value - rowCut);
+      matchRows.splice(0, rowCut);
+    }
+    if (activeSeq.value >= 0 && activeSeq.value < firstSeq) {
+      refocusEvicted = logEl.value?.contains(document.activeElement) ?? false;
+      activeSeq.value = next.length ? next[0].seq : -1;
+    }
+    if (currentMatchSeq.value >= 0 && currentMatchSeq.value < firstSeq)
+      currentMatchSeq.value = -1;
+  }
+  view.value = next; // one render pass per flush
+  if (refocusEvicted && activeSeq.value >= 0) {
+    nextTick(() => focusRow(activeSeq.value));
+  }
+  scrollToBottom();
+}
+
+// Rebuild the filtered view from the raw buffer. Scanning and committing are
+// chunked across frames (about 8ms of work / 1000 rows each), so no query —
+// not even a pathological regex one — can block the main thread for more
+// than one frame. Typing a new query supersedes the in-flight rebuild.
+function scheduleRebuild(announceResult) {
+  const token = ++rebuildToken;
+  rebuilding = true;
+  filtering.value = true;
+  const matcher = compiled.value;
+  const only = onlyMatches.value && !!query.value && !matcher.error;
+  const oldSegments = new Map();
+  for (const entry of view.value) {
+    if (entry.segments) oldSegments.set(entry.seq, entry.segments);
+  }
+  const nextView = [];
+  const nextRows = [];
+  let hits = 0;
+  let pos = 0;
+  let committed = 0;
+
+  function scanStep() {
+    if (token !== rebuildToken) return; // superseded by a newer rebuild
+    const start = performance.now();
+    while (pos < rawLines.length) {
+      const entry = rawLines[pos++];
+      const hit = lineMatches(entry.text, matcher);
+      if (only && !hit) continue;
+      let segments = null;
+      if (hit) {
+        segments = segmentsFor(entry.text, matcher);
+        const prev = oldSegments.get(entry.seq);
+        if (prev && sameSegments(prev, segments)) segments = prev;
+        hits++;
+        nextRows.push(entry.seq);
+      }
+      nextView.push({ seq: entry.seq, text: entry.text, hit, segments });
+      if ((pos & 1023) === 0 && performance.now() - start > 8) {
+        nextFrame(scanStep);
+        return;
+      }
+    }
+    commitStep();
+  }
+
+  function commitStep() {
+    if (token !== rebuildToken) return;
+    const target = Math.min(committed + 1000, nextView.length);
+    if (view.value.length - target > 1000) {
+      view.value = view.value.slice(0, view.value.length - 1000);
+      nextFrame(commitStep);
+      return;
+    }
+
+    view.value = nextView.slice(0, target);
+    committed = target;
+    if (committed < nextView.length) {
+      nextFrame(commitStep);
+      return;
+    }
+    matchRows = nextRows;
+    matchCount.value = hits;
+    rebuilding = false;
+    filtering.value = false;
+    if (activeSeq.value >= 0 && view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+      activeSeq.value = view.value.length
+        ? view.value[view.value.length - 1].seq
+        : -1;
+    }
+    if (currentMatchSeq.value >= 0 && view.value.findIndex((r) => r.seq === currentMatchSeq.value) === -1) {
+      currentMatchSeq.value = -1;
+    }
+    if (announceResult) {
+      if (matcher.error) {
+        announce(`Invalid pattern: ${matcher.error}`, "assertive");
+      } else if (query.value) {
+        announce(`${hits} matching lines.`);
+      }
+    }
+    applyLines(pendingLines.splice(0));
+  }
+
+  nextFrame(scanStep);
+}
+
+watch(view, () => {
+  if (rebuilding) return;
+  if (activeSeq.value >= 0 && view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+    activeSeq.value = view.value.length
+      ? view.value[view.value.length - 1].seq
+      : -1;
   }
 });
 
-const activeRow = ref(-1); // roving-focus index into visibleLines
-
-function focusRow(row) {
-  const el = logEl.value?.querySelector(`[data-row="${row}"]`);
+function focusRow(seq) {
+  const el = logEl.value?.querySelector(`[data-row="${seq}"]`);
   el?.focus();
-  el?.scrollIntoView({ block: "nearest" });
 }
 
 function moveRow(to) {
-  const len = visibleLines.value.length;
+  const len = view.value.length;
   if (len === 0) return;
   const i = Math.min(Math.max(to, 0), len - 1);
-  activeRow.value = i;
-  focusRow(i);
+  activeSeq.value = view.value[i].seq;
+  focusRow(activeSeq.value);
 }
 
 function pageSize() {
@@ -197,20 +385,20 @@ function pageSize() {
 }
 
 async function copyFocused() {
-  const len = visibleLines.value.length;
-  const row = activeRow.value;
-  if (row < 0 || row >= len) {
+  const len = view.value.length;
+  const row = activeSeq.value >= 0 ? view.value.findIndex((r) => r.seq === activeSeq.value) : -1;
+  if (row === -1) {
     await copyAll();
     return;
   }
   await copyToClipboard(
-    visibleLines.value[row].text,
+    view.value[row].text,
     `Line ${row + 1} of ${len}`,
   );
 }
 
 function onLogKeydown(e) {
-  const len = visibleLines.value.length;
+  const len = view.value.length;
   if (len === 0) return;
 
   if (e.ctrlKey || e.metaKey) {
@@ -218,6 +406,7 @@ function onLogKeydown(e) {
       e.preventDefault();
       copyFocused();
     } else if (e.key === "a" || e.key === "A") {
+
       // Ctrl+A = "select all"; the closest equivalent here is copying all.
       e.preventDefault();
       copyAll();
@@ -225,8 +414,7 @@ function onLogKeydown(e) {
     return;
   }
 
-  const at =
-    activeRow.value >= 0 && activeRow.value < len ? activeRow.value : -1;
+  const at = activeSeq.value >= 0 ? view.value.findIndex((r) => r.seq === activeSeq.value) : -1;
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
@@ -264,26 +452,19 @@ function onLogKeydown(e) {
 // Landing on the log region (Tab) focuses the newest line when following the
 // tail, otherwise the top of the stream or the line you were on.
 function onLogFocus() {
-  const len = visibleLines.value.length;
+  const len = view.value.length;
   if (len === 0) return;
   if (autoScroll.value) {
-    activeRow.value = len - 1;
-  } else if (activeRow.value < 0 || activeRow.value >= len) {
-    activeRow.value = 0;
+    activeSeq.value = view.value[len - 1].seq;
+  } else if (activeSeq.value < 0 || view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+    activeSeq.value = view.value[0].seq;
   }
-  focusRow(activeRow.value);
+  focusRow(activeSeq.value);
 }
 
-function onLineClick(row) {
-  activeRow.value = row;
+function onLineClick(seq) {
+  activeSeq.value = seq;
 }
-
-watch(
-  () => visibleLines.value.length,
-  (len) => {
-    if (activeRow.value >= len) activeRow.value = len - 1;
-  },
-);
 
 async function scrollToBottom() {
   if (!autoScroll.value) return;
@@ -291,11 +472,25 @@ async function scrollToBottom() {
   if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight;
 }
 
+// Drop all buffered lines and any in-flight search rebuild.
+function resetBuffer() {
+  rebuildToken++; // invalidate any in-flight rebuild
+  rebuilding = false;
+  filtering.value = false;
+  rawLines = [];
+  view.value = [];
+  matchRows = [];
+  nextSeq = 0;
+  pendingLines = [];
+  partial = ""; // don't prepend pre-reset pieces to the next line
+  matchCount.value = 0;
+  currentMatchSeq.value = -1;
+  activeSeq.value = -1;
+}
+
 async function start() {
   await stop();
-  lines.value = [];
-  currentMatch.value = -1;
-  activeRow.value = -1;
+  resetBuffer();
   error.value = "";
   streaming.value = true;
   try {
@@ -310,23 +505,26 @@ async function start() {
       },
     );
 
-    offLine = onEvent(`log:${streamKey}`, (line) => {
+    offBatch = onEvent(`log:batch:${streamKey}`, (batch) => {
+      const chunk = String(batch);
+      if (!chunk) return;
+      const parts = chunk.split("\n");
       if (partial) {
-        line = partial + line;
+        parts[0] = partial + parts[0];
         partial = "";
       }
-      pushLine(line);
+      pushLines(parts);
     });
     offPart = onEvent(`log:part:${streamKey}`, (chunk) => {
       partial += chunk;
       if (partial.length > MAX_PARTIAL) {
-        pushLine(partial); // runaway line: bound memory, show what we have
+        pushLines([partial]); // runaway line: bound memory, show what we have
         partial = "";
       }
     });
     offEnd = onEvent(`log:end:${streamKey}`, () => {
       if (partial) {
-        pushLine(partial);
+        pushLines([partial]);
         partial = "";
       }
       streaming.value = false;
@@ -338,6 +536,8 @@ async function start() {
       announce(`Log stream error: ${error.value}`, "assertive");
     });
 
+    await api.followLogStream(streamKey);
+
     const mode = previous.value ? "previous instance of " : "";
     announce(`Streaming logs for ${mode}${props.pod} / ${props.container}.`);
   } catch (e) {
@@ -348,11 +548,11 @@ async function start() {
 }
 
 async function stop() {
-  offLine();
+  offBatch();
   offEnd();
   offErr();
   offPart();
-  offLine = offEnd = offErr = offPart = () => {};
+  offBatch = offEnd = offErr = offPart = () => {};
   partial = "";
   if (streamKey) {
     try {
@@ -366,30 +566,15 @@ async function stop() {
 }
 
 function clear() {
-  lines.value = [];
-  currentMatch.value = -1;
-  activeRow.value = -1;
-  partial = ""; // don't prepend pre-clear pieces to the next line
+  resetBuffer();
   announce("Log view cleared.");
 }
 
-// Append a finished line and keep the raw buffer bounded.
-function pushLine(text) {
-  lines.value.push(text);
-  if (lines.value.length > MAX_LINES) {
-    lines.value.splice(0, lines.value.length - MAX_LINES);
-  }
-  scrollToBottom();
-}
-
-// When an "only matches" filter is active, export what the user currently sees
-// so the saved file matches the on-screen investigation.
 function exportContent() {
-  const source =
-    onlyMatches.value && matcher.value
-      ? visibleLines.value.map((l) => l.text)
-      : lines.value;
-  return source.join("\n");
+  if (onlyMatches.value && query.value && !regexError.value) {
+    return view.value.map((l) => l.text).join("\n");
+  }
+  return rawLines.map((l) => l.text).join("\n");
 }
 
 function suggestedName() {
@@ -410,6 +595,31 @@ async function copyAll() {
   await copyToClipboard(exportContent(), "Logs");
 }
 
+function gotoMatch(step) {
+  const rows = matchRows;
+  if (rows.length === 0) return;
+  let pos = matchRowPos(currentMatchSeq.value);
+  pos =
+    pos === -1
+      ? step > 0
+        ? 0
+        : rows.length - 1
+      : (pos + step + rows.length) % rows.length;
+  currentMatchSeq.value = rows[pos];
+  autoScroll.value = false; // stop fighting the user while they navigate
+  nextTick(() => {
+    const el = logEl.value?.querySelector(
+      `[data-row="${currentMatchSeq.value}"]`,
+    );
+    el?.scrollIntoView({ block: "center" });
+  });
+  announce(`Match ${pos + 1} of ${rows.length}.`);
+}
+
+function onSearchEnter(e) {
+  gotoMatch(e.shiftKey ? -1 : 1);
+}
+
 watch(
   () => [props.namespace, props.pod, props.container],
   () => start(),
@@ -417,10 +627,14 @@ watch(
 );
 watch([tail, timestamps, previous], () => start());
 
+watch([query, useRegex, caseSensitive], () => {
+  currentMatchSeq.value = -1;
+  scheduleRebuild(true);
+});
+watch(onlyMatches, () => scheduleRebuild(false));
+
 onBeforeUnmount(stop);
 
-// Return focus to the trigger button on close, land focus on the heading on
-// open, and close on Escape (handled in onSectionKeydown below).
 const { onKeydown: onReturnFocusKeydown } = useReturnFocus({
   focusTarget: headingEl,
   opener: props.opener,
@@ -441,6 +655,32 @@ function onSectionKeydown(e) {
   }
   onReturnFocusKeydown(e);
 }
+
+const headerButtons = computed(() => [
+  streaming.value
+    ? { label: "Stop", cls: "btn-outline-secondary", action: stop }
+    : { label: "Restart", cls: "btn-outline-success", action: start },
+  { label: "Save…", cls: "btn-outline-secondary", action: download },
+  { label: "Copy", cls: "btn-outline-secondary", action: copyAll },
+  { label: "Clear", cls: "btn-outline-secondary", action: clear },
+  { label: "Close", cls: "btn-outline-secondary", action: () => emit("close") },
+]);
+
+const searchChecks = [
+  { id: "opt-regex", label: "Regex", get: () => useRegex.value, set: (v) => (useRegex.value = v) },
+  { id: "opt-case", label: "Match case", get: () => caseSensitive.value, set: (v) => (caseSensitive.value = v) },
+  { id: "opt-only", label: "Only matches", get: () => onlyMatches.value, set: (v) => (onlyMatches.value = v), disabled: () => !query.value },
+];
+
+const streamChecks = [
+  { id: "opt-ts", label: "Timestamps", get: () => timestamps.value, set: (v) => (timestamps.value = v) },
+  { id: "opt-prev", label: "Previous (crashed) instance", get: () => previous.value, set: (v) => (previous.value = v) },
+];
+
+const displayChecks = [
+  { id: "opt-wrap", label: "Wrap lines", get: () => wrap.value, set: (v) => (wrap.value = v) },
+  { id: "opt-scroll", label: "Auto-scroll", get: () => autoScroll.value, set: (v) => (autoScroll.value = v) },
+];
 </script>
 
 <template>
@@ -464,48 +704,14 @@ function onSectionKeydown(e) {
       </h2>
       <div class="d-flex align-items-center gap-2">
         <button
-          v-if="streaming"
+          v-for="b in headerButtons"
+          :key="b.label"
           type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="stop"
+          class="btn btn-sm"
+          :class="b.cls"
+          @click="b.action"
         >
-          Stop
-        </button>
-        <button
-          v-else
-          type="button"
-          class="btn btn-sm btn-outline-success"
-          @click="start"
-        >
-          Restart
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="download"
-        >
-          Save…
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="copyAll"
-        >
-          Copy
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="clear"
-        >
-          Clear
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          @click="emit('close')"
-        >
-          Close
+          {{ b.label }}
         </button>
       </div>
     </div>
@@ -556,43 +762,29 @@ function onSectionKeydown(e) {
           <template v-if="regexError"
             >Invalid pattern: {{ regexError }}</template
           >
+          <template v-else-if="filtering">Filtering…</template>
           <template v-else>{{ matchCount }} matching lines</template>
         </p>
       </div>
 
       <div class="col-auto">
         <div class="d-flex flex-wrap gap-3">
-          <div class="form-check form-check-inline mb-0">
+          <div
+            v-for="opt in searchChecks"
+            :key="opt.id"
+            class="form-check form-check-inline mb-0"
+          >
             <input
-              id="opt-regex"
-              v-model="useRegex"
+              :id="opt.id"
               class="form-check-input"
               type="checkbox"
+              :checked="opt.get()"
+              :disabled="opt.disabled?.()"
+              @change="opt.set($event.target.checked)"
             />
-            <label class="form-check-label small" for="opt-regex">Regex</label>
-          </div>
-          <div class="form-check form-check-inline mb-0">
-            <input
-              id="opt-case"
-              v-model="caseSensitive"
-              class="form-check-input"
-              type="checkbox"
-            />
-            <label class="form-check-label small" for="opt-case"
-              >Match case</label
-            >
-          </div>
-          <div class="form-check form-check-inline mb-0">
-            <input
-              id="opt-only"
-              v-model="onlyMatches"
-              class="form-check-input"
-              type="checkbox"
-              :disabled="!query"
-            />
-            <label class="form-check-label small" for="opt-only"
-              >Only matches</label
-            >
+            <label class="form-check-label small" :for="opt.id">{{
+              opt.label
+            }}</label>
           </div>
         </div>
       </div>
@@ -610,49 +802,31 @@ function onSectionKeydown(e) {
             style="min-width: 8.5rem"
           />
         </div>
-        <div class="form-check form-switch mb-0">
+        <div class="form-check form-switch mb-0" v-for="opt in streamChecks" :key="opt.id">
           <input
-            id="opt-ts"
-            v-model="timestamps"
+            :id="opt.id"
             class="form-check-input"
             type="checkbox"
+            :checked="opt.get()"
+            @change="opt.set($event.target.checked)"
           />
-          <label class="form-check-label small" for="opt-ts">Timestamps</label>
-        </div>
-        <div class="form-check form-switch mb-0">
-          <input
-            id="opt-prev"
-            v-model="previous"
-            class="form-check-input"
-            type="checkbox"
-          />
-          <label class="form-check-label small" for="opt-prev"
-            >Previous (crashed) instance</label
-          >
+          <label class="form-check-label small" :for="opt.id">{{
+            opt.label
+          }}</label>
         </div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-3 border-start ps-3">
-        <div class="form-check form-switch mb-0">
+        <div class="form-check form-switch mb-0" v-for="opt in displayChecks" :key="opt.id">
           <input
-            id="opt-wrap"
-            v-model="wrap"
+            :id="opt.id"
             class="form-check-input"
             type="checkbox"
+            :checked="opt.get()"
+            @change="opt.set($event.target.checked)"
           />
-          <label class="form-check-label small" for="opt-wrap"
-            >Wrap lines</label
-          >
-        </div>
-        <div class="form-check form-switch mb-0">
-          <input
-            id="opt-scroll"
-            v-model="autoScroll"
-            class="form-check-input"
-            type="checkbox"
-          />
-          <label class="form-check-label small" for="opt-scroll"
-            >Auto-scroll</label
-          >
+          <label class="form-check-label small" :for="opt.id">{{
+            opt.label
+          }}</label>
         </div>
       </div>
     </div>
@@ -675,16 +849,24 @@ function onSectionKeydown(e) {
       @focus="onLogFocus"
     >
       <div
-        v-for="(line, row) in visibleLines"
-        :key="line.index"
-        :data-row="row"
+        v-for="line in view"
+        v-memo="[
+          line.seq,
+          line.text,
+          line.hit,
+          line.segments,
+          line.seq === currentMatchSeq,
+          line.seq === activeSeq,
+        ]"
+        :key="line.seq"
+        :data-row="line.seq"
         class="log-line"
         :class="{
-          'log-line-current': row === currentMatch,
-          'log-line-active': row === activeRow,
+          'log-line-current': line.seq === currentMatchSeq,
+          'log-line-active': line.seq === activeSeq,
         }"
-        :tabindex="row === activeRow ? 0 : -1"
-        @click="onLineClick(row)"
+        :tabindex="line.seq === activeSeq ? 0 : -1"
+        @click="onLineClick(line.seq)"
       >
         <template v-if="line.segments">
           <template v-for="(seg, si) in line.segments" :key="si">
@@ -695,13 +877,13 @@ function onSectionKeydown(e) {
         <template v-else>{{ line.text }}</template>
       </div>
       <div
-        v-if="visibleLines.length === 0 && streaming"
+        v-if="view.length === 0 && streaming"
         class="text-body-secondary"
       >
         Waiting for log output…
       </div>
       <div
-        v-else-if="visibleLines.length === 0 && onlyMatches && query"
+        v-else-if="view.length === 0 && onlyMatches && query"
         class="text-body-secondary"
       >
         No lines match “{{ query }}”.
