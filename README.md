@@ -29,6 +29,14 @@ node. Per pod:
   conditions, labels and live CPU/memory usage (when metrics-server is present).
 - **Logs** - the streaming viewer described below.
 - **Shell** - an interactive `kubectl exec` in your OS terminal.
+- **Port forward** - a `kubectl port-forward` equivalent: a TCP tunnel from
+  a local `127.0.0.1` port to a port inside the pod. Start it from the pod's
+  detail view — container ports are prefilled, or type any port and let QBI
+  pick a free local one. Every running forward is collected in the
+  **Forwards** section (across all namespaces), where you can open it in
+  your browser or stop it without revisiting the pod. TCP only, bound to
+  loopback only. Experimental for now: enable *Experimental features* in
+  Settings.
 - **YAML** - the resource as Kubernetes sees it.
 - **Delete** - with a confirmation that says whether a controller will
   recreate the pod or not.

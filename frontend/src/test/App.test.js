@@ -129,6 +129,17 @@ describe("App - screen shortcuts", () => {
     w.unmount();
   });
 
+  it("Ctrl+5 switches to the Forwards section", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "5", ctrlKey: true }),
+    );
+    await nextTick();
+    expect(w.find("#section-heading-forwards").isVisible()).toBe(true);
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(false);
+    w.unmount();
+  });
+
   it("ignores Ctrl+number combinations without a mapped section", async () => {
     const w = mountApp();
     window.dispatchEvent(

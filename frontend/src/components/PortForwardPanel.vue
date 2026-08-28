@@ -11,14 +11,10 @@ import { forwardBadgeClass } from "../statusClasses.js";
 const props = defineProps({
   namespace: { type: String, required: true },
   pod: { type: String, required: true },
-  // Container ports of the pod (numbers), used to prefill the remote-port
-  // suggestions; the user can still type any port.
   ports: { type: Array, default: () => [] },
 });
 
 const { announce } = useStore();
-// Rows and announcements come from the shared port-forward state; this panel
-// only filters the global list down to its pod.
 const { forwards, stopForward } = usePortForwards();
 
 const podForwards = computed(() =>
@@ -48,7 +44,6 @@ const portOptions = computed(() => {
 function toggleForm() {
   formOpen.value = !formOpen.value;
   if (formOpen.value) {
-    // Move focus to the first field so keyboard users land inside the form.
     nextTick(() => document.getElementById("pf-remote-port")?.focus());
   }
 }
@@ -75,8 +70,6 @@ async function startForward() {
   formError.value = "";
   try {
     await api.startPortForward(props.namespace, props.pod, local, remote);
-    // The row appears via the "starting" event; the shared state announces
-    // once it becomes active.
     formOpen.value = false;
     remotePort.value = "";
     localPort.value = "";

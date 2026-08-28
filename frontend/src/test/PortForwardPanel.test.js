@@ -17,7 +17,12 @@ let statusHandler = null;
 
 function mountPanel(props = {}) {
   return mount(PortForwardPanel, {
-    props: { namespace: "default", pod: "web-abc12", ports: [8080, 8443], ...props },
+    props: {
+      namespace: "default",
+      pod: "web-abc12",
+      ports: [8080, 8443],
+      ...props,
+    },
     attachTo: document.body,
   });
 }
@@ -32,9 +37,6 @@ const ACTIVE = {
   error: "",
 };
 
-// Capture the event subscription at module scope: the composable subscribes
-// once per test (after resetPortForwards), and the captured handler stays
-// valid through the live `statusHandler` binding.
 onEvent.mockImplementation((_name, handler) => {
   statusHandler = handler;
   return () => {};
@@ -45,14 +47,14 @@ beforeEach(async () => {
   api.listPortForwards.mockResolvedValue([]);
   api.startPortForward.mockResolvedValue({ ...ACTIVE, state: "starting" });
   api.stopPortForward.mockResolvedValue(undefined);
-  // Fresh singleton so each mount re-subscribes and re-hydrates.
+
   const { resetPortForwards } = await import("../usePortForwards.js");
   resetPortForwards();
-  // Clear any announcement the previous test left in the shared store.
+
   const { announce } = useStore();
   announce("");
   await new Promise((resolve) => requestAnimationFrame(resolve));
-  // Clipboard stub for the copy action.
+
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: vi.fn().mockResolvedValue() },
     configurable: true,
@@ -63,8 +65,6 @@ function emitStatus(status) {
   statusHandler?.(status);
 }
 
-// announce() mirrors into the store's aria-live region on the next animation
-// frame; await it so assertions see the message.
 async function flushAnnounce() {
   await new Promise((resolve) => requestAnimationFrame(resolve));
 }
@@ -100,20 +100,27 @@ describe("PortForwardPanel - starting a forward", () => {
     const w = mountPanel();
     await flushPromises();
 
-    const toggle = w.findAll("button").find((b) => b.text().includes("Forward port"));
+    const toggle = w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"));
     await toggle.trigger("click");
     await flushPromises();
     expect(w.find('input[role="combobox"]').exists()).toBe(true);
-    // Focus moves to the first field so keyboard users land inside the form.
-    expect(document.activeElement).toBe(w.find('input[role="combobox"]').element);
 
-    // Type a remote port; local port stays empty (auto).
+    expect(document.activeElement).toBe(
+      w.find('input[role="combobox"]').element,
+    );
+
     await w.find('input[role="combobox"]').setValue("8080");
     await w.find("form").trigger("submit");
 
-    expect(api.startPortForward).toHaveBeenCalledWith("default", "web-abc12", 0, 8080);
+    expect(api.startPortForward).toHaveBeenCalledWith(
+      "default",
+      "web-abc12",
+      0,
+      8080,
+    );
 
-    // The row appears via the "starting" event (the shared state owns rows).
     emitStatus({ ...ACTIVE, state: "starting" });
     emitStatus(ACTIVE);
     await flushPromises();
@@ -125,34 +132,52 @@ describe("PortForwardPanel - starting a forward", () => {
   it("uses an explicit local port when given", async () => {
     const w = mountPanel();
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Forward port")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"))
+      .trigger("click");
     await w.find('input[role="combobox"]').setValue("9090");
     await w.find("#pf-local-port").setValue("7000");
     await w.find("form").trigger("submit");
-    expect(api.startPortForward).toHaveBeenCalledWith("default", "web-abc12", 7000, 9090);
+    expect(api.startPortForward).toHaveBeenCalledWith(
+      "default",
+      "web-abc12",
+      7000,
+      9090,
+    );
     w.unmount();
   });
 
   it("rejects an out-of-range remote port without calling the backend", async () => {
     const w = mountPanel();
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Forward port")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"))
+      .trigger("click");
     await w.find('input[role="combobox"]').setValue("70000");
     await w.find("form").trigger("submit");
     expect(api.startPortForward).not.toHaveBeenCalled();
-    expect(w.find('[role="alert"]').text()).toContain("Remote port must be a number");
+    expect(w.find('[role="alert"]').text()).toContain(
+      "Remote port must be a number",
+    );
     w.unmount();
   });
 
   it("rejects an out-of-range explicit local port", async () => {
     const w = mountPanel();
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Forward port")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"))
+      .trigger("click");
     await w.find('input[role="combobox"]').setValue("8080");
     await w.find("#pf-local-port").setValue("-2");
     await w.find("form").trigger("submit");
     expect(api.startPortForward).not.toHaveBeenCalled();
-    expect(w.find('[role="alert"]').text()).toContain("Local port must be a number");
+    expect(w.find('[role="alert"]').text()).toContain(
+      "Local port must be a number",
+    );
     w.unmount();
   });
 
@@ -160,7 +185,10 @@ describe("PortForwardPanel - starting a forward", () => {
     api.startPortForward.mockRejectedValue(new Error("already active"));
     const w = mountPanel();
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Forward port")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"))
+      .trigger("click");
     await w.find('input[role="combobox"]').setValue("8080");
     await w.find("form").trigger("submit");
     await flushPromises();
@@ -177,7 +205,9 @@ describe("PortForwardPanel - stopping and actions", () => {
     emitStatus(ACTIVE);
     await flushPromises();
 
-    const stopBtn = w.findAll("button").find((b) => b.text().includes("Stop port forward"));
+    const stopBtn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Stop port forward"));
     await stopBtn.trigger("click");
     expect(api.stopPortForward).toHaveBeenCalledWith("pf-1");
 
@@ -219,7 +249,12 @@ describe("PortForwardPanel - stopping and actions", () => {
     await w.find("form").trigger("submit");
 
     // While the backend call is in flight the forward fails…
-    emitStatus({ ...ACTIVE, id: "pf-1", state: "failed", error: "pod is not running" });
+    emitStatus({
+      ...ACTIVE,
+      id: "pf-1",
+      state: "failed",
+      error: "pod is not running",
+    });
     await flushPromises();
     expect(w.text()).toContain("No active port forwards for this pod.");
 
@@ -245,8 +280,13 @@ describe("PortForwardPanel - stopping and actions", () => {
     emitStatus({ ...ACTIVE, state: "starting" });
     emitStatus(ACTIVE);
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Copy")).trigger("click");
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("127.0.0.1:4242");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Copy"))
+      .trigger("click");
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "127.0.0.1:4242",
+    );
     w.unmount();
   });
 
@@ -258,7 +298,10 @@ describe("PortForwardPanel - stopping and actions", () => {
     emitStatus({ ...ACTIVE, state: "starting" });
     emitStatus(ACTIVE);
     await flushPromises();
-    await w.findAll("button").find((b) => b.text().includes("Open in browser")).trigger("click");
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Open in browser"))
+      .trigger("click");
     expect(open).toHaveBeenCalledWith("http://127.0.0.1:4242");
     w.unmount();
   });

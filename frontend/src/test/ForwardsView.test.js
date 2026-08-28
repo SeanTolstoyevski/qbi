@@ -80,7 +80,9 @@ describe("ForwardsView - empty states", () => {
   it("shows the empty state when the feature is on but nothing runs", async () => {
     useStore().setExperimental(true);
     const w = await mountView();
-    expect(w.find('[role="status"]').text()).toContain("No active port forwards");
+    expect(w.find('[role="status"]').text()).toContain(
+      "No active port forwards",
+    );
     w.unmount();
   });
 });

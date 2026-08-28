@@ -19,14 +19,10 @@ function openInBrowser(f) {
   <div>
     <p v-if="!state.experimental" class="text-muted small">
       Port forwarding is an experimental feature. Enable
-      <strong>Experimental features</strong> in Settings to forward pod ports
-      to this machine.
+      <strong>Experimental features</strong> in Settings to forward pod ports to
+      this machine.
     </p>
-    <p
-      v-else-if="!forwards.length"
-      class="text-muted small"
-      role="status"
-    >
+    <p v-else-if="!forwards.length" class="text-muted small" role="status">
       No active port forwards. Open a pod's detail view and use its
       <strong>Port forwarding</strong> section to start one.
     </p>

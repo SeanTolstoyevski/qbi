@@ -166,8 +166,8 @@ load();
       <p class="text-body-secondary small mt-2 mb-2">
         Rolling back replaces the pod template with the selected revision’s.
         Pods are then replaced gradually according to the workload’s update
-        strategy (a StatefulSet with a canary partition only updates pods
-        above it).
+        strategy (a StatefulSet with a canary partition only updates pods above
+        it).
       </p>
 
       <div class="d-flex gap-2">

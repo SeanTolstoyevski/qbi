@@ -898,7 +898,6 @@ const displayChecks = [
 
     <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-
     <div
       ref="logEl"
       class="log-view flex-grow-1"

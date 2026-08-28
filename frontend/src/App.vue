@@ -115,10 +115,10 @@ const tabs = [
 
 const topTabs = ["cluster", "namespace", "settings", "about", "forwards"];
 
-// Screen shortcuts: Ctrl+1..4 jump straight to a top-level section (Cluster,
-// Namespace, Settings, About). "Forwards" deliberately has no shortcut so the
-// existing muscle memory stays intact.
-const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3 };
+// Screen shortcuts: Ctrl+1..5 jump straight to a top-level section (Cluster,
+// Namespace, Settings, About, Forwards), matching the aria-keyshortcuts each
+// nav button advertises.
+const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 };
 
 function onGlobalKeydown(e) {
   if (showWelcome.value) return; // the wizard owns the keyboard while open

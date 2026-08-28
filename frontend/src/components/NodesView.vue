@@ -102,7 +102,6 @@ defineExpose({ load });
 
     <div v-else class="row g-3">
       <div :class="[yamlTarget ? 'col-lg-8' : 'col-12', 'grid-col']">
-
         <div v-if="nodeMetrics" class="card mb-3">
           <div class="card-body py-2">
             <h3 class="h6 mb-1">Cluster resources</h3>

@@ -293,7 +293,6 @@ defineExpose({ load });
           {{ error }}
         </p>
         <template v-else>
-
           <h3 class="h6 mt-2">Services</h3>
           <p v-if="services.length === 0" class="text-muted small">
             No services found.
