@@ -3,6 +3,7 @@ import { ref, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useStore } from "./store.js";
 import { api } from "./api.js";
 import ContextBar from "./components/ContextBar.vue";
+import ActivePortForwards from "./components/ActivePortForwards.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import NamespaceList from "./components/NamespaceList.vue";
 import PodsView from "./components/PodsView.vue";
@@ -189,22 +190,25 @@ function onTabKeydown(e) {
         >
           <h1 class="h5 mb-0">QBI</h1>
 
-          <nav class="header-nav">
-            <ul class="nav nav-pills">
-              <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
-                <button
-                  type="button"
-                  class="nav-link text-capitalize"
-                  :class="{ active: section === s }"
-                  :aria-current="section === s ? 'page' : undefined"
-                  :aria-keyshortcuts="`Control+${idx + 1}`"
-                  @click="selectSection(s)"
-                >
-                  {{ s }}
-                </button>
-              </li>
-            </ul>
-          </nav>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <ActivePortForwards />
+            <nav class="header-nav">
+              <ul class="nav nav-pills">
+                <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
+                  <button
+                    type="button"
+                    class="nav-link text-capitalize"
+                    :class="{ active: section === s }"
+                    :aria-current="section === s ? 'page' : undefined"
+                    :aria-keyshortcuts="`Control+${idx + 1}`"
+                    @click="selectSection(s)"
+                  >
+                    {{ s }}
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          </div>
         </div>
         <ContextBar />
       </header>

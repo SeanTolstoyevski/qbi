@@ -12,6 +12,8 @@ vi.mock("../api.js", () => ({
     buildInfo: vi.fn(),
     getSettings: vi.fn(),
     acknowledgeWelcome: vi.fn(),
+    listPortForwards: vi.fn().mockResolvedValue([]),
+    stopPortForward: vi.fn(),
   },
   onEvent: vi.fn(() => () => {}),
 }));
