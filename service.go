@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,17 @@ type Service struct {
 	streamSeq atomic.Int64
 
 	watcher *kube.Watcher
+
+	pfMu     sync.Mutex
+	forwards map[string]*portForwardEntry
+	pfSeq    atomic.Int64
+
+	// startPortForward creates the underlying forward session; replaced in
+	// tests to exercise the port-forward lifecycle without a cluster.
+	startPortForward func(ctx context.Context, spec kube.PortForwardSpec) (portForwardSession, error)
+	// emitPortForwardStatus delivers a status event to the frontend; replaced
+	// in tests because runtime.EventsEmit requires the Wails runtime context.
+	emitPortForwardStatus func(st kube.PortForwardStatus)
 }
 
 type logStreamEntry struct {
@@ -44,7 +56,17 @@ type logStreamEntry struct {
 
 // NewService creates the frontend-facing service.
 func NewService(app *App) *Service {
-	s := &Service{app: app, streams: make(map[string]*logStreamEntry)}
+	s := &Service{
+		app:      app,
+		streams:  make(map[string]*logStreamEntry),
+		forwards: make(map[string]*portForwardEntry),
+		emitPortForwardStatus: func(st kube.PortForwardStatus) {
+			runtime.EventsEmit(app.ctx, "portforward:status", st)
+		},
+	}
+	s.startPortForward = func(ctx context.Context, spec kube.PortForwardSpec) (portForwardSession, error) {
+		return app.kube.StartPortForward(ctx, spec)
+	}
 	s.watcher = kube.NewWatcher(app.kube, s.emitWatchEvent)
 	return s
 }
@@ -137,10 +159,11 @@ func (s *Service) SetWatchNamespace(namespace string) {
 }
 
 // Shutdown stops background watchers when the app closes. Log streams ride on
-// the Wails app context and are cancelled with it, so only the watcher needs
-// an explicit stop here.
+// the Wails app context and are cancelled with it, so only the watcher and
+// the port-forward sessions need an explicit stop here.
 func (s *Service) Shutdown() {
 	s.watcher.Stop()
+	s.stopAllPortForwards()
 }
 
 // emitWatchEvent translates a kube.WatchEvent into a Wails runtime event so
@@ -222,7 +245,14 @@ func (s *Service) ListContexts() ([]kube.ContextInfo, error) {
 // Connect activates the given context (empty selects the current-context).
 func (s *Service) Connect(contextName string) (kube.ContextInfo, error) {
 	info, err := s.app.kube.Connect(contextName)
-	return info, s.opErr("Connect", err)
+	if err != nil {
+		return info, s.opErr("Connect", err)
+	}
+	// A new connection carries a fresh REST config; port-forwards built on
+	// the old one cannot survive it, so tear them all down. The UI remounts
+	// its panels afterwards and rehydrates from ListPortForwards.
+	s.stopAllPortForwards()
+	return info, nil
 }
 
 // opCtx returns a context bounded by a timeout for a single API operation, so
@@ -1267,4 +1297,252 @@ func (s *Service) SaveLogs(suggestedName, content string) (string, error) {
 		return "", s.opErr("SaveLogs", err)
 	}
 	return path, nil
+}
+
+// ── Port forwarding ────────────────────────────────────────────────────────
+
+// portForwardEntry tracks one running port-forward session: the underlying
+// session, the owning context, and the state the frontend sees. Entries live
+// in Service.forwards while the forward is alive and are removed once it
+// reaches a terminal state (stopped or failed), after the final event.
+type portForwardEntry struct {
+	id         string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	session    portForwardSession
+	namespace  string
+	pod        string
+	localPort  int
+	remotePort int
+	state      string // starting | active | stopped | failed
+	errText    string
+	teardown   bool // set by stopAllPortForwards: suppress final events
+}
+
+// portForwardSession is the subset of kube.PortForwardSession the Service
+// lifecycle uses. It is an interface so tests can drive the lifecycle with a
+// fake instead of a live cluster.
+type portForwardSession interface {
+	LocalPort() int
+	Ready() <-chan struct{}
+	Result() <-chan error
+	Stop()
+	ErrorText() string
+}
+
+// portForwardReadyTimeout bounds how long a forward may take to bind its
+// local port before it is declared failed. A package variable so tests can
+// shorten it.
+var portForwardReadyTimeout = 10 * time.Second
+
+// StartPortForward opens a TCP port-forward from 127.0.0.1 to a port inside
+// a pod. It is an experimental feature: the call is refused while the
+// experimental switch is off, server-side, so the gate cannot be bypassed
+// from the UI. The call returns as soon as the session is registered
+// ("starting"); progress is delivered to the frontend as "portforward:status"
+// events (active / stopped / failed).
+func (s *Service) StartPortForward(namespace, pod string, localPort, remotePort int) (kube.PortForwardStatus, error) {
+	if !experimentalEnabled() {
+		return kube.PortForwardStatus{}, s.opErr("StartPortForward",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+
+	// One forward per (pod, remote port): a duplicate would silently shadow
+	// the existing one and leak its local port.
+	s.pfMu.Lock()
+	for _, e := range s.forwards {
+		if e.namespace == namespace && e.pod == pod && e.remotePort == remotePort &&
+			e.state != "stopped" && e.state != "failed" {
+			s.pfMu.Unlock()
+			return kube.PortForwardStatus{}, s.opErr("StartPortForward",
+				fmt.Errorf("a port forward to %s/%s:%d is already active", namespace, pod, remotePort))
+		}
+	}
+	s.pfMu.Unlock()
+
+	id := fmt.Sprintf("pf-%d", s.pfSeq.Add(1))
+	ctx, cancel := context.WithCancel(s.app.ctx)
+	entry := &portForwardEntry{
+		id:         id,
+		ctx:        ctx,
+		cancel:     cancel,
+		namespace:  namespace,
+		pod:        pod,
+		localPort:  localPort,
+		remotePort: remotePort,
+		state:      "starting",
+	}
+
+	session, err := s.startPortForward(ctx, kube.PortForwardSpec{
+		Namespace:  namespace,
+		Pod:        pod,
+		LocalPort:  localPort,
+		RemotePort: remotePort,
+	})
+	if err != nil {
+		cancel()
+		return kube.PortForwardStatus{}, s.opErr("StartPortForward", err)
+	}
+	entry.session = session
+	entry.localPort = session.LocalPort()
+
+	s.pfMu.Lock()
+	s.forwards[id] = entry
+	s.pfMu.Unlock()
+	s.emitPortForwardStatus(s.portForwardStatus(entry))
+
+	go s.runPortForwardLifecycle(entry)
+	return s.portForwardStatus(entry), nil
+}
+
+// runPortForwardLifecycle watches one forward from registration to its
+// terminal state, emitting a status event on every transition. It owns the
+// entry's cleanup: the entry leaves the registry and its context is cancelled
+// when the forward ends.
+func (s *Service) runPortForwardLifecycle(entry *portForwardEntry) {
+	defer s.finishPortForward(entry)
+
+	select {
+	case <-entry.session.Ready():
+		s.setPortForwardState(entry, "active", "")
+	case err := <-entry.session.Result():
+		s.setPortForwardState(entry, "failed", portForwardErrorText(err, entry.session))
+		return
+	case <-time.After(portForwardReadyTimeout):
+		entry.session.Stop()
+		s.setPortForwardState(entry, "failed", "timed out waiting for the port forward to become ready")
+		return
+	}
+
+	select {
+	case err := <-entry.session.Result():
+		if err != nil {
+			s.setPortForwardState(entry, "failed", portForwardErrorText(err, entry.session))
+			return
+		}
+		// Clean end: either Stop was requested (state already "stopped" and
+		// announced) or the connection ended on its own — surface that.
+		s.setPortForwardState(entry, "stopped", "")
+	case <-entry.ctx.Done():
+		// Teardown (app shutdown / reconnect): the kube-layer watchdog stops
+		// the session; nothing to emit — the UI is going away.
+		entry.session.Stop()
+	}
+}
+
+// StopPortForward ends a running forward by id. Stopping an already-finished
+// forward is a no-op: the UI can race the terminal event.
+func (s *Service) StopPortForward(id string) error {
+	s.pfMu.Lock()
+	entry, ok := s.forwards[id]
+	if ok && (entry.state == "stopped" || entry.state == "failed") {
+		ok = false // already terminal; nothing to stop
+	}
+	s.pfMu.Unlock()
+	if !ok {
+		return nil
+	}
+	entry.session.Stop()
+	s.setPortForwardState(entry, "stopped", "")
+	return nil
+}
+
+// ListPortForwards returns a snapshot of every running forward, sorted by pod
+// then local port, so the UI can rebuild its list (e.g. after a panel
+// remount).
+func (s *Service) ListPortForwards() []kube.PortForwardStatus {
+	s.pfMu.Lock()
+	defer s.pfMu.Unlock()
+	out := make([]kube.PortForwardStatus, 0, len(s.forwards))
+	for _, e := range s.forwards {
+		out = append(out, s.portForwardStatusLocked(e))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Pod != out[j].Pod {
+			return out[i].Pod < out[j].Pod
+		}
+		return out[i].LocalPort < out[j].LocalPort
+	})
+	return out
+}
+
+// stopAllPortForwards ends every running forward (context switch, app
+// shutdown). Final events are suppressed: the UI is being torn down or
+// remounted anyway, and announcing "stopped" for a forward the user did not
+// stop would be noise.
+func (s *Service) stopAllPortForwards() {
+	s.pfMu.Lock()
+	entries := make([]*portForwardEntry, 0, len(s.forwards))
+	for _, e := range s.forwards {
+		e.teardown = true
+		entries = append(entries, e)
+	}
+	s.pfMu.Unlock()
+	for _, e := range entries {
+		e.session.Stop()
+	}
+}
+
+// setPortForwardState records a transition and emits it to the frontend.
+// Re-setting the same state is a no-op, so racing goroutines (a Stop request
+// vs. the lifecycle loop) emit at most one event per transition. Emissions
+// are suppressed while the entry is being torn down.
+func (s *Service) setPortForwardState(entry *portForwardEntry, state, errText string) {
+	s.pfMu.Lock()
+	if entry.state == state && entry.errText == errText {
+		s.pfMu.Unlock()
+		return
+	}
+	entry.state = state
+	entry.errText = errText
+	status := s.portForwardStatusLocked(entry)
+	teardown := entry.teardown
+	s.pfMu.Unlock()
+	if !teardown {
+		s.emitPortForwardStatus(status)
+	}
+}
+
+// portForwardStatus renders the frontend-facing status of an entry.
+func (s *Service) portForwardStatus(entry *portForwardEntry) kube.PortForwardStatus {
+	s.pfMu.Lock()
+	defer s.pfMu.Unlock()
+	return s.portForwardStatusLocked(entry)
+}
+
+func (s *Service) portForwardStatusLocked(entry *portForwardEntry) kube.PortForwardStatus {
+	return kube.PortForwardStatus{
+		ID:         entry.id,
+		Namespace:  entry.namespace,
+		Pod:        entry.pod,
+		LocalPort:  entry.localPort,
+		RemotePort: entry.remotePort,
+		State:      entry.state,
+		Error:      entry.errText,
+	}
+}
+
+// finishPortForward removes the entry from the registry — only if it is still
+// the current one, so a stale goroutine can never remove the entry of a newer
+// forward — and releases its context.
+func (s *Service) finishPortForward(entry *portForwardEntry) {
+	s.pfMu.Lock()
+	if s.forwards[entry.id] == entry {
+		delete(s.forwards, entry.id)
+	}
+	s.pfMu.Unlock()
+	entry.cancel()
+}
+
+// portForwardErrorText prefers the machinery's own diagnostic (kubectl-style,
+// e.g. "unable to forward port because pod is not running") over the raw Go
+// error, with a final fallback for the case where neither carries a message.
+func portForwardErrorText(err error, session portForwardSession) string {
+	if msg := session.ErrorText(); msg != "" {
+		return msg
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "the port-forward connection ended unexpectedly"
 }
