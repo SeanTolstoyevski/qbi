@@ -59,6 +59,7 @@ type PodDetail struct {
 	QOSClass    string                `json:"qosClass"`
 	Age         string                `json:"age"`
 	Labels      map[string]string     `json:"labels"`
+	Ports       []int32               `json:"ports"` // container ports (deduped, sorted)
 	Conditions  []PodConditionInfo    `json:"conditions"`
 	Containers  []ContainerStatusInfo `json:"containers"`
 }
@@ -380,6 +381,21 @@ type JobRun struct {
 type PodRef struct {
 	Name       string   `json:"name"`
 	Containers []string `json:"containers"`
+}
+
+// PortForwardStatus is the live state of one port-forward session, emitted to
+// the frontend on every transition and returned by the listing call. State is
+// one of "starting", "active", "stopped" or "failed"; Error is set only when
+// the forward failed. LocalPort is always the resolved port (0 becomes a
+// picked free port), so the UI can show 127.0.0.1:LocalPort immediately.
+type PortForwardStatus struct {
+	ID         string `json:"id"`
+	Namespace  string `json:"namespace"`
+	Pod        string `json:"pod"`
+	LocalPort  int    `json:"localPort"`
+	RemotePort int    `json:"remotePort"`
+	State      string `json:"state"`
+	Error      string `json:"error"`
 }
 
 // DeploymentCreate is the user-facing spec for creating a Deployment. The UI
