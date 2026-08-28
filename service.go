@@ -1348,17 +1348,16 @@ func (s *Service) StartPortForward(namespace, pod string, localPort, remotePort 
 	}
 
 	// One forward per (pod, remote port): a duplicate would silently shadow
-	// the existing one and leak its local port.
+	// the existing one and leak its local port. The pre-check fails fast
+	// before any network work; the authoritative check runs again under the
+	// same lock as the insert, so concurrent starts cannot both register.
 	s.pfMu.Lock()
-	for _, e := range s.forwards {
-		if e.namespace == namespace && e.pod == pod && e.remotePort == remotePort &&
-			e.state != "stopped" && e.state != "failed" {
-			s.pfMu.Unlock()
-			return kube.PortForwardStatus{}, s.opErr("StartPortForward",
-				fmt.Errorf("a port forward to %s/%s:%d is already active", namespace, pod, remotePort))
-		}
-	}
+	dup := s.portForwardTargetActiveLocked(namespace, pod, remotePort)
 	s.pfMu.Unlock()
+	if dup {
+		return kube.PortForwardStatus{}, s.opErr("StartPortForward",
+			fmt.Errorf("a port forward to %s/%s:%d is already active", namespace, pod, remotePort))
+	}
 
 	id := fmt.Sprintf("pf-%d", s.pfSeq.Add(1))
 	ctx, cancel := context.WithCancel(s.app.ctx)
@@ -1387,6 +1386,16 @@ func (s *Service) StartPortForward(namespace, pod string, localPort, remotePort 
 	entry.localPort = session.LocalPort()
 
 	s.pfMu.Lock()
+	if s.portForwardTargetActiveLocked(namespace, pod, remotePort) {
+		// Lost the race against a concurrent start: discard the fresh session
+		// and report the active one. The session is stopped so its local port
+		// is released; nobody ever saw it, so no event is emitted.
+		s.pfMu.Unlock()
+		session.Stop()
+		cancel()
+		return kube.PortForwardStatus{}, s.opErr("StartPortForward",
+			fmt.Errorf("a port forward to %s/%s:%d is already active", namespace, pod, remotePort))
+	}
 	s.forwards[id] = entry
 	s.pfMu.Unlock()
 	s.emitPortForwardStatus(s.portForwardStatus(entry))
@@ -1406,7 +1415,14 @@ func (s *Service) runPortForwardLifecycle(entry *portForwardEntry) {
 	case <-entry.session.Ready():
 		s.setPortForwardState(entry, "active", "")
 	case err := <-entry.session.Result():
-		s.setPortForwardState(entry, "failed", portForwardErrorText(err, entry.session))
+		if err != nil {
+			s.setPortForwardState(entry, "failed", portForwardErrorText(err, entry.session))
+			return
+		}
+		// Stopped before becoming ready: StopPortForward already set and
+		// announced "stopped"; re-setting is a no-op, and crucially this
+		// must NOT be reported as a failure.
+		s.setPortForwardState(entry, "stopped", "")
 		return
 	case <-time.After(portForwardReadyTimeout):
 		entry.session.Stop()
@@ -1481,6 +1497,18 @@ func (s *Service) stopAllPortForwards() {
 	for _, e := range entries {
 		e.session.Stop()
 	}
+}
+
+// portForwardTargetActiveLocked reports whether a non-terminal forward to the
+// target (pod, remote port) already exists. Callers must hold pfMu.
+func (s *Service) portForwardTargetActiveLocked(namespace, pod string, remotePort int) bool {
+	for _, e := range s.forwards {
+		if e.namespace == namespace && e.pod == pod && e.remotePort == remotePort &&
+			e.state != "stopped" && e.state != "failed" {
+			return true
+		}
+	}
+	return false
 }
 
 // setPortForwardState records a transition and emits it to the frontend.

@@ -230,6 +230,73 @@ func TestStartPortForwardReadyTimeout(t *testing.T) {
 	waitFor(t, func() bool { return len(s.ListPortForwards()) == 0 })
 }
 
+func TestStopPortForwardWhileStartingReportsStopped(t *testing.T) {
+	fake := newFakePortForward(4242) // never becomes ready on its own
+	s, log := newPortForwardService(t, func(_ context.Context, _ kube.PortForwardSpec) (portForwardSession, error) {
+		return fake, nil
+	})
+
+	status, err := s.StartPortForward("default", "web-abc", 0, 8080)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.StopPortForward(status.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return len(s.ListPortForwards()) == 0 })
+
+	if got := log.count("failed"); got != 0 {
+		t.Fatalf("stop during starting must not be reported as failed (events: %v)", log.states())
+	}
+	if got := log.count("stopped"); got != 1 {
+		t.Fatalf("stopped events = %d, want exactly 1 (events: %v)", got, log.states())
+	}
+}
+
+func TestStartPortForwardConcurrentDuplicates(t *testing.T) {
+	// A factory barrier: both starts pass the fast-fail pre-check and block
+	// inside the factory, so only the authoritative check (under the insert
+	// lock) can reject the loser.
+	barrier := make(chan struct{})
+	var mu sync.Mutex
+	started := 0
+	s, _ := newPortForwardService(t, func(_ context.Context, _ kube.PortForwardSpec) (portForwardSession, error) {
+		mu.Lock()
+		started++
+		mu.Unlock()
+		<-barrier
+		return newFakePortForward(0), nil
+	})
+
+	results := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			_, err := s.StartPortForward("default", "web-abc", 0, 8080)
+			results <- err
+		}()
+	}
+	waitFor(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return started == 2
+	})
+	close(barrier)
+
+	var okCount int
+	for i := 0; i < 2; i++ {
+		err := <-results
+		if err == nil {
+			okCount++
+		} else if !strings.Contains(err.Error(), "already active") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if okCount != 1 {
+		t.Fatalf("exactly one concurrent start must succeed, got %d", okCount)
+	}
+	waitFor(t, func() bool { return len(s.ListPortForwards()) == 1 })
+}
+
 func TestStopPortForwardUnknownIsNoOp(t *testing.T) {
 	s, log := newPortForwardService(t, func(_ context.Context, _ kube.PortForwardSpec) (portForwardSession, error) {
 		t.Fatal("factory must not be called")
