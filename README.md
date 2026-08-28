@@ -34,12 +34,15 @@ node. Per pod:
   recreate the pod or not.
 
 **Workloads** - Deployments, StatefulSets and DaemonSets with ready counts and
-images; degraded workloads are highlighted. Scale, restart (rolling restart)
-or delete any of them or create a Deployment from a form with a live YAML
-preview. Jobs and CronJobs get their own tables: create and edit CronJobs
-(schedule, concurrency policy), suspend/resume them and stream the logs of
-the latest run. A *recent rollouts* panel rebuilds deployment history from
-ReplicaSet revisions, durable where events are not.
+images; degraded workloads are highlighted. Scale, restart (rolling restart),
+roll back to any past revision (`kubectl rollout undo` equivalent — the
+revision picker shows images, change-cause notes and ages) or delete any of
+them, or create a Deployment from a form with a live YAML preview. Jobs and
+CronJobs get their own tables: create and edit CronJobs (schedule, concurrency
+policy), suspend/resume them and stream the logs of the latest run. A
+*recent rollouts* panel rebuilds deployment history from ReplicaSet
+revisions, durable where events are not, and every past version row can be
+rolled straight back.
 
 **Networking** - Services with their DNS name, type, ClusterIP, ports, selector
 and the endpoints actually backing them, with a clear warning when there are

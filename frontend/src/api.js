@@ -101,6 +101,8 @@ export const api = {
   restartWorkload: wrap(Service.RestartWorkload),
   deleteWorkload: wrap(Service.DeleteWorkload),
   scaleWorkload: wrap(Service.ScaleWorkload),
+  listWorkloadRevisions: wrap(Service.ListWorkloadRevisions),
+  rollbackWorkload: wrap(Service.RollbackWorkload),
   getResourceYaml: wrap(Service.GetResourceYAML),
   startLogStream: wrap(Service.StartLogStream),
   followLogStream: wrap(Service.FollowLogStream),

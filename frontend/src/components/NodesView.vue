@@ -102,7 +102,7 @@ defineExpose({ load });
 
     <div v-else class="row g-3">
       <div :class="[yamlTarget ? 'col-lg-8' : 'col-12', 'grid-col']">
-        <!-- Cluster-wide CPU/memory rollup (kubectl top nodes equivalent). -->
+
         <div v-if="nodeMetrics" class="card mb-3">
           <div class="card-body py-2">
             <h3 class="h6 mb-1">Cluster resources</h3>
@@ -237,7 +237,7 @@ defineExpose({ load });
                   @click="yamlTarget = n.name"
                 >
                   YAML<span class="visually-hidden">
-                    for node {{ n.name }}</span
+                    &nbsp;for node {{ n.name }}</span
                   >
                 </button>
               </td>

@@ -281,9 +281,6 @@ defineExpose({ load });
     </p>
 
     <div v-else class="row g-3">
-      <!-- The side panel stays mounted while the list reloads, so a watch
-           refresh never tears it down (which would bounce focus and refetch
-           the detail). -->
       <div
         :class="
           createServiceOpen || createIngressOpen || editTarget || inspectTarget
@@ -296,7 +293,7 @@ defineExpose({ load });
           {{ error }}
         </p>
         <template v-else>
-          <!-- SERVICES -->
+
           <h3 class="h6 mt-2">Services</h3>
           <p v-if="services.length === 0" class="text-muted small">
             No services found.
@@ -439,7 +436,6 @@ defineExpose({ load });
             </li>
           </ul>
 
-          <!-- INGRESSES -->
           <h3 class="h6">Ingresses</h3>
           <p v-if="ingresses.length === 0" class="text-muted small">
             No ingresses found.
@@ -662,7 +658,6 @@ defineExpose({ load });
         </template>
       </div>
 
-      <!-- Right: create/edit panels or the ingress inspection panel -->
       <div v-if="createServiceOpen" class="col-lg-5" style="min-height: 24rem">
         <ServiceCreate
           :namespace="state.namespace"

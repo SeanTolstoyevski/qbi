@@ -14,10 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// ── fixtures ────────────────────────────────────────────────────────────────
-
-// podTemplate builds a minimal one-container pod template. The app label
-// doubles as the selector label, like the Deployment create form produces.
 func podTemplate(image string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "web"}},
@@ -27,9 +23,6 @@ func podTemplate(image string) corev1.PodTemplateSpec {
 	}
 }
 
-// revisionRS builds a ReplicaSet of a given revision owned by Deployment
-// "web". Real ReplicaSets always carry the pod-template-hash label; the
-// fixture does too so the rollback no-op detection is exercised for real.
 func revisionRS(name, image, changeCause string, rev int64, ready, desired int32) *appsv1.ReplicaSet {
 	rs := &appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -52,11 +45,6 @@ func revisionRS(name, image, changeCause string, rev int64, ready, desired int32
 	return rs
 }
 
-// deploymentFixture is a Deployment at revision 3 (image nginx:1.27) with a
-// full annotation set: user notes, controller bookkeeping, and a custom
-// deployment-metadata-only annotation (which kubectl's annotation merge does
-// NOT carry over a rollback — only bookkeeping and the revision's own
-// annotations survive).
 func deploymentFixture(paused bool) *appsv1.Deployment {
 	d := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -79,9 +67,6 @@ func deploymentFixture(paused bool) *appsv1.Deployment {
 	return d
 }
 
-// revisionPatch encodes a pod template the way the StatefulSet and DaemonSet
-// controllers do when they record a ControllerRevision: a strategic-merge
-// patch with a "$patch":"replace" directive inside the template map.
 func revisionPatch(tpl corev1.PodTemplateSpec) []byte {
 	raw, _ := json.Marshal(tpl)
 	var m map[string]interface{}
@@ -91,9 +76,6 @@ func revisionPatch(tpl corev1.PodTemplateSpec) []byte {
 	return patch
 }
 
-// controllerRevision builds a revision of a StatefulSet or DaemonSet owned by
-// the named workload. The change-cause note is recorded on the revision
-// object itself (that is where kubectl reads it from for these kinds).
 func controllerRevision(name, kind, owner, image string, rev int64, changeCause string) *appsv1.ControllerRevision {
 	tpl := podTemplate(image)
 	tpl.ObjectMeta.Labels = map[string]string{"app": owner}
@@ -113,13 +95,9 @@ func controllerRevision(name, kind, owner, image string, rev int64, changeCause 
 	return cr
 }
 
-// deploymentOnly seeds the fake client with just the Deployment, so tests can
-// cover the no-history edge.
 func deploymentOnly(paused bool) *Client {
 	return newTestClient(deploymentFixture(paused))
 }
-
-// ── revision listing ────────────────────────────────────────────────────────
 
 func TestWorkloadRevisionsDeployment(t *testing.T) {
 	c := newTestClient(
@@ -127,7 +105,7 @@ func TestWorkloadRevisionsDeployment(t *testing.T) {
 		revisionRS("web-7d8f6", "nginx:1.21", "", 1, 0, 1),
 		revisionRS("web-9c4b2", "nginx:1.24", "bump to 1.24", 2, 3, 3),
 		revisionRS("web-a1b2c", "nginx:1.27", "go live 1.27", 3, 3, 3),
-		// A ReplicaSet of a different Deployment must not leak into the trail.
+
 		forOwner(revisionRS("other-x1", "nginx:1.0", "", 1, 0, 0), "other"),
 	)
 
@@ -138,7 +116,7 @@ func TestWorkloadRevisionsDeployment(t *testing.T) {
 	if len(revs) != 3 {
 		t.Fatalf("got %d revisions, want 3: %+v", len(revs), revs)
 	}
-	// Newest first.
+
 	if revs[0].Revision != 3 || revs[1].Revision != 2 || revs[2].Revision != 1 {
 		t.Fatalf("revision order = %d,%d,%d, want 3,2,1", revs[0].Revision, revs[1].Revision, revs[2].Revision)
 	}
@@ -159,7 +137,6 @@ func TestWorkloadRevisionsDeployment(t *testing.T) {
 	}
 }
 
-// forOwner rewrites an RS fixture to belong to another Deployment.
 func forOwner(rs *appsv1.ReplicaSet, name string) *appsv1.ReplicaSet {
 	rs.OwnerReferences = []metav1.OwnerReference{{Kind: "Deployment", Name: name, Controller: boolPtr(true)}}
 	return rs
@@ -181,7 +158,7 @@ func TestWorkloadRevisionsStatefulSet(t *testing.T) {
 		sts,
 		controllerRevision("db-5c1f", "StatefulSet", "db", "mysql:5.7", 1, "migrate to 5.7"),
 		controllerRevision("db-9e2a", "StatefulSet", "db", "mysql:8.0", 2, ""),
-		// A revision of another StatefulSet must not leak into the trail.
+
 		controllerRevision("other-c1", "StatefulSet", "other", "mysql:5.0", 1, ""),
 	)
 
@@ -244,8 +221,6 @@ func TestWorkloadRevisionsUnsupportedKind(t *testing.T) {
 	}
 }
 
-// Some clusters record the change-cause inside the stored template instead of
-// on the ControllerRevision itself; the fallback must surface it.
 func TestWorkloadRevisionsChangeCauseFromTemplate(t *testing.T) {
 	tpl := podTemplate("agent:1.0")
 	tpl.ObjectMeta.Labels = map[string]string{"app": "agent"}
@@ -278,8 +253,6 @@ func TestWorkloadRevisionsChangeCauseFromTemplate(t *testing.T) {
 		t.Error("revision whose template matches the live one must be marked current")
 	}
 }
-
-// ── Deployment rollback ─────────────────────────────────────────────────────
 
 func TestRollbackDeploymentRestoresRevision(t *testing.T) {
 	// A user annotation on the restored ReplicaSet (template lineage) flows
@@ -322,7 +295,7 @@ func TestRollbackDeploymentRestoresRevision(t *testing.T) {
 	// from the restored revision, and the deployment's stale change-cause
 	// ("go live 1.27") is replaced by the revision's.
 	want := map[string]string{
-		deploymentRevisionAnnotation:               "3",
+		deploymentRevisionAnnotation:                "3",
 		"deployment.kubernetes.io/desired-replicas": "3",
 		changeCauseAnnotation:                       "bump to 1.24",
 		"custom.example/keep":                       "yes",

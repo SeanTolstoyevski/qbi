@@ -16,14 +16,8 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-// changeCauseAnnotation is the standard "why did this rollout happen" note
-// (kubectl sets it from `kubectl rollout`/`kubectl apply --record`); copying
-// it across a rollback is what keeps history readable.
 const changeCauseAnnotation = "kubernetes.io/change-cause"
 
-// rollbackSkippedAnnotations are controller bookkeeping, not user intent:
-// when a rollback restores a Deployment's template it must not resurrect
-// them. Mirrors the skip set in kubectl's deployment rollbacker.
 var rollbackSkippedAnnotations = map[string]bool{
 	corev1.LastAppliedConfigAnnotation:          true,
 	deploymentRevisionAnnotation:                true,
@@ -54,6 +48,26 @@ func (c *Client) WorkloadRevisions(ctx context.Context, namespace, kind, name st
 	}
 }
 
+func ownedReplicaSets(deploy *appsv1.Deployment, replicaSets []appsv1.ReplicaSet) []*appsv1.ReplicaSet {
+	out := []*appsv1.ReplicaSet{}
+	for i := range replicaSets {
+		rs := &replicaSets[i]
+		if !ownedBy(rs.OwnerReferences, "Deployment", deploy.Name) {
+			continue
+		}
+		if _, ok := parseRevision(rs.Annotations); !ok {
+			continue
+		}
+		out = append(out, rs)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ri, _ := parseRevision(out[i].Annotations)
+		rj, _ := parseRevision(out[j].Annotations)
+		return ri > rj
+	})
+	return out
+}
+
 // deploymentRevisions reads a Deployment's revision trail from the ReplicaSets
 // it owns. ReplicaSets are retained (bounded by revisionHistoryLimit), each
 // stamped with the revision it served, so they are the durable record of
@@ -69,16 +83,10 @@ func deploymentRevisions(ctx context.Context, cs kubernetes.Interface, namespace
 	}
 
 	current, _ := parseRevision(deploy.Annotations)
-	out := []WorkloadRevision{}
-	for i := range rsList.Items {
-		rs := &rsList.Items[i]
-		if !ownedBy(rs.OwnerReferences, "Deployment", name) {
-			continue
-		}
-		rev, ok := parseRevision(rs.Annotations)
-		if !ok {
-			continue
-		}
+	owned := ownedReplicaSets(deploy, rsList.Items)
+	out := make([]WorkloadRevision, 0, len(owned))
+	for _, rs := range owned {
+		rev, _ := parseRevision(rs.Annotations)
 		out = append(out, WorkloadRevision{
 			Revision:    rev,
 			Images:      containerImages(rs.Spec.Template.Spec.Containers),
@@ -88,7 +96,6 @@ func deploymentRevisions(ctx context.Context, cs kubernetes.Interface, namespace
 			Replicas:    fmt.Sprintf("%d/%d", rs.Status.ReadyReplicas, rs.Status.Replicas),
 		})
 	}
-	sortRevisionsDesc(out)
 	return out, nil
 }
 
@@ -208,30 +215,17 @@ func rollbackDeployment(ctx context.Context, cs kubernetes.Interface, namespace,
 		return RollbackResult{}, err
 	}
 
-	// kubectl refuses to roll back a paused deployment; the revision lookup
-	// above runs first so an unknown revision is reported as such.
 	if deploy.Spec.Paused {
 		return RollbackResult{}, fmt.Errorf("cannot roll back a paused deployment; resume it first")
 	}
 
-	// A revision whose template already matches the live one is a no-op
-	// (kubectl skips it too). Only the pod-template-hash label differs, and it
-	// is deployment-internal, so it is ignored in the comparison.
 	if equalIgnoreHash(&target.Spec.Template, &deploy.Spec.Template) {
 		return RollbackResult{Skipped: true}, nil
 	}
 
-	// The hash label must not land on the Deployment template; the controller
-	// re-derives it for the ReplicaSet it creates next. Work on a copy: the
-	// listed ReplicaSet is shared state, not a scratch object.
 	template := target.Spec.Template.DeepCopy()
 	delete(template.Labels, appsv1.DefaultDeploymentUniqueLabelKey)
 
-	// Mirror kubectl's annotation merge: the Deployment's own bookkeeping
-	// annotations (revision, desired/max replicas, ...) are preserved, the
-	// revision's bookkeeping values are NOT copied over them (they describe
-	// the old rollout), and user annotations — e.g. kubernetes.io/change-cause
-	// — come from the revision being restored.
 	annotations := map[string]string{}
 	for k := range rollbackSkippedAnnotations {
 		if v, ok := deploy.Annotations[k]; ok {
@@ -252,8 +246,6 @@ func rollbackDeployment(ctx context.Context, cs kubernetes.Interface, namespace,
 		return RollbackResult{}, err
 	}
 
-	// The patch is idempotent, so RetryOnConflict is belt-and-braces rather
-	// than a lost-update guard.
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		_, err := cs.AppsV1().Deployments(namespace).Patch(ctx, name, types.JSONPatchType, patch, metav1.PatchOptions{})
 		return err
@@ -287,38 +279,19 @@ func deploymentRevisionRS(ctx context.Context, cs kubernetes.Interface, deploy *
 		return nil, err
 	}
 
-	var (
-		latestRS, previousRS *appsv1.ReplicaSet
-		latestRev, prevRev   int64
-	)
-	for i := range rsList.Items {
-		rs := &rsList.Items[i]
-		if !ownedBy(rs.OwnerReferences, "Deployment", deploy.Name) {
-			continue
-		}
-		rev, ok := parseRevision(rs.Annotations)
-		if !ok {
-			continue
-		}
-		if toRevision == 0 {
-			if latestRS == nil || rev > latestRev {
-				previousRS = latestRS
-				prevRev = latestRev
-				latestRS = rs
-				latestRev = rev
-			} else if previousRS == nil || rev > prevRev {
-				previousRS = rs
-				prevRev = rev
-			}
-		} else if rev == toRevision {
-			return rs, nil
-		}
-	}
+	// ownedReplicaSets sorts newest first, so the "previous" revision is
+	// simply the second entry, mirroring kubectl's undo-to-last-revision.
+	owned := ownedReplicaSets(deploy, rsList.Items)
 	if toRevision == 0 {
-		if previousRS == nil {
+		if len(owned) < 2 {
 			return nil, fmt.Errorf("no rollout history found for deployment %q", deploy.Name)
 		}
-		return previousRS, nil
+		return owned[1], nil
+	}
+	for _, rs := range owned {
+		if rev, _ := parseRevision(rs.Annotations); rev == toRevision {
+			return rs, nil
+		}
 	}
 	return nil, revisionNotFoundErr(toRevision)
 }
@@ -404,7 +377,6 @@ func parseRevision(annotations map[string]string) (int64, bool) {
 	return v, true
 }
 
-// sortRevisionsDesc orders history newest first.
 func sortRevisionsDesc(revs []WorkloadRevision) {
 	sort.Slice(revs, func(i, j int) bool { return revs[i].Revision > revs[j].Revision })
 }

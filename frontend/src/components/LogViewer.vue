@@ -1,5 +1,12 @@
 <script setup>
-import { ref, shallowRef, computed, watch, onBeforeUnmount, nextTick } from "vue";
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
 import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
@@ -149,7 +156,7 @@ function segmentizePlain(text, needle, sensitive) {
   }
   const chars = [];
   const offsets = [];
-  for (let u = 0; u < text.length; ) {
+  for (let u = 0; u < text.length;) {
     const cp = text.codePointAt(u);
     offsets.push(u);
     chars.push(String.fromCodePoint(cp));
@@ -334,12 +341,18 @@ function scheduleRebuild(announceResult) {
     matchCount.value = hits;
     rebuilding = false;
     filtering.value = false;
-    if (activeSeq.value >= 0 && view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+    if (
+      activeSeq.value >= 0 &&
+      view.value.findIndex((r) => r.seq === activeSeq.value) === -1
+    ) {
       activeSeq.value = view.value.length
         ? view.value[view.value.length - 1].seq
         : -1;
     }
-    if (currentMatchSeq.value >= 0 && view.value.findIndex((r) => r.seq === currentMatchSeq.value) === -1) {
+    if (
+      currentMatchSeq.value >= 0 &&
+      view.value.findIndex((r) => r.seq === currentMatchSeq.value) === -1
+    ) {
       currentMatchSeq.value = -1;
     }
     if (announceResult) {
@@ -357,7 +370,10 @@ function scheduleRebuild(announceResult) {
 
 watch(view, () => {
   if (rebuilding) return;
-  if (activeSeq.value >= 0 && view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+  if (
+    activeSeq.value >= 0 &&
+    view.value.findIndex((r) => r.seq === activeSeq.value) === -1
+  ) {
     activeSeq.value = view.value.length
       ? view.value[view.value.length - 1].seq
       : -1;
@@ -386,15 +402,15 @@ function pageSize() {
 
 async function copyFocused() {
   const len = view.value.length;
-  const row = activeSeq.value >= 0 ? view.value.findIndex((r) => r.seq === activeSeq.value) : -1;
+  const row =
+    activeSeq.value >= 0
+      ? view.value.findIndex((r) => r.seq === activeSeq.value)
+      : -1;
   if (row === -1) {
     await copyAll();
     return;
   }
-  await copyToClipboard(
-    view.value[row].text,
-    `Line ${row + 1} of ${len}`,
-  );
+  await copyToClipboard(view.value[row].text, `Line ${row + 1} of ${len}`);
 }
 
 function onLogKeydown(e) {
@@ -406,7 +422,6 @@ function onLogKeydown(e) {
       e.preventDefault();
       copyFocused();
     } else if (e.key === "a" || e.key === "A") {
-
       // Ctrl+A = "select all"; the closest equivalent here is copying all.
       e.preventDefault();
       copyAll();
@@ -414,7 +429,10 @@ function onLogKeydown(e) {
     return;
   }
 
-  const at = activeSeq.value >= 0 ? view.value.findIndex((r) => r.seq === activeSeq.value) : -1;
+  const at =
+    activeSeq.value >= 0
+      ? view.value.findIndex((r) => r.seq === activeSeq.value)
+      : -1;
   switch (e.key) {
     case "ArrowDown":
       e.preventDefault();
@@ -456,7 +474,10 @@ function onLogFocus() {
   if (len === 0) return;
   if (autoScroll.value) {
     activeSeq.value = view.value[len - 1].seq;
-  } else if (activeSeq.value < 0 || view.value.findIndex((r) => r.seq === activeSeq.value) === -1) {
+  } else if (
+    activeSeq.value < 0 ||
+    view.value.findIndex((r) => r.seq === activeSeq.value) === -1
+  ) {
     activeSeq.value = view.value[0].seq;
   }
   focusRow(activeSeq.value);
@@ -667,19 +688,55 @@ const headerButtons = computed(() => [
 ]);
 
 const searchChecks = [
-  { id: "opt-regex", label: "Regex", get: () => useRegex.value, set: (v) => (useRegex.value = v) },
-  { id: "opt-case", label: "Match case", get: () => caseSensitive.value, set: (v) => (caseSensitive.value = v) },
-  { id: "opt-only", label: "Only matches", get: () => onlyMatches.value, set: (v) => (onlyMatches.value = v), disabled: () => !query.value },
+  {
+    id: "opt-regex",
+    label: "Regex",
+    get: () => useRegex.value,
+    set: (v) => (useRegex.value = v),
+  },
+  {
+    id: "opt-case",
+    label: "Match case",
+    get: () => caseSensitive.value,
+    set: (v) => (caseSensitive.value = v),
+  },
+  {
+    id: "opt-only",
+    label: "Only matches",
+    get: () => onlyMatches.value,
+    set: (v) => (onlyMatches.value = v),
+    disabled: () => !query.value,
+  },
 ];
 
 const streamChecks = [
-  { id: "opt-ts", label: "Timestamps", get: () => timestamps.value, set: (v) => (timestamps.value = v) },
-  { id: "opt-prev", label: "Previous (crashed) instance", get: () => previous.value, set: (v) => (previous.value = v) },
+  {
+    id: "opt-ts",
+    label: "Timestamps",
+    get: () => timestamps.value,
+    set: (v) => (timestamps.value = v),
+  },
+  {
+    id: "opt-prev",
+    label: "Previous (crashed) instance",
+    get: () => previous.value,
+    set: (v) => (previous.value = v),
+  },
 ];
 
 const displayChecks = [
-  { id: "opt-wrap", label: "Wrap lines", get: () => wrap.value, set: (v) => (wrap.value = v) },
-  { id: "opt-scroll", label: "Auto-scroll", get: () => autoScroll.value, set: (v) => (autoScroll.value = v) },
+  {
+    id: "opt-wrap",
+    label: "Wrap lines",
+    get: () => wrap.value,
+    set: (v) => (wrap.value = v),
+  },
+  {
+    id: "opt-scroll",
+    label: "Auto-scroll",
+    get: () => autoScroll.value,
+    set: (v) => (autoScroll.value = v),
+  },
 ];
 </script>
 
@@ -802,7 +859,11 @@ const displayChecks = [
             style="min-width: 8.5rem"
           />
         </div>
-        <div class="form-check form-switch mb-0" v-for="opt in streamChecks" :key="opt.id">
+        <div
+          class="form-check form-switch mb-0"
+          v-for="opt in streamChecks"
+          :key="opt.id"
+        >
           <input
             :id="opt.id"
             class="form-check-input"
@@ -816,7 +877,11 @@ const displayChecks = [
         </div>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-3 border-start ps-3">
-        <div class="form-check form-switch mb-0" v-for="opt in displayChecks" :key="opt.id">
+        <div
+          class="form-check form-switch mb-0"
+          v-for="opt in displayChecks"
+          :key="opt.id"
+        >
           <input
             :id="opt.id"
             class="form-check-input"
@@ -833,10 +898,7 @@ const displayChecks = [
 
     <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
-    <!-- role="log" would imply a polite live region (ARIA implicit aria-live),
-         so a fast stream would be announced line-by-line and flood the reader.
-         Explicit aria-live="off" opts out; users read lines via the roving
-         focus (arrow keys) instead, exactly as the comment below intends. -->
+
     <div
       ref="logEl"
       class="log-view flex-grow-1"
@@ -876,10 +938,7 @@ const displayChecks = [
         </template>
         <template v-else>{{ line.text }}</template>
       </div>
-      <div
-        v-if="view.length === 0 && streaming"
-        class="text-body-secondary"
-      >
+      <div v-if="view.length === 0 && streaming" class="text-body-secondary">
         Waiting for log output…
       </div>
       <div

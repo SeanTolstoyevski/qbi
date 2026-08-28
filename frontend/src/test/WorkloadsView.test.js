@@ -21,6 +21,8 @@ vi.mock("../api.js", () => ({
     updateCronJob: vi.fn(),
     createDeployment: vi.fn(),
     renderDeploymentYaml: vi.fn(),
+    listWorkloadRevisions: vi.fn(),
+    rollbackWorkload: vi.fn(),
 
     startLogStream: vi.fn().mockResolvedValue("stream-1"),
     stopLogStream: vi.fn().mockResolvedValue(undefined),
@@ -147,6 +149,119 @@ describe("WorkloadsView - actions", () => {
     expect(useStore().state.flashMsg).toContain(
       "Rolling restart triggered for Deployment web",
     );
+    w.unmount();
+  });
+});
+
+describe("WorkloadsView - rollback", () => {
+  const REVS = [
+    {
+      revision: 3,
+      images: ["nginx:1.27"],
+      changeCause: "go live 1.27",
+      age: "1h",
+      current: true,
+      replicas: "3/3",
+    },
+    {
+      revision: 2,
+      images: ["nginx:1.24"],
+      changeCause: "bump to 1.24",
+      age: "2d",
+      current: false,
+      replicas: "3/3",
+    },
+    {
+      revision: 1,
+      images: ["nginx:1.21"],
+      changeCause: "",
+      age: "9d",
+      current: false,
+      replicas: "0/1",
+    },
+  ];
+
+  function mountWithRolloutHistory() {
+    api.listWorkloads.mockResolvedValue({ workloads: WL, errors: [] });
+    api.listJobs.mockResolvedValue([]);
+    api.listCronJobs.mockResolvedValue([]);
+    api.history.mockResolvedValue({
+      rollouts: [
+        {
+          name: "web",
+          revision: "3",
+          rollouts: [
+            { revision: "3", age: "1h" },
+            { revision: "2", age: "2d" },
+            { revision: "1", age: "9d" },
+          ],
+        },
+      ],
+      total: 1,
+    });
+    api.listWorkloadRevisions.mockResolvedValue(REVS);
+    api.rollbackWorkload.mockResolvedValue({ applied: true, skipped: false });
+    return mountView();
+  }
+
+  it("opens the rollback picker from the controller action menu", async () => {
+    const w = mountWithRolloutHistory();
+    await flushPromises();
+    await openActions(w);
+    await findBtn(w, "Rollback").trigger("click");
+    await flushPromises();
+
+    expect(api.listWorkloadRevisions).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+    );
+    expect(w.text()).toContain("Roll back: Deployment / web");
+    expect(w.text()).toContain("Current revision: 3");
+    w.unmount();
+  });
+
+  it("rolls a specific version back from the recent rollouts digest", async () => {
+    const w = mountWithRolloutHistory();
+    await flushPromises();
+    api.listWorkloads.mockClear(); // count only the reload after the rollback
+    // Every past version row is its own entry point. Pick revision 1 — not
+    // the newest non-current one — to prove the picker preselects the exact
+    // version that was clicked.
+    const rowBtn = w
+      .findAll("button")
+      .find(
+        (b) =>
+          b.text().includes("Roll back") &&
+          b.text().includes("revision 1 of web"),
+      );
+    expect(rowBtn).toBeTruthy();
+    await rowBtn.trigger("click");
+    await flushPromises();
+
+    expect(api.listWorkloadRevisions).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+    );
+    const confirmBtn = w
+      .findAll("button")
+      .find((b) => b.text().includes("Roll back to revision 1"));
+    expect(confirmBtn).toBeTruthy();
+    await confirmBtn.trigger("click");
+    await flushPromises();
+
+    expect(api.rollbackWorkload).toHaveBeenCalledWith(
+      "default",
+      "Deployment",
+      "web",
+      1,
+    );
+    expect(useStore().state.flashMsg).toContain(
+      "Rolled back Deployment web to revision 1",
+    );
+    expect(w.text()).not.toContain("Roll back: Deployment / web");
+    expect(api.listWorkloads).toHaveBeenCalledTimes(1); // the reload after rollback
     w.unmount();
   });
 });
@@ -366,7 +481,7 @@ describe("WorkloadsView - recent rollouts", () => {
   // Rollout history is the durable counterpart to events (which expire after
   // ~1h). The backend bounds it, and the view must render it and degrade
   // gracefully when the call is denied or slow.
-  it("renders the rollout digest with revisions and ages", async () => {
+  it("renders the rollout digest as a navigable version table", async () => {
     api.listWorkloads.mockResolvedValue({ workloads: [], errors: [] });
     api.listJobs.mockResolvedValue([]);
     api.listCronJobs.mockResolvedValue([]);
@@ -384,10 +499,24 @@ describe("WorkloadsView - recent rollouts", () => {
     });
     const w = mountView();
     await flushPromises();
-    expect(w.text()).toContain("web");
-    expect(w.text()).toContain("revision 4");
-    expect(w.text()).toContain("revision 3");
-    expect(w.text()).toContain("3d");
+
+    // One row per version, with the deployment as the row header, so
+    // screen-reader users can navigate versions like any other table.
+    const rows = w.findAll("tbody tr");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].text()).toContain("web");
+    expect(rows[0].text()).toContain("revision 4");
+    expect(rows[0].text()).toContain("2m ago");
+    expect(rows[1].text()).toContain("revision 3");
+    expect(rows[1].text()).toContain("3d ago");
+    // The current revision is marked and offers no rollback action; every
+    // past version row has its own labelled Roll back button.
+    expect(rows[0].text()).toContain("current");
+    expect(rows[0].find("button").exists()).toBe(false);
+    const rollbackBtn = rows[1].find("button");
+    expect(rollbackBtn.exists()).toBe(true);
+    expect(rollbackBtn.text()).toContain("Roll back");
+    expect(rollbackBtn.text()).toContain("revision 3 of web");
     w.unmount();
   });
 
