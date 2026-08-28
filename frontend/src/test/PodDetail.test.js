@@ -2,9 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import PodDetail from "../components/PodDetail.vue";
 import { api } from "../api.js";
+import { useStore } from "../store.js";
 
 vi.mock("../api.js", () => ({
-  api: { getPod: vi.fn(), getPodMetrics: vi.fn() },
+  api: {
+    getPod: vi.fn(),
+    getPodMetrics: vi.fn(),
+    listPortForwards: vi.fn().mockResolvedValue([]),
+    startPortForward: vi.fn(),
+    stopPortForward: vi.fn(),
+  },
   onEvent: vi.fn(() => () => {}),
 }));
 
@@ -182,5 +189,29 @@ describe("PodDetail - actions", () => {
     expect(api.getPod).toHaveBeenLastCalledWith("default", "web-xyz78");
     expect(api.getPodMetrics).toHaveBeenLastCalledWith("default", "web-xyz78");
     w.unmount();
+  });
+});
+
+describe("PodDetail - port forwarding", () => {
+  it("hides the port-forward panel while experimental features are off", async () => {
+    const w = await mountDetail();
+    expect(w.text()).not.toContain("Port forwarding");
+    w.unmount();
+  });
+
+  it("shows the port-forward panel when experimental features are on", async () => {
+    const { setExperimental } = useStore();
+    setExperimental(true);
+    let w;
+    try {
+      w = await mountDetail();
+      expect(w.text()).toContain("Port forwarding");
+      expect(api.listPortForwards).toHaveBeenCalled();
+      // The form is collapsed by default; the panel heading is visible.
+      expect(w.find('input[role="combobox"]').exists()).toBe(false);
+    } finally {
+      setExperimental(false);
+      w?.unmount();
+    }
   });
 });

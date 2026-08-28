@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import PanelHeader from "./PanelHeader.vue";
+import PortForwardPanel from "./PortForwardPanel.vue";
 import { phaseBadgeClass, containerReadyBadgeClass } from "../statusClasses.js";
 
 const props = defineProps({
@@ -13,7 +14,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close"]);
-const { announce } = useStore();
+const { state, announce } = useStore();
 
 const detail = ref(null);
 const metrics = ref(null); // PodMetric: live CPU/memory usage
@@ -182,6 +183,13 @@ watch(() => [props.namespace, props.pod], load, { immediate: true });
           </template>
         </dl>
       </div>
+
+      <PortForwardPanel
+        v-if="state.experimental && detail"
+        :namespace="props.namespace"
+        :pod="props.pod"
+        :ports="detail.ports || []"
+      />
 
       <template v-if="detail.conditions && detail.conditions.length">
         <h3 class="h6 mt-3">Conditions</h3>

@@ -51,3 +51,17 @@ export function jobStatusBadgeClass(status) {
 export function containerReadyBadgeClass(ready) {
   return ready ? "text-bg-success" : "text-bg-warning";
 }
+
+// Port-forward state: starting | active | stopped | failed.
+export function forwardBadgeClass(state) {
+  switch (state) {
+    case "active":
+      return "text-bg-success";
+    case "failed":
+      return "text-bg-danger";
+    case "starting":
+      return "text-bg-warning";
+    default:
+      return "text-bg-secondary"; // stopped
+  }
+}
