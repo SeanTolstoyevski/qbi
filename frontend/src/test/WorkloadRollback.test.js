@@ -72,14 +72,12 @@ describe("WorkloadRollback - history picker", () => {
       "Deployment",
       "web",
     );
-    .
     expect(w.text()).toContain("Current revision: 3");
     expect(w.text()).toContain("nginx:1.27");
     const options = w.findAll('[role="option"]');
     expect(options).toHaveLength(2);
     expect(options[0].text()).toContain("Revision 2");
     expect(options[1].text()).toContain("Revision 1");
-.
     expect(options[0].text()).toContain("nginx:1.24");
     expect(options[0].text()).toContain("bump to 1.24");
     expect(options[0].text()).toContain("3/3 ready");
