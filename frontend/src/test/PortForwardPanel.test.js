@@ -93,7 +93,10 @@ describe("PortForwardPanel - starting a forward", () => {
 
     const toggle = w.findAll("button").find((b) => b.text().includes("Forward port"));
     await toggle.trigger("click");
+    await flushPromises();
     expect(w.find('input[role="combobox"]').exists()).toBe(true);
+    // Focus moves to the first field so keyboard users land inside the form.
+    expect(document.activeElement).toBe(w.find('input[role="combobox"]').element);
 
     // Type a remote port; local port stays empty (auto).
     await w.find('input[role="combobox"]').setValue("8080");
@@ -187,6 +190,34 @@ describe("PortForwardPanel - stopping and actions", () => {
     expect(w.text()).toContain("No active port forwards for this pod.");
     expect(state.status).toContain("failed");
     expect(state.status).toContain("pod is not running");
+    w.unmount();
+  });
+
+  it("does not resurrect a row whose terminal event raced ahead", async () => {
+    let resolveStart;
+    api.startPortForward.mockReturnValue(
+      new Promise((resolve) => {
+        resolveStart = resolve;
+      }),
+    );
+    const w = mountPanel();
+    await flushPromises();
+    await w
+      .findAll("button")
+      .find((b) => b.text().includes("Forward port"))
+      .trigger("click");
+    await w.find('input[role="combobox"]').setValue("8080");
+    await w.find("form").trigger("submit");
+
+    // While the backend call is in flight the forward fails…
+    emitStatus({ ...ACTIVE, id: "pf-1", state: "failed", error: "pod is not running" });
+    await flushPromises();
+    expect(w.text()).toContain("No active port forwards for this pod.");
+
+    // …and the stale "starting" response must not resurrect the row.
+    resolveStart({ ...ACTIVE, id: "pf-1", state: "starting" });
+    await flushPromises();
+    expect(w.text()).toContain("No active port forwards for this pod.");
     w.unmount();
   });
 

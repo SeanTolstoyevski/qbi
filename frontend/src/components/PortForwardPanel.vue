@@ -1,8 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
-import { copyToClipboard } from "../clipboard.js";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime.js";
 import Combobox from "./Combobox.vue";
 import InlineButton from "./InlineButton.vue";
@@ -30,8 +29,20 @@ const formError = ref("");
 const forwards = ref([]);
 const byId = new Map();
 const stopping = new Set(); // ids whose Stop was requested by this panel
+// Tombstones for ids that reached a terminal state: a stale "starting" event
+// or the start-call return value must never resurrect a row that already
+// stopped or failed (the response can race the terminal event).
+const finished = new Set();
 
 let offStatus = () => {};
+
+function toggleForm() {
+  formOpen.value = !formOpen.value;
+  if (formOpen.value) {
+    // Move focus to the first field so keyboard users land inside the form.
+    nextTick(() => document.getElementById("pf-remote-port")?.focus());
+  }
+};
 
 const portOptions = computed(() => {
   const seen = new Set();
@@ -76,11 +87,15 @@ function onStatus(status) {
     } else if (stopping.has(status.id)) {
       announce(`Port forward to ${props.pod}:${status.remotePort} stopped.`);
     }
+    // Tombstone first: the terminal event can arrive before the row ever
+    // existed (response still in flight), and the tombstone must survive
+    // drop()'s early return for untracked ids.
+    finished.add(status.id);
     drop(status.id);
     return;
   }
 
-  if (status.state === "active" && !byId.has(status.id)) {
+  if (status.state === "active" && !byId.has(status.id) && !finished.has(status.id)) {
     announce(`Port forward started: 127.0.0.1:${status.localPort}.`);
   }
   upsert(status);
@@ -113,9 +128,13 @@ async function startForward() {
       local,
       remote,
     );
-    // The row appears via the "starting" event; upsert here covers the tiny
-    // window where the event arrived before the await resumed.
-    upsert(status);
+    // The row normally appears via the "starting" event. Add it from the
+    // return value only when no event has arrived yet; if the forward
+    // already stopped or failed while the call was in flight, do not
+    // resurrect the row.
+    if (!byId.has(status.id) && !finished.has(status.id)) {
+      upsert(status);
+    }
     formOpen.value = false;
     remotePort.value = "";
     localPort.value = "";
@@ -136,10 +155,6 @@ async function stopForward(status) {
     announce(`Failed to stop port forward: ${String(e)}`, "assertive");
   }
   // The row disappears when the "stopped" event arrives.
-}
-
-function copyAddress(status) {
-  copyToClipboard(`127.0.0.1:${status.localPort}`, "Local address");
 }
 
 function openInBrowser(status) {
@@ -178,7 +193,7 @@ onBeforeUnmount(() => offStatus());
         class="btn btn-sm btn-outline-secondary"
         :aria-expanded="formOpen"
         aria-controls="port-forward-form"
-        @click="formOpen = !formOpen"
+        @click="toggleForm"
       >
         {{ formOpen ? "Close" : "Forward port…" }}
       </button>
