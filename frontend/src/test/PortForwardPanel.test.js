@@ -32,17 +32,26 @@ const ACTIVE = {
   error: "",
 };
 
-beforeEach(() => {
+// Capture the event subscription at module scope: the composable subscribes
+// once per test (after resetPortForwards), and the captured handler stays
+// valid through the live `statusHandler` binding.
+onEvent.mockImplementation((_name, handler) => {
+  statusHandler = handler;
+  return () => {};
+});
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  statusHandler = null;
   api.listPortForwards.mockResolvedValue([]);
   api.startPortForward.mockResolvedValue({ ...ACTIVE, state: "starting" });
   api.stopPortForward.mockResolvedValue(undefined);
-  // Capture the event subscription so tests can emit status events.
-  onEvent.mockImplementation((_name, handler) => {
-    statusHandler = handler;
-    return () => {};
-  });
+  // Fresh singleton so each mount re-subscribes and re-hydrates.
+  const { resetPortForwards } = await import("../usePortForwards.js");
+  resetPortForwards();
+  // Clear any announcement the previous test left in the shared store.
+  const { announce } = useStore();
+  announce("");
+  await new Promise((resolve) => requestAnimationFrame(resolve));
   // Clipboard stub for the copy action.
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: vi.fn().mockResolvedValue() },
@@ -103,12 +112,12 @@ describe("PortForwardPanel - starting a forward", () => {
     await w.find("form").trigger("submit");
 
     expect(api.startPortForward).toHaveBeenCalledWith("default", "web-abc12", 0, 8080);
-    expect(w.text()).not.toContain("No active port forwards for this pod.");
 
-    // The starting event adds the row; active announces.
+    // The row appears via the "starting" event (the shared state owns rows).
     emitStatus({ ...ACTIVE, state: "starting" });
     emitStatus(ACTIVE);
     await flushPromises();
+    expect(w.text()).not.toContain("No active port forwards for this pod.");
     expect(w.text()).toContain("127.0.0.1:4242");
     w.unmount();
   });

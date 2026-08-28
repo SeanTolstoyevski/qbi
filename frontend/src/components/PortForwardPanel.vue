@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
-import { api, onEvent } from "../api.js";
+import { ref, computed, nextTick } from "vue";
+import { api } from "../api.js";
 import { useStore } from "../store.js";
+import { usePortForwards } from "../usePortForwards.js";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime.js";
 import Combobox from "./Combobox.vue";
 import InlineButton from "./InlineButton.vue";
@@ -16,33 +17,21 @@ const props = defineProps({
 });
 
 const { announce } = useStore();
+// Rows and announcements come from the shared port-forward state; this panel
+// only filters the global list down to its pod.
+const { forwards, stopForward } = usePortForwards();
+
+const podForwards = computed(() =>
+  forwards.value.filter(
+    (f) => f.namespace === props.namespace && f.pod === props.pod,
+  ),
+);
 
 const formOpen = ref(false);
 const remotePort = ref("");
 const localPort = ref("");
 const starting = ref(false);
 const formError = ref("");
-
-// Active forwards for THIS pod, in start order. Rows are driven entirely by
-// "portforward:status" events; ListPortForwards only rehydrates after a
-// remount.
-const forwards = ref([]);
-const byId = new Map();
-const stopping = new Set(); // ids whose Stop was requested by this panel
-// Tombstones for ids that reached a terminal state: a stale "starting" event
-// or the start-call return value must never resurrect a row that already
-// stopped or failed (the response can race the terminal event).
-const finished = new Set();
-
-let offStatus = () => {};
-
-function toggleForm() {
-  formOpen.value = !formOpen.value;
-  if (formOpen.value) {
-    // Move focus to the first field so keyboard users land inside the form.
-    nextTick(() => document.getElementById("pf-remote-port")?.focus());
-  }
-};
 
 const portOptions = computed(() => {
   const seen = new Set();
@@ -56,49 +45,12 @@ const portOptions = computed(() => {
   return out;
 });
 
-function upsert(status) {
-  if (byId.has(status.id)) {
-    const i = forwards.value.findIndex((f) => f.id === status.id);
-    if (i >= 0) forwards.value[i] = status;
-  } else {
-    byId.set(status.id, status);
-    forwards.value.push(status);
+function toggleForm() {
+  formOpen.value = !formOpen.value;
+  if (formOpen.value) {
+    // Move focus to the first field so keyboard users land inside the form.
+    nextTick(() => document.getElementById("pf-remote-port")?.focus());
   }
-}
-
-function drop(id) {
-  if (!byId.has(id)) return;
-  byId.delete(id);
-  stopping.delete(id);
-  forwards.value = forwards.value.filter((f) => f.id !== id);
-}
-
-function onStatus(status) {
-  if (status.namespace !== props.namespace || status.pod !== props.pod) return;
-
-  if (status.state === "stopped" || status.state === "failed") {
-    if (status.state === "failed") {
-      announce(
-        `Port forward to ${props.pod}:${status.remotePort} failed: ${
-          status.error || "the connection ended"
-        }.`,
-        "assertive",
-      );
-    } else if (stopping.has(status.id)) {
-      announce(`Port forward to ${props.pod}:${status.remotePort} stopped.`);
-    }
-    // Tombstone first: the terminal event can arrive before the row ever
-    // existed (response still in flight), and the tombstone must survive
-    // drop()'s early return for untracked ids.
-    finished.add(status.id);
-    drop(status.id);
-    return;
-  }
-
-  if (status.state === "active" && !byId.has(status.id) && !finished.has(status.id)) {
-    announce(`Port forward started: 127.0.0.1:${status.localPort}.`);
-  }
-  upsert(status);
 }
 
 async function startForward() {
@@ -122,19 +74,9 @@ async function startForward() {
   starting.value = true;
   formError.value = "";
   try {
-    const status = await api.startPortForward(
-      props.namespace,
-      props.pod,
-      local,
-      remote,
-    );
-    // The row normally appears via the "starting" event. Add it from the
-    // return value only when no event has arrived yet; if the forward
-    // already stopped or failed while the call was in flight, do not
-    // resurrect the row.
-    if (!byId.has(status.id) && !finished.has(status.id)) {
-      upsert(status);
-    }
+    await api.startPortForward(props.namespace, props.pod, local, remote);
+    // The row appears via the "starting" event; the shared state announces
+    // once it becomes active.
     formOpen.value = false;
     remotePort.value = "";
     localPort.value = "";
@@ -146,42 +88,9 @@ async function startForward() {
   }
 }
 
-async function stopForward(status) {
-  stopping.add(status.id);
-  try {
-    await api.stopPortForward(status.id);
-  } catch (e) {
-    stopping.delete(status.id);
-    announce(`Failed to stop port forward: ${String(e)}`, "assertive");
-  }
-  // The row disappears when the "stopped" event arrives.
+function openInBrowser(f) {
+  BrowserOpenURL(`http://127.0.0.1:${f.localPort}`);
 }
-
-function openInBrowser(status) {
-  BrowserOpenURL(`http://127.0.0.1:${status.localPort}`);
-}
-
-onMounted(async () => {
-  offStatus = onEvent("portforward:status", onStatus);
-  try {
-    const list = await api.listPortForwards();
-    for (const st of list) {
-      if (
-        st.namespace === props.namespace &&
-        st.pod === props.pod &&
-        st.state !== "stopped" &&
-        st.state !== "failed"
-      ) {
-        upsert(st);
-      }
-    }
-  } catch {
-    // Rehydration is best-effort: the pod detail stays usable without it,
-    // and events keep arriving for anything started from this panel.
-  }
-});
-
-onBeforeUnmount(() => offStatus());
 </script>
 
 <template>
@@ -243,16 +152,12 @@ onBeforeUnmount(() => offStatus());
           </button>
         </div>
       </div>
-      <p
-        v-if="formError"
-        class="text-danger small mt-2 mb-0"
-        role="alert"
-      >
+      <p v-if="formError" class="text-danger small mt-2 mb-0" role="alert">
         {{ formError }}
       </p>
     </form>
 
-    <p v-if="!forwards.length" class="text-muted small mt-2 mb-0">
+    <p v-if="!podForwards.length" class="text-muted small mt-2 mb-0">
       No active port forwards for this pod.
     </p>
     <table v-else class="table table-sm mt-2">
@@ -273,7 +178,7 @@ onBeforeUnmount(() => offStatus());
         </tr>
       </thead>
       <tbody>
-        <tr v-for="f in forwards" :key="f.id">
+        <tr v-for="f in podForwards" :key="f.id">
           <td>
             <code>127.0.0.1:{{ f.localPort }}</code>
             <InlineButton
@@ -304,6 +209,7 @@ onBeforeUnmount(() => offStatus());
             <button
               type="button"
               class="btn btn-sm btn-outline-danger ms-1"
+              :disabled="f.state === 'starting'"
               @click="stopForward(f)"
             >
               <span class="visually-hidden">Stop port forward</span>

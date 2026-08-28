@@ -65,7 +65,7 @@ function mountApp() {
 }
 
 describe("App - primary navigation", () => {
-  it("renders the four top-level screens and marks the active one", () => {
+  it("renders the top-level screens and marks the active one", () => {
     const w = mountApp();
     const nav = w.find("nav.header-nav");
     expect(nav.exists()).toBe(true);
@@ -75,6 +75,7 @@ describe("App - primary navigation", () => {
       "namespace",
       "settings",
       "about",
+      "forwards",
     ]);
 
     const active = nav.findAll("button").find((b) => b.text() === "namespace");
