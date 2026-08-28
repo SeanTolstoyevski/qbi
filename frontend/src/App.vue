@@ -2,7 +2,9 @@
 import { ref, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { useStore } from "./store.js";
 import { api } from "./api.js";
+import { usePortForwards } from "./usePortForwards.js";
 import ContextBar from "./components/ContextBar.vue";
+import ForwardsView from "./components/ForwardsView.vue";
 import WelcomeWizard from "./components/WelcomeWizard.vue";
 import NamespaceList from "./components/NamespaceList.vue";
 import PodsView from "./components/PodsView.vue";
@@ -16,6 +18,10 @@ import SettingsView from "./components/SettingsView.vue";
 import AboutView from "./components/AboutView.vue";
 
 const { state, announce, clearFlash, setExperimental } = useStore();
+
+// Subscribes the app to the port-forward event stream exactly once; the
+// header badge and the Forwards section read the shared state.
+const { count: forwardCount } = usePortForwards();
 
 let flashTimer = null;
 watch(
@@ -107,11 +113,12 @@ const tabs = [
   "events",
 ];
 
-const topTabs = ["cluster", "namespace", "settings", "about"];
+const topTabs = ["cluster", "namespace", "settings", "about", "forwards"];
 
-// Screen shortcuts: Ctrl+1..4 jump straight to a top-level section (Cluster,
-// Namespace, Settings, About).
-const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3 };
+// Screen shortcuts: Ctrl+1..5 jump straight to a top-level section (Cluster,
+// Namespace, Settings, About, Forwards), matching the aria-keyshortcuts each
+// nav button advertises.
+const SECTION_SHORTCUTS = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 };
 
 function onGlobalKeydown(e) {
   if (showWelcome.value) return; // the wizard owns the keyboard while open
@@ -189,22 +196,29 @@ function onTabKeydown(e) {
         >
           <h1 class="h5 mb-0">QBI</h1>
 
-          <nav class="header-nav">
-            <ul class="nav nav-pills">
-              <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
-                <button
-                  type="button"
-                  class="nav-link text-capitalize"
-                  :class="{ active: section === s }"
-                  :aria-current="section === s ? 'page' : undefined"
-                  :aria-keyshortcuts="`Control+${idx + 1}`"
-                  @click="selectSection(s)"
-                >
-                  {{ s }}
-                </button>
-              </li>
-            </ul>
-          </nav>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <nav class="header-nav">
+              <ul class="nav nav-pills">
+                <li v-for="(s, idx) in topTabs" :key="s" class="nav-item">
+                  <button
+                    type="button"
+                    class="nav-link text-capitalize"
+                    :class="{ active: section === s }"
+                    :aria-current="section === s ? 'page' : undefined"
+                    :aria-keyshortcuts="`Control+${idx + 1}`"
+                    @click="selectSection(s)"
+                  >
+                    {{ s }}
+                    <span
+                      v-if="s === 'forwards' && forwardCount"
+                      class="badge text-bg-secondary ms-1"
+                      >{{ forwardCount }}</span
+                    >
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          </div>
         </div>
         <ContextBar />
       </header>
@@ -268,6 +282,16 @@ function onTabKeydown(e) {
                 About
               </h2>
               <AboutView />
+            </div>
+            <div v-show="section === 'forwards'">
+              <h2
+                id="section-heading-forwards"
+                :ref="(el) => setSectionHeading('forwards', el)"
+                tabindex="-1"
+              >
+                Port forwards
+              </h2>
+              <ForwardsView />
             </div>
             <div v-show="section === 'namespace'">
               <h2

@@ -24,6 +24,7 @@ type Client struct {
 	mu             sync.RWMutex
 	clientset      kubernetes.Interface
 	metrics        metricsclient.Interface // Metrics API client (metrics-server)
+	restConfig     *rest.Config            // kept for stream-style features (port forwarding)
 	rawConfig      clientcmdapi.Config
 	current        string
 	kubeconfigPath string
@@ -165,6 +166,7 @@ func (c *Client) Connect(contextName string) (ContextInfo, error) {
 	c.mu.Lock()
 	c.clientset = clientset
 	c.metrics = metricsClient
+	c.restConfig = restConfig
 	c.rawConfig = raw
 	c.current = current
 	c.mu.Unlock()
@@ -219,6 +221,18 @@ func (c *Client) clientOrErr() (kubernetes.Interface, error) {
 		return nil, fmt.Errorf("not connected to a cluster")
 	}
 	return c.clientset, nil
+}
+
+// restConfigCopy returns the REST config of the active connection, copied so
+// callers cannot mutate the client's copy. Needed by stream-style features
+// (port forwarding) that build their own transports on top of it.
+func (c *Client) restConfigCopy() (*rest.Config, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.restConfig == nil {
+		return nil, fmt.Errorf("not connected to a cluster")
+	}
+	return rest.CopyConfig(c.restConfig), nil
 }
 
 // Namespaces returns every namespace visible to the current credentials.
@@ -312,6 +326,21 @@ func (c *Client) Pod(ctx context.Context, namespace, name string) (PodDetail, er
 		Age:         age(p.CreationTimestamp),
 		Labels:      p.Labels,
 	}
+
+	// Container ports, deduped and sorted: the frontend uses them to prefill
+	// the port-forward form.
+	portSet := make(map[int32]bool)
+	for i := range p.Spec.Containers {
+		for _, cp := range p.Spec.Containers[i].Ports {
+			if cp.ContainerPort > 0 {
+				portSet[cp.ContainerPort] = true
+			}
+		}
+	}
+	for port := range portSet {
+		detail.Ports = append(detail.Ports, port)
+	}
+	sort.Slice(detail.Ports, func(i, j int) bool { return detail.Ports[i] < detail.Ports[j] })
 
 	for _, cond := range p.Status.Conditions {
 		detail.Conditions = append(detail.Conditions, PodConditionInfo{

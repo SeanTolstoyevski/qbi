@@ -59,6 +59,7 @@ type PodDetail struct {
 	QOSClass    string                `json:"qosClass"`
 	Age         string                `json:"age"`
 	Labels      map[string]string     `json:"labels"`
+	Ports       []int32               `json:"ports"` // container ports (deduped, sorted)
 	Conditions  []PodConditionInfo    `json:"conditions"`
 	Containers  []ContainerStatusInfo `json:"containers"`
 }
@@ -264,6 +265,32 @@ type RevisionInfo struct {
 	Age      string `json:"age"` // human-readable age of the ReplicaSet
 }
 
+// WorkloadRevision is one point in a workload's rollout history: the pod
+// template the controller ran at that revision, plus the context needed to
+// tell revisions apart (images, change cause, age). Deployments keep their
+// history in ReplicaSets; StatefulSets and DaemonSets keep theirs in
+// ControllerRevisions.
+type WorkloadRevision struct {
+	Revision    int64    `json:"revision"`
+	Images      []string `json:"images"`
+	ChangeCause string   `json:"changeCause"` // kubernetes.io/change-cause, if recorded
+	Age         string   `json:"age"`         // human-readable age of the history object
+	Current     bool     `json:"current"`     // true for the template the controller runs now
+	Replicas    string   `json:"replicas"`    // Deployments only: ReplicaSet ready/desired
+}
+
+// RollbackResult reports the outcome of a rollback request. Applied is true
+// when the pod template was restored; Skipped is true when the target
+// revision's template already matched the current one (kubectl reports the
+// same as a skipped rollback) — the request was accepted but changed nothing.
+// Both false means the user cancelled the confirmation dialog. A struct keeps
+// the three outcomes distinguishable across the Wails binding, which cannot
+// express a third return value.
+type RollbackResult struct {
+	Applied bool `json:"applied"`
+	Skipped bool `json:"skipped"`
+}
+
 // ConfigMapInfo is a lightweight view of a ConfigMap (keys only).
 type ConfigMapInfo struct {
 	Name string   `json:"name"`
@@ -354,6 +381,21 @@ type JobRun struct {
 type PodRef struct {
 	Name       string   `json:"name"`
 	Containers []string `json:"containers"`
+}
+
+// PortForwardStatus is the live state of one port-forward session, emitted to
+// the frontend on every transition and returned by the listing call. State is
+// one of "starting", "active", "stopped" or "failed"; Error is set only when
+// the forward failed. LocalPort is always the resolved port (0 becomes a
+// picked free port), so the UI can show 127.0.0.1:LocalPort immediately.
+type PortForwardStatus struct {
+	ID         string `json:"id"`
+	Namespace  string `json:"namespace"`
+	Pod        string `json:"pod"`
+	LocalPort  int    `json:"localPort"`
+	RemotePort int    `json:"remotePort"`
+	State      string `json:"state"`
+	Error      string `json:"error"`
 }
 
 // DeploymentCreate is the user-facing spec for creating a Deployment. The UI

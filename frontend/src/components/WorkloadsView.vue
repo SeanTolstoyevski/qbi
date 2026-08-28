@@ -10,6 +10,7 @@ import LogViewer from "./LogViewer.vue";
 import CronJobCreate from "./CronJobCreate.vue";
 import CronJobEdit from "./CronJobEdit.vue";
 import DeploymentCreate from "./DeploymentCreate.vue";
+import WorkloadRollback from "./WorkloadRollback.vue";
 import Combobox from "./Combobox.vue";
 
 const { state, announce, flash } = useStore();
@@ -31,6 +32,9 @@ function setScaleInput(el) {
 }
 
 const yamlTarget = ref(null); // { kind, name }
+const rollbackTarget = ref(null); // { kind, name } of the workload being rolled back
+const rollbackOpenerEl = ref(null); // trigger element to return focus to on close
+const rollbackPreselect = ref(null); // revision to preselect in the picker (from the digest)
 const rollouts = ref([]);
 const rolloutsTotal = ref(0);
 const rolloutsError = ref("");
@@ -100,6 +104,7 @@ async function load() {
   loading.value = true;
   error.value = "";
   yamlTarget.value = null;
+  rollbackTarget.value = null;
   scaling.value = null;
   logTarget.value = null;
   cronLogChooser.value = null;
@@ -353,6 +358,42 @@ function openYaml(kind, name) {
   yamlTarget.value = { kind, name };
 }
 
+// ── Rollback ────────────────────────────────────────────────────────────────
+// The picker opens as a right-hand panel, from the controller action menu or
+// from a deployment's entry in the "Recent rollouts" digest. The trigger
+// element is captured explicitly so focus returns to whichever button opened
+// the panel, even when the digest and the table both show the deployment.
+const rolloutRollbackBtns = {};
+
+function setRolloutRollbackBtn(key, el) {
+  if (el) rolloutRollbackBtns[key] = el;
+  else delete rolloutRollbackBtns[key];
+}
+
+function openRollback(kind, name, triggerEl, revision = null) {
+  rollbackOpenerEl.value = triggerEl || null;
+  rollbackPreselect.value = revision;
+  rollbackTarget.value = { kind, name };
+}
+
+function closeRollback() {
+  rollbackTarget.value = null;
+}
+
+// The panel emits after a successful rollback; refresh everything and tell
+// the user — like restart, the visible pod change happens gradually on the
+// cluster, so sighted users get the flash toast alongside the announce.
+async function onRolledBack({ revision }) {
+  const t = rollbackTarget.value;
+  rollbackTarget.value = null;
+  if (t) {
+    const msg = `Rolled back ${t.kind} ${t.name} to revision ${revision}.`;
+    announce(msg);
+    flash(msg);
+  }
+  await load();
+}
+
 const yamlOpener = computed(() => {
   const t = yamlTarget.value;
   if (!t) return null;
@@ -431,8 +472,6 @@ defineExpose({ load });
     <p v-else-if="error" class="text-danger small" role="alert">{{ error }}</p>
 
     <template v-else>
-      <!-- A forbidden resource type (RBAC) degrades to a warning, not a
-           full-screen error, so the user still sees the kinds they can read. -->
       <p v-if="workloadErrors.length" class="text-warning small" role="status">
         {{ workloadErrors.join(" · ") }}
       </p>
@@ -444,7 +483,8 @@ defineExpose({ load });
             logTarget ||
             createOpen ||
             editTarget ||
-            createDeployOpen
+            createDeployOpen ||
+            rollbackTarget
               ? 'col-lg-7'
               : 'col-12',
             'grid-col',
@@ -599,6 +639,26 @@ defineExpose({ load });
                               Restart
                             </button>
                           </li>
+                          <li role="presentation">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              class="dropdown-item"
+                              @click="
+                                focusTriggerAndAct(
+                                  `w-${w.kind}-${w.name}`,
+                                  () =>
+                                    openRollback(
+                                      w.kind,
+                                      w.name,
+                                      actionTriggers[`w-${w.kind}-${w.name}`],
+                                    ),
+                                )
+                              "
+                            >
+                              Rollback
+                            </button>
+                          </li>
                           <li role="separator" class="dropdown-divider"></li>
                           <li role="presentation">
                             <button
@@ -720,7 +780,7 @@ defineExpose({ load });
                       @click="openYaml('Job', j.name)"
                     >
                       YAML<span class="visually-hidden">
-                        for job {{ j.name }}</span
+                        &nbsp;for job {{ j.name }}</span
                       >
                     </button>
                   </td>
@@ -962,32 +1022,87 @@ defineExpose({ load });
               Showing {{ rollouts.length }} of {{ rolloutsTotal }} rolled-out
               deployments. Increase “Deployments shown” to see more.
             </p>
-            <ul class="list-unstyled small">
-              <li
-                v-for="r in rollouts"
-                :key="r.name"
-                class="border rounded p-2 mb-2"
-              >
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <span class="fw-semibold">{{ r.name }}</span>
-                  <span v-if="r.revision" class="badge text-bg-secondary"
-                    >revision {{ r.revision }}</span
-                  >
-                  <span v-if="r.rollouts.length" class="text-body-secondary"
-                    >{{ r.rollouts[0].age }} ago</span
-                  >
-                </div>
-                <ul
-                  v-if="r.rollouts.length"
-                  class="list-unstyled mb-0 mt-1 ps-3"
-                >
-                  <li v-for="rev in r.rollouts" :key="rev.revision">
-                    <span class="me-2">revision {{ rev.revision }}</span>
-                    <span class="text-body-secondary">{{ rev.age }}</span>
-                  </li>
-                </ul>
-              </li>
-            </ul>
+            <!-- One row per past version: the same table semantics as the
+                 controllers/jobs tables above, so screen-reader users can
+                 navigate versions with column/row headers and keyboard users
+                 Tab to each version's action. The current revision is marked
+                 and has no rollback action (it is what is running now). -->
+            <div class="table-responsive mb-3">
+              <table class="table table-hover align-middle">
+                <caption class="visually-hidden">
+                  Rollout versions in
+                  {{
+                    state.namespace
+                  }}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Deployment</th>
+                    <th scope="col">Revision</th>
+                    <th scope="col">Age</th>
+                    <th scope="col">
+                      <span class="visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-for="r in rollouts" :key="r.name">
+                    <tr
+                      v-for="rev in r.rollouts"
+                      :key="`${r.name}/${rev.revision}`"
+                    >
+                      <th scope="row" class="fw-normal">{{ r.name }}</th>
+                      <td>
+                        revision {{ rev.revision }}
+                        <!-- r.revision is the Deployment's controller-stamped
+                             revision annotation. If it is missing (e.g. the
+                             controller has not stamped one yet), no row is
+                             marked current and every row gets a rollback
+                             action; the backend skips no-op rollbacks. -->
+                        <span
+                          v-if="rev.revision === r.revision"
+                          class="badge text-bg-secondary ms-1"
+                          >current</span
+                        >
+                      </td>
+                      <td>
+                        <span class="text-body-secondary"
+                          >{{ rev.age }} ago</span
+                        >
+                      </td>
+                      <td>
+                        <button
+                          v-if="rev.revision !== r.revision"
+                          :ref="
+                            (el) =>
+                              setRolloutRollbackBtn(
+                                `${r.name}/${rev.revision}`,
+                                el,
+                              )
+                          "
+                          type="button"
+                          class="btn btn-sm btn-outline-danger"
+                          @click="
+                            openRollback(
+                              'Deployment',
+                              r.name,
+                              rolloutRollbackBtns[`${r.name}/${rev.revision}`],
+                              Number(rev.revision),
+                            )
+                          "
+                        >
+                          Roll back
+                          <span class="visually-hidden">
+                            &nbsp;revision {{ rev.revision }} of
+                            {{ r.name }}</span
+                          >
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
           </template>
         </div>
 
@@ -997,7 +1112,8 @@ defineExpose({ load });
             logTarget ||
             createOpen ||
             editTarget ||
-            createDeployOpen
+            createDeployOpen ||
+            rollbackTarget
           "
           class="col-lg-5 grid-col"
           style="min-height: 24rem"
@@ -1046,6 +1162,18 @@ defineExpose({ load });
               :opener="deployCreateBtn"
               @close="closeCreateDeploy"
               @created="onDeployCreated"
+            />
+          </div>
+          <div v-if="rollbackTarget">
+            <WorkloadRollback
+              :key="`${rollbackTarget.kind}/${rollbackTarget.name}`"
+              :namespace="state.namespace"
+              :kind="rollbackTarget.kind"
+              :name="rollbackTarget.name"
+              :opener="rollbackOpenerEl"
+              :preselect="rollbackPreselect"
+              @close="closeRollback"
+              @rolled-back="onRolledBack"
             />
           </div>
         </div>

@@ -12,6 +12,8 @@ vi.mock("../api.js", () => ({
     buildInfo: vi.fn(),
     getSettings: vi.fn(),
     acknowledgeWelcome: vi.fn(),
+    listPortForwards: vi.fn().mockResolvedValue([]),
+    stopPortForward: vi.fn(),
   },
   onEvent: vi.fn(() => () => {}),
 }));
@@ -63,7 +65,7 @@ function mountApp() {
 }
 
 describe("App - primary navigation", () => {
-  it("renders the four top-level screens and marks the active one", () => {
+  it("renders the top-level screens and marks the active one", () => {
     const w = mountApp();
     const nav = w.find("nav.header-nav");
     expect(nav.exists()).toBe(true);
@@ -73,6 +75,7 @@ describe("App - primary navigation", () => {
       "namespace",
       "settings",
       "about",
+      "forwards",
     ]);
 
     const active = nav.findAll("button").find((b) => b.text() === "namespace");
@@ -123,6 +126,17 @@ describe("App - screen shortcuts", () => {
     );
     await nextTick();
     expect(w.find("#section-heading-about").isVisible()).toBe(true);
+    w.unmount();
+  });
+
+  it("Ctrl+5 switches to the Forwards section", async () => {
+    const w = mountApp();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "5", ctrlKey: true }),
+    );
+    await nextTick();
+    expect(w.find("#section-heading-forwards").isVisible()).toBe(true);
+    expect(w.find("#section-heading-namespace").isVisible()).toBe(false);
     w.unmount();
   });
 

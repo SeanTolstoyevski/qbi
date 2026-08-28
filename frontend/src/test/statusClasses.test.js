@@ -4,6 +4,7 @@ import {
   nodeStatusBadgeClass,
   jobStatusBadgeClass,
   containerReadyBadgeClass,
+  forwardBadgeClass,
 } from "../statusClasses.js";
 
 describe("phaseBadgeClass", () => {
@@ -60,5 +61,21 @@ describe("containerReadyBadgeClass", () => {
   it("maps ready to success and not-ready to warning", () => {
     expect(containerReadyBadgeClass(true)).toBe("text-bg-success");
     expect(containerReadyBadgeClass(false)).toBe("text-bg-warning");
+  });
+});
+
+describe("forwardBadgeClass", () => {
+  it("maps active to success and failed to danger", () => {
+    expect(forwardBadgeClass("active")).toBe("text-bg-success");
+    expect(forwardBadgeClass("failed")).toBe("text-bg-danger");
+  });
+
+  it("maps starting to attention-amber and stopped to neutral gray", () => {
+    expect(forwardBadgeClass("starting")).toBe("text-bg-warning");
+    expect(forwardBadgeClass("stopped")).toBe("text-bg-secondary");
+  });
+
+  it("is safe for unexpected values", () => {
+    expect(forwardBadgeClass("WeirdState")).toBe("text-bg-secondary");
   });
 });

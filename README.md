@@ -29,17 +29,28 @@ node. Per pod:
   conditions, labels and live CPU/memory usage (when metrics-server is present).
 - **Logs** - the streaming viewer described below.
 - **Shell** - an interactive `kubectl exec` in your OS terminal.
+- **Port forward** - a `kubectl port-forward` equivalent: a TCP tunnel from
+  a local `127.0.0.1` port to a port inside the pod. Start it from the pod's
+  detail view — container ports are prefilled, or type any port and let QBI
+  pick a free local one. Every running forward is collected in the
+  **Forwards** section (across all namespaces), where you can open it in
+  your browser or stop it without revisiting the pod. TCP only, bound to
+  loopback only. Experimental for now: enable *Experimental features* in
+  Settings.
 - **YAML** - the resource as Kubernetes sees it.
 - **Delete** - with a confirmation that says whether a controller will
   recreate the pod or not.
 
 **Workloads** - Deployments, StatefulSets and DaemonSets with ready counts and
-images; degraded workloads are highlighted. Scale, restart (rolling restart)
-or delete any of them or create a Deployment from a form with a live YAML
-preview. Jobs and CronJobs get their own tables: create and edit CronJobs
-(schedule, concurrency policy), suspend/resume them and stream the logs of
-the latest run. A *recent rollouts* panel rebuilds deployment history from
-ReplicaSet revisions, durable where events are not.
+images; degraded workloads are highlighted. Scale, restart (rolling restart),
+roll back to any past revision (`kubectl rollout undo` equivalent — the
+revision picker shows images, change-cause notes and ages) or delete any of
+them, or create a Deployment from a form with a live YAML preview. Jobs and
+CronJobs get their own tables: create and edit CronJobs (schedule, concurrency
+policy), suspend/resume them and stream the logs of the latest run. A
+*recent rollouts* panel rebuilds deployment history from ReplicaSet
+revisions, durable where events are not, and every past version row can be
+rolled straight back.
 
 **Networking** - Services with their DNS name, type, ClusterIP, ports, selector
 and the endpoints actually backing them, with a clear warning when there are

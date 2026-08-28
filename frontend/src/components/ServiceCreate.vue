@@ -223,7 +223,6 @@ async function submit() {
         />
       </div>
 
-      <!-- Selector -->
       <div class="col-12">
         <KeyValueFieldset
           :rows="form.selector"

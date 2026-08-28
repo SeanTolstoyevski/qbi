@@ -326,8 +326,6 @@ defineExpose({ load });
       <p v-if="filtered.length === 0" class="text-muted small">
         No pods match “{{ filter }}”.
       </p>
-      <!-- table-responsive: scroll wide tables inside their column instead of
-           spilling under the log/detail panel beside them. -->
       <div v-if="filtered.length" class="table-responsive">
         <table class="table table-hover align-middle">
           <caption class="visually-hidden">

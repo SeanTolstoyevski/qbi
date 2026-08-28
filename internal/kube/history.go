@@ -3,7 +3,6 @@ package kube
 import (
 	"context"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -62,20 +61,13 @@ func (c *Client) History(ctx context.Context, namespace string, opts HistoryOpti
 		if opts.Filter != "" && !strings.Contains(d.Name, opts.Filter) {
 			continue
 		}
-		revisions := byDeploy[d.Name]
-		sort.SliceStable(revisions, func(i, j int) bool {
-			return revisionNum(revisions[i]) > revisionNum(revisions[j])
-		})
+		owned := ownedReplicaSets(d, byDeploy[d.Name])
 
-		trail := make([]RevisionInfo, 0, len(revisions))
-		for j := range revisions {
-			rev := revisions[j].Annotations[deploymentRevisionAnnotation]
-			if rev == "" {
-				continue
-			}
+		trail := make([]RevisionInfo, 0, len(owned))
+		for _, rs := range owned {
 			trail = append(trail, RevisionInfo{
-				Revision: rev,
-				Age:      age(revisions[j].CreationTimestamp),
+				Revision: rs.Annotations[deploymentRevisionAnnotation],
+				Age:      age(rs.CreationTimestamp),
 			})
 			if opts.RevisionsPerDeploy > 0 && len(trail) >= opts.RevisionsPerDeploy {
 				break
@@ -91,7 +83,7 @@ func (c *Client) History(ctx context.Context, namespace string, opts HistoryOpti
 				Revision: d.Annotations[deploymentRevisionAnnotation],
 				Rollouts: trail,
 			},
-			newest: revisions[0].CreationTimestamp.Time,
+			newest: owned[0].CreationTimestamp.Time,
 		})
 	}
 
@@ -109,11 +101,4 @@ func (c *Client) History(ctx context.Context, namespace string, opts HistoryOpti
 		out = append(out, dg.info)
 	}
 	return NamespaceHistory{Rollouts: out, Total: total}, nil
-}
-
-// revisionNum parses a ReplicaSet's revision annotation for numeric sorting;
-// unparseable revisions sort lowest so they never jump ahead of real ones.
-func revisionNum(rs appsv1.ReplicaSet) int64 {
-	n, _ := strconv.ParseInt(rs.Annotations[deploymentRevisionAnnotation], 10, 64)
-	return n
 }
