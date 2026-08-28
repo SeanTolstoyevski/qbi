@@ -801,6 +801,17 @@ func (s *Service) ListWorkloads(namespace string) (kube.WorkloadsView, error) {
 	return view, s.opErr("ListWorkloads", err)
 }
 
+// ListWorkloadRevisions returns the rollout history of a Deployment,
+// StatefulSet or DaemonSet, newest first, with the current revision marked.
+// This is what the rollback picker renders; a revision whose template already
+// matches the live one is a rollback no-op.
+func (s *Service) ListWorkloadRevisions(namespace, kind, name string) ([]kube.WorkloadRevision, error) {
+	ctx, cancel := s.opCtx()
+	defer cancel()
+	revs, err := s.app.kube.WorkloadRevisions(ctx, namespace, kind, name)
+	return revs, s.opErr("ListWorkloadRevisions", err)
+}
+
 // RenderDeploymentYAML renders the manifest that CreateDeployment would
 // apply, so the UI can preview the YAML before the user commits. Pure
 // serialization — no cluster call.
@@ -869,6 +880,25 @@ func (s *Service) RestartWorkload(namespace, kind, name string) (bool, error) {
 		return false, s.opErr("RestartWorkload", err)
 	}
 	return true, nil
+}
+
+// RollbackWorkload restores a workload to a past revision (the equivalent of
+// `kubectl rollout undo --to-revision=N`) after a native confirmation prompt.
+// The result tells the three outcomes apart: applied (template restored),
+// skipped (the target revision's template already matches — kubectl reports
+// the same as a skipped rollback), or neither (the user cancelled).
+func (s *Service) RollbackWorkload(namespace, kind, name string, revision int64) (kube.RollbackResult, error) {
+	ok, err := s.confirm(
+		"Roll back workload",
+		fmt.Sprintf("Roll back %s %q in namespace %q to revision %d?\n\nPods will be replaced gradually according to the workload's update strategy.", kind, name, namespace, revision),
+	)
+	if err != nil || !ok {
+		return kube.RollbackResult{}, s.opErr("RollbackWorkload", err)
+	}
+	ctx, cancel := s.opCtx()
+	defer cancel()
+	result, err := s.app.kube.RollbackWorkload(ctx, namespace, kind, name, revision)
+	return result, s.opErr("RollbackWorkload", err)
 }
 
 // GetSecret returns a single secret with decoded values.

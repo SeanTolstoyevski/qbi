@@ -264,6 +264,32 @@ type RevisionInfo struct {
 	Age      string `json:"age"` // human-readable age of the ReplicaSet
 }
 
+// WorkloadRevision is one point in a workload's rollout history: the pod
+// template the controller ran at that revision, plus the context needed to
+// tell revisions apart (images, change cause, age). Deployments keep their
+// history in ReplicaSets; StatefulSets and DaemonSets keep theirs in
+// ControllerRevisions.
+type WorkloadRevision struct {
+	Revision    int64    `json:"revision"`
+	Images      []string `json:"images"`
+	ChangeCause string   `json:"changeCause"` // kubernetes.io/change-cause, if recorded
+	Age         string   `json:"age"`         // human-readable age of the history object
+	Current     bool     `json:"current"`     // true for the template the controller runs now
+	Replicas    string   `json:"replicas"`    // Deployments only: ReplicaSet ready/desired
+}
+
+// RollbackResult reports the outcome of a rollback request. Applied is true
+// when the pod template was restored; Skipped is true when the target
+// revision's template already matched the current one (kubectl reports the
+// same as a skipped rollback) — the request was accepted but changed nothing.
+// Both false means the user cancelled the confirmation dialog. A struct keeps
+// the three outcomes distinguishable across the Wails binding, which cannot
+// express a third return value.
+type RollbackResult struct {
+	Applied bool `json:"applied"`
+	Skipped bool `json:"skipped"`
+}
+
 // ConfigMapInfo is a lightweight view of a ConfigMap (keys only).
 type ConfigMapInfo struct {
 	Name string   `json:"name"`
