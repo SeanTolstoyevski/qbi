@@ -42,7 +42,7 @@ func (f *fakePortForward) Stop() {
 		f.resultCh <- nil
 	})
 }
-func (f *fakePortForward) ErrorText() string      { return f.errText }
+func (f *fakePortForward) ErrorText() string { return f.errText }
 
 // eventLog captures emitted status events, safe for concurrent access: the
 // lifecycle goroutines emit while the test reads.
