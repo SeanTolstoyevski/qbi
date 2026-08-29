@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import { api } from "../api.js";
+import { Modal } from "bootstrap";
 import { useStore } from "../store.js";
 import { copyToClipboard } from "../clipboard.js";
 import { useActionMenu } from "../useActionMenu.js";
@@ -13,6 +14,12 @@ const loading = ref(false);
 const error = ref("");
 const filter = ref("");
 const deleting = ref(false);
+const pendingDelete = ref(null);
+const typedPhrase = ref("");
+const confirmModalEl = ref(null);
+const typedInputRef = ref(null);
+let confirmModal = null;
+let confirmedDelete = null; // set when the phrase matches; acted on once hidden
 
 async function load() {
   if (!state.connected) return;
@@ -38,7 +45,6 @@ const options = computed(() => {
       value: ns.name,
       label: ns.name,
       description: `${ns.status} · ${ns.age}`,
-      // A namespace being deleted deserves a glance-level cue, not just text.
       descriptionClass: ns.status === "Terminating" ? "text-warning" : "",
     }));
 });
@@ -70,9 +76,62 @@ function openMenu({ value, x, y }) {
   nextTick(() => firstMenuItem?.focus());
 }
 
-async function removeFromMenu() {
+function requestDeleteFromMenu() {
   const name = menuOpen.value;
   closeMenu(name, { skipFocus: true });
+  pendingDelete.value = name;
+  typedPhrase.value = "";
+  nextTick(() => {
+    const el = confirmModalEl.value;
+    if (!el) return;
+    el.addEventListener("shown.bs.modal", onModalShown);
+    el.addEventListener("hidden.bs.modal", onModalHidden);
+    confirmModal = new Modal(el);
+    confirmModal.show();
+  });
+}
+
+function onModalShown() {
+  typedInputRef.value?.focus();
+}
+
+function hideConfirmModal() {
+  confirmModal?.hide();
+}
+
+// The strict path: an exact match hides the modal (onModalHidden then performs
+// the delete); anything else aborts the whole flow — no API call at all.
+function submitConfirmation() {
+  const name = pendingDelete.value;
+  if (!name) return;
+  const expected = `${name}, yes`;
+  if (typedPhrase.value.trim() !== expected) {
+    confirmedDelete = null;
+    hideConfirmModal();
+    announce(
+      "Deletion cancelled. The confirmation phrase did not match.",
+      "assertive",
+    );
+    return;
+  }
+  confirmedDelete = name;
+  hideConfirmModal();
+}
+
+function onModalHidden() {
+  confirmModalEl.value?.removeEventListener("shown.bs.modal", onModalShown);
+  confirmModalEl.value?.removeEventListener("hidden.bs.modal", onModalHidden);
+  confirmModal?.dispose();
+  confirmModal = null;
+  pendingDelete.value = null;
+  typedPhrase.value = "";
+  const name = confirmedDelete;
+  confirmedDelete = null;
+  listBoxRef.value?.focusActive();
+  if (name) performDelete(name);
+}
+
+async function performDelete(name) {
   deleting.value = true;
   error.value = "";
   try {
@@ -111,9 +170,18 @@ watch(
 watch(
   () => state.connected,
   (connected) => {
-    if (!connected) closeMenu(menuOpen.value, { skipFocus: true });
+    if (!connected) {
+      closeMenu(menuOpen.value, { skipFocus: true });
+      if (confirmModal) hideConfirmModal();
+    }
   },
 );
+
+onBeforeUnmount(() => {
+  confirmModal?.dispose();
+  document.querySelectorAll(".modal-backdrop").forEach((el) => el.remove());
+  document.body.classList.remove("modal-open");
+});
 
 const listReady = computed(
   () =>
@@ -124,8 +192,6 @@ const listReady = computed(
     options.value.length > 0,
 );
 
-// Move focus into the namespace listbox (the active option). Callers should
-// check listReady first so this only runs when there is a list to land on.
 function focusList() {
   listBoxRef.value?.focusActive();
 }
@@ -215,7 +281,7 @@ defineExpose({ load, listReady, focusList });
         type="button"
         class="qba-ns-menu-item text-danger"
         :disabled="deleting"
-        @click="removeFromMenu"
+        @click="requestDeleteFromMenu"
       >
         <span
           v-if="deleting"
@@ -225,6 +291,77 @@ defineExpose({ load, listReady, focusList });
         Delete namespace
         <span class="visually-hidden">{{ menuOpen }}</span>
       </button>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="pendingDelete"
+      ref="confirmModalEl"
+      class="modal fade"
+      tabindex="-1"
+      aria-labelledby="ns-delete-title"
+      aria-hidden="true"
+      @keydown.esc="hideConfirmModal"
+    >
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="ns-delete-title" class="modal-title fs-5">
+              Delete namespace
+            </h2>
+            <button
+              type="button"
+              class="btn-close"
+              aria-label="Cancel deletion"
+              @click="hideConfirmModal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p>
+              This permanently deletes namespace
+              <strong>{{ pendingDelete }}</strong> and everything inside it.
+              This cannot be undone.
+            </p>
+            <p class="mb-1">
+              Type <code>{{ pendingDelete }}, yes</code> to confirm:
+            </p>
+            <label for="ns-delete-confirm" class="visually-hidden">
+              Type {{ pendingDelete }}, yes to confirm deletion
+            </label>
+            <input
+              id="ns-delete-confirm"
+              ref="typedInputRef"
+              v-model="typedPhrase"
+              type="text"
+              class="form-control"
+              autocomplete="off"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+              @paste.prevent
+              @drop.prevent
+              @keydown.enter.prevent="submitConfirmation"
+            />
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              @click="hideConfirmModal"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              @click="submitConfirmation"
+            >
+              Delete namespace
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </Teleport>
 </template>
