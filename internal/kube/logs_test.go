@@ -103,7 +103,7 @@ func TestLogSplitterFinalLineWithoutNewline(t *testing.T) {
 
 func TestLogSplitterHugeFinalLineWithoutNewline(t *testing.T) {
 	long := strings.Repeat("z", 2*LogChunkSize+500)
-	events := scanEvents(t, []byte("a\n" + long))
+	events := scanEvents(t, []byte("a\n"+long))
 	if got, want := reassemble(events), []string{"a", long}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("lines mismatch: got %d lines", len(got))
 	}

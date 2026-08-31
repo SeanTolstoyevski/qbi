@@ -10,6 +10,22 @@ vi.mock("../api.js", () => ({
   onEvent: vi.fn(() => () => {}),
 }));
 
+vi.mock("bootstrap", () => {
+  class FakeModal {
+    constructor(el) {
+      this.el = el;
+    }
+    show() {
+      this.el.dispatchEvent(new Event("shown.bs.modal"));
+    }
+    hide() {
+      this.el.dispatchEvent(new Event("hidden.bs.modal"));
+    }
+    dispose() {}
+  }
+  return { Modal: FakeModal };
+});
+
 const { state, setConnection, clearConnection } = useStore();
 
 const NS = [
@@ -86,7 +102,7 @@ describe("NamespaceList - readiness and focus", () => {
   });
 });
 
-describe("NamespaceList — selection", () => {
+describe("NamespaceList - selection", () => {
   it("selects a namespace from the listbox and persists it", async () => {
     api.listNamespaces.mockResolvedValue(NS);
     setConnection({ name: "test-ctx", namespace: "default" });
@@ -100,13 +116,20 @@ describe("NamespaceList — selection", () => {
   });
 });
 
-describe("NamespaceList — delete flow", () => {
+describe("NamespaceList - delete flow", () => {
   // The context menu is teleported to <body>, so the wrapper cannot find it.
   const menu = () => document.querySelector('[role="menu"]');
   // "Copy name" is now the first menuitem; target the destructive one.
   const menuItem = () =>
     [...document.querySelectorAll('[role="menuitem"]')].find((b) =>
       b.textContent.includes("Delete namespace"),
+    );
+
+  const modal = () => document.querySelector(".modal");
+  const modalInput = () => document.querySelector("#ns-delete-confirm");
+  const modalButton = (label) =>
+    [...document.querySelectorAll(".modal-footer button")].find((b) =>
+      b.textContent.includes(label),
     );
 
   async function mountConnected() {
@@ -119,6 +142,21 @@ describe("NamespaceList — delete flow", () => {
     const opt = w.findAll('[role="option"]').find((o) => o.text().includes(ns));
     await opt.find(".qba-option-menu-btn").trigger("click");
     await nextTick();
+  }
+
+  async function openDeleteModal(w, ns = "default") {
+    await openMenuFor(w, ns);
+    menuItem().click();
+    await vi.waitFor(() => {
+      expect(document.activeElement).toBe(modalInput());
+    });
+  }
+
+  // v-model listens for input events; setting .value + dispatching input is
+  // the happy-dom equivalent of typing.
+  function typePhrase(text) {
+    modalInput().value = text;
+    modalInput().dispatchEvent(new Event("input"));
   }
 
   it("opens the context menu from the kebab button", async () => {
@@ -137,36 +175,106 @@ describe("NamespaceList — delete flow", () => {
     w.unmount();
   });
 
-  it("deletes the namespace after confirmation and reloads", async () => {
+  it("asks for the exact phrase in the delete modal", async () => {
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    expect(modal()).not.toBeNull();
+    expect(modal().textContent).toContain("default, yes");
+    w.unmount();
+  });
+
+  it("moves focus into the confirmation input when the modal opens", async () => {
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    expect(document.activeElement).toBe(modalInput());
+    w.unmount();
+  });
+
+  it("deletes the namespace after typing the phrase and reloads", async () => {
     api.deleteNamespace.mockResolvedValue(true);
     const w = await mountConnected();
     api.listNamespaces.mockClear();
-    await openMenuFor(w, "default");
-    menuItem().click();
+    await openDeleteModal(w);
+    typePhrase("default, yes");
+    modalButton("Delete namespace").click();
     await flushPromises();
     expect(api.deleteNamespace).toHaveBeenCalledWith("default");
     expect(api.listNamespaces).toHaveBeenCalled();
     expect(menu()).toBeNull();
+    expect(modal()).toBeNull();
     w.unmount();
   });
 
-  it("does not reload when the user cancels the confirmation", async () => {
+  it("aborts the deletion when the typed phrase does not match", async () => {
+    api.deleteNamespace.mockResolvedValue(true);
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    typePhrase("default, no");
+    modalButton("Delete namespace").click();
+    await flushPromises();
+    expect(api.deleteNamespace).not.toHaveBeenCalled();
+    expect(modal()).toBeNull();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(state.status).toContain("Deletion cancelled");
+    expect(document.activeElement).toBe(
+      document.querySelector('[role="option"][tabindex="0"]'),
+    );
+    w.unmount();
+  });
+
+  it("cancels the modal without deleting", async () => {
+    api.deleteNamespace.mockResolvedValue(true);
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    modalButton("Cancel").click();
+    await flushPromises();
+    expect(api.deleteNamespace).not.toHaveBeenCalled();
+    expect(modal()).toBeNull();
+    w.unmount();
+  });
+
+  it("closes the modal on Escape without deleting", async () => {
+    api.deleteNamespace.mockResolvedValue(true);
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    modalInput().dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    await flushPromises();
+    expect(api.deleteNamespace).not.toHaveBeenCalled();
+    expect(modal()).toBeNull();
+    w.unmount();
+  });
+
+  it("prevents pasting into the confirmation input", async () => {
+    const w = await mountConnected();
+    await openDeleteModal(w);
+    const ev = new Event("paste", { cancelable: true });
+    modalInput().dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    w.unmount();
+  });
+
+  it("does not reload when the user cancels the native confirmation", async () => {
     api.deleteNamespace.mockResolvedValue(false);
     const w = await mountConnected();
     api.listNamespaces.mockClear();
-    await openMenuFor(w, "default");
-    menuItem().click();
+    await openDeleteModal(w);
+    typePhrase("default, yes");
+    modalButton("Delete namespace").click();
     await flushPromises();
     expect(api.deleteNamespace).toHaveBeenCalledWith("default");
     expect(api.listNamespaces).not.toHaveBeenCalled();
+    expect(modal()).toBeNull();
     w.unmount();
   });
 
   it("shows the error when deletion fails", async () => {
     api.deleteNamespace.mockRejectedValue(new Error("forbidden"));
     const w = await mountConnected();
-    await openMenuFor(w, "default");
-    menuItem().click();
+    await openDeleteModal(w);
+    typePhrase("default, yes");
+    modalButton("Delete namespace").click();
     await flushPromises();
     expect(w.find('[role="alert"]').text()).toContain("forbidden");
     w.unmount();
@@ -180,7 +288,7 @@ describe("NamespaceList — delete flow", () => {
     );
     await nextTick();
     expect(menu()).toBeNull();
-    // Convention: focus returns to the trigger — the active list option.
+
     expect(document.activeElement).toBe(
       document.querySelector('[role="option"][tabindex="0"]'),
     );
@@ -208,8 +316,7 @@ describe("NamespaceList — delete flow", () => {
   });
 });
 
-describe("NamespaceList — menu keyboard navigation", () => {
-  // The context menu is teleported to <body>, so the wrapper cannot find it.
+describe("NamespaceList - menu keyboard navigation", () => {
   const menu = () => document.querySelector('[role="menu"]');
   const items = () =>
     [...document.querySelectorAll('[role="menuitem"]:not(:disabled)')].map(
@@ -292,7 +399,7 @@ describe("NamespaceList — menu keyboard navigation", () => {
   });
 });
 
-describe("NamespaceList — copy", () => {
+describe("NamespaceList - copy", () => {
   const menu = () => document.querySelector('[role="menu"]');
   const menuItems = () => [...document.querySelectorAll('[role="menuitem"]')];
   const copyItem = () =>
@@ -368,7 +475,7 @@ describe("NamespaceList — copy", () => {
   });
 });
 
-describe("NamespaceList — refresh button", () => {
+describe("NamespaceList - refresh button", () => {
   it("reloads namespaces via the refresh button", async () => {
     api.listNamespaces.mockResolvedValue(NS);
     setConnection({ name: "test-ctx", namespace: "default" });
