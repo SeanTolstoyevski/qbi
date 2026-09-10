@@ -12,6 +12,12 @@ vi.mock("../api.js", () => ({
     followLogStream: vi.fn().mockResolvedValue(undefined),
     stopLogStream: vi.fn().mockResolvedValue(undefined),
     saveLogs: vi.fn().mockResolvedValue(null),
+    getLogTemplateSettings: vi
+      .fn()
+      .mockResolvedValue({ templates: [], activeId: "" }),
+    setActiveLogTemplate: vi.fn().mockResolvedValue(undefined),
+    saveLogTemplate: vi.fn().mockResolvedValue({ id: "t1", name: "App" }),
+    deleteLogTemplate: vi.fn().mockResolvedValue(undefined),
   },
   onEvent: (name, handler) => {
     listeners[name] = handler;
@@ -23,6 +29,7 @@ vi.mock("../api.js", () => ({
 
 import LogViewer from "../components/LogViewer.vue";
 import { api } from "../api.js";
+import { useStore } from "../store.js";
 
 const LINES = ["first line", "second line", "third line"];
 
@@ -38,6 +45,7 @@ beforeAll(() => {
 beforeEach(() => {
   Object.keys(listeners).forEach((k) => delete listeners[k]);
   vi.clearAllMocks();
+  useStore().setExperimental(false);
 });
 
 async function mountLogViewer() {
@@ -557,6 +565,374 @@ describe("LogViewer - partial lines", () => {
     await pushLines("fresh");
     const texts = w.findAll(".log-line").map((l) => l.text());
     expect(texts).toEqual(["fresh"]);
+    w.unmount();
+  });
+});
+
+describe("LogViewer - log format templates (experimental)", () => {
+  const TEMPLATES = [
+    { id: "t1", name: "App", fieldOrder: ["msg", "ts"] },
+    { id: "t2", name: "Other", fieldOrder: ["level"] },
+  ];
+
+  async function mountExperimental() {
+    useStore().setExperimental(true);
+    api.getLogTemplateSettings.mockResolvedValue({
+      templates: TEMPLATES,
+      activeId: "",
+    });
+    const w = await mountLogViewer();
+    await settle();
+    return w;
+  }
+
+  // Drive the readonly Format combobox like a keyboard user: ArrowDown opens
+  // it, ArrowDown moves the highlight, Enter picks.
+  async function pickFormat(w, steps) {
+    const box = w.find("#opt-format");
+    await box.trigger("keydown", { key: "ArrowDown" }); // open
+    for (let i = 0; i < steps; i++) {
+      await box.trigger("keydown", { key: "ArrowDown" });
+    }
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+  }
+
+  function formatStatus(w) {
+    return w.find("#format-status").exists()
+      ? w.find("#format-status").text()
+      : "";
+  }
+
+  it("hides the Format control while experimental features are off", async () => {
+    const w = await mountLogViewer();
+    expect(w.find("#opt-format").exists()).toBe(false);
+    expect(api.getLogTemplateSettings).not.toHaveBeenCalled();
+    w.unmount();
+  });
+
+  it("lists None, the saved templates and Manage in the Format dropdown", async () => {
+    const w = await mountExperimental();
+    const box = w.find("#opt-format");
+    expect(box.element.value).toBe("None (raw)");
+
+    await box.trigger("keydown", { key: "ArrowDown" });
+    const options = [
+      ...box.element
+        .closest(".qba-combobox")
+        .querySelectorAll('[role="option"]'),
+    ].map((o) => o.textContent.trim());
+    expect(options).toEqual([
+      "None (raw)",
+      "App",
+      "Other",
+      "Manage templates…",
+    ]);
+    w.unmount();
+  });
+
+  it("reorders existing lines when a template is selected and keeps copy raw", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"hello"}', "plain text");
+
+    await pickFormat(w, 1); // None → App
+    expect(api.setActiveLogTemplate).toHaveBeenCalledWith("t1");
+
+    await settleUntil(
+      w,
+      (w) =>
+        w.findAll(".log-line").length > 0 &&
+        w.findAll(".log-line")[0].text().includes('"msg":"hello"'),
+    );
+    const lines = w.findAll(".log-line");
+    expect(lines[0].text()).toBe('{"msg":"hello", "ts":1}');
+    expect(lines[1].text()).toBe("plain text");
+
+    // The passive status counts lines the template could not format.
+    await settleUntil(w, (w) =>
+      formatStatus(w).includes("1 line isn't a JSON object"),
+    );
+    expect(formatStatus(w)).not.toContain("don't match");
+
+    // Copy/Save still export the RAW lines, never the reordered display.
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Copy")
+      .trigger("click");
+    await flushPromises();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      '{"ts":1,"msg":"hello"}\nplain text',
+    );
+    w.unmount();
+  });
+
+  it("announces the applied format once", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+    await pickFormat(w, 1); // None → App
+    await settleUntil(w, () =>
+      useStore().state.status.includes("Format: App applied."),
+    );
+    w.unmount();
+  });
+
+  it("counts lines whose JSON has none of the template's fields", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"a":1,"b":2}', '{"msg":"x"}');
+    await pickFormat(w, 1); // None → App (msg, ts)
+    await settleUntil(w, (w) =>
+      formatStatus(w).includes("1 line doesn't match"),
+    );
+    expect(formatStatus(w)).not.toContain("aren't JSON");
+    // The unmatched JSON line stays raw; the matched one is reordered.
+    const lines = w.findAll(".log-line");
+    expect(lines[0].text()).toBe('{"a":1,"b":2}');
+    expect(lines[1].text()).toBe('{"msg":"x"}');
+    w.unmount();
+  });
+
+  it("returns to raw display when None is selected", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+    await pickFormat(w, 1); // None → App
+    await settleUntil(
+      w,
+      (w) => w.findAll(".log-line")[0]?.text() === '{"msg":"x", "ts":1}',
+    );
+
+    const box = w.find("#opt-format");
+    await box.trigger("keydown", { key: "ArrowDown" }); // opens on App (current)
+    await box.trigger("keydown", { key: "ArrowUp" }); // None
+    await box.trigger("keydown", { key: "Enter" });
+    await settleUntil(
+      w,
+      (w) => w.findAll(".log-line")[0]?.text() === '{"ts":1,"msg":"x"}',
+    );
+    expect(api.setActiveLogTemplate).toHaveBeenLastCalledWith("");
+    w.unmount();
+  });
+
+  it("opens the template manager from Manage templates… and closes on Escape", async () => {
+    const w = await mountExperimental();
+    const box = w.find("#opt-format");
+    await box.trigger("keydown", { key: "ArrowDown" }); // open
+    await box.trigger("keydown", { key: "ArrowDown" }); // App
+    await box.trigger("keydown", { key: "ArrowDown" }); // Other
+    await box.trigger("keydown", { key: "ArrowDown" }); // Manage…
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+
+    const dialog = w.find('[role="dialog"]');
+    expect(dialog.exists()).toBe(true);
+    expect(dialog.text()).toContain("Log templates");
+    // The combobox keeps showing the real selection, not "Manage".
+    expect(box.element.value).toBe("None (raw)");
+
+    await dialog.trigger("keydown", { key: "Escape" });
+    await settle();
+    expect(w.find('[role="dialog"]').exists()).toBe(false);
+    // The underlying log viewer must stay open: Escape stopped at the dialog.
+    expect(w.find(".log-view").exists()).toBe(true);
+    w.unmount();
+  });
+
+  it("applies the persisted active template without any user action", async () => {
+    useStore().setExperimental(true);
+    api.getLogTemplateSettings.mockResolvedValue({
+      templates: TEMPLATES,
+      activeId: "t1",
+    });
+    const w = await mountLogViewer();
+    await settle(); // initial template load
+    await pushLines('{"ts":1,"msg":"auto"}');
+    const lines = w.findAll(".log-line");
+    expect(lines[0].text()).toBe('{"msg":"auto", "ts":1}');
+    expect(w.find("#opt-format").element.value).toBe("App");
+    w.unmount();
+  });
+
+  it("reverts to raw display when experimental features are disabled live", async () => {
+    useStore().setExperimental(true);
+    api.getLogTemplateSettings.mockResolvedValue({
+      templates: TEMPLATES,
+      activeId: "t1",
+    });
+    const w = await mountLogViewer();
+    await settle();
+    await pushLines('{"ts":1,"msg":"x"}');
+    expect(w.findAll(".log-line")[0].text()).toBe('{"msg":"x", "ts":1}');
+
+    useStore().setExperimental(false);
+    await settleUntil(
+      w,
+      (w) => w.findAll(".log-line")[0]?.text() === '{"ts":1,"msg":"x"}',
+    );
+    expect(w.find("#opt-format").exists()).toBe(false);
+    w.unmount();
+  });
+
+  it("does not call the backend again when the same format is re-picked", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+    await pickFormat(w, 1); // None → App
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(1);
+
+    // Re-pick App: the list opens on the current value, Enter re-picks it.
+    const box = w.find("#opt-format");
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(1);
+    w.unmount();
+  });
+
+  it("keeps the display unchanged and reports when persisting the format fails", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+    api.setActiveLogTemplate.mockRejectedValueOnce(new Error("disk full"));
+
+    await pickFormat(w, 1); // None → App
+    await settleUntil(w, () => useStore().state.statusKind === "assertive");
+    expect(useStore().state.status).toContain("Failed to change log format");
+    // No rebuild happened: the line still reads raw and the dropdown shows
+    // the real (unchanged) selection.
+    expect(w.findAll(".log-line")[0].text()).toBe('{"ts":1,"msg":"x"}');
+    expect(w.find("#opt-format").element.value).toBe("None (raw)");
+    w.unmount();
+  });
+
+  it("searches the displayed (reordered) text", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"needle"}');
+    await pickFormat(w, 1); // None → App
+    await settleUntil(
+      w,
+      (w) => w.findAll(".log-line")[0]?.text() === '{"msg":"needle", "ts":1}',
+    );
+    await w.find("#log-search").setValue("needle");
+    await settleUntil(w, (w) => statusText(w).includes("1 matching"));
+    expect(w.find(".log-mark").text()).toBe("needle");
+    w.unmount();
+  });
+
+  it("keeps the passive counters correct when the buffer cap evicts lines", async () => {
+    const w = await mountExperimental();
+    // Half the lines overlap the template (msg), half don't (a/b only).
+    const many = [];
+    for (let i = 0; i < 20010; i++) {
+      many.push(i % 2 === 0 ? `{"msg":${i}}` : `{"a":${i},"b":1}`);
+    }
+    await pickFormat(w, 1); // None → App
+    await pushLines(...many);
+    // 20010 lines arrive, 10 are evicted: 5 of each category.
+    await settleUntil(w, (w) =>
+      formatStatus(w).includes("10000 lines don't match"),
+    );
+    expect(formatStatus(w)).not.toContain("aren't JSON");
+    w.unmount();
+  });
+
+  it("applies rapid format picks in order even when an earlier persist is slow", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+
+    const pending = [];
+    api.setActiveLogTemplate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+        }),
+    );
+
+    const box = w.find("#opt-format");
+    // Pick App (t1): its persist hangs.
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+    // Pick Other (t2) while t1 is still in flight: the combobox already
+    // shows the optimistic App pick, so the list reopens on App and one
+    // ArrowDown reaches Other.
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+
+    // The second persist must wait for the first: serialized, in pick order.
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(1);
+    expect(api.setActiveLogTemplate).toHaveBeenLastCalledWith("t1");
+
+    pending[0]();
+    await settleUntil(w, (w) => w.find("#opt-format").element.value === "App");
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(2);
+    expect(api.setActiveLogTemplate).toHaveBeenLastCalledWith("t2");
+
+    pending[1]();
+    await settleUntil(
+      w,
+      (w) => w.find("#opt-format").element.value === "Other",
+    );
+    // The last pick wins: "Other" (fields: level) has no overlap with the
+    // line, so the display is raw again and the counter says so.
+    await settleUntil(
+      w,
+      (w) =>
+        w.findAll(".log-line")[0]?.text() === '{"ts":1,"msg":"x"}' &&
+        formatStatus(w).includes("1 line doesn't match"),
+    );
+    api.setActiveLogTemplate.mockResolvedValue(undefined);
+    w.unmount();
+  });
+
+  it("lets a newer pick decide when an earlier persist fails", async () => {
+    const w = await mountExperimental();
+    await pushLines('{"ts":1,"msg":"x"}');
+
+    const pending = [];
+    api.setActiveLogTemplate.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          pending.push({ resolve, reject });
+        }),
+    );
+    const before = useStore().state.status;
+
+    const box = w.find("#opt-format");
+    // Pick App (t1): its persist hangs.
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+    // Pick Other (t2) while t1 is still in flight.
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "ArrowDown" });
+    await box.trigger("keydown", { key: "Enter" });
+    await settle();
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(1);
+
+    // Now fail the FIRST persist: it is superseded by the t2 pick and must
+    // stay completely silent (no failure announce, no revert). The combobox
+    // optimistically shows the newest pick ("Other") via v-model; a buggy
+    // revert would flip it back to "None (raw)".
+    pending[0].reject(new Error("boom"));
+    await settle();
+    expect(useStore().state.status).toBe(before);
+    expect(w.find("#opt-format").element.value).toBe("Other");
+
+    // The queued second persist runs and wins.
+    expect(api.setActiveLogTemplate).toHaveBeenCalledTimes(2);
+    pending[1].resolve();
+    await settleUntil(
+      w,
+      (w) => w.find("#opt-format").element.value === "Other",
+    );
+    await settleUntil(w, () =>
+      useStore().state.status.includes("Format: Other applied."),
+    );
+    expect(useStore().state.status).not.toContain(
+      "Failed to change log format",
+    );
+    api.setActiveLogTemplate.mockResolvedValue(undefined);
     w.unmount();
   });
 });

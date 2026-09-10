@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
 )
@@ -32,14 +33,14 @@ func TestSettingsRoundTrip(t *testing.T) {
 	if err := saveSettings(want); err != nil {
 		t.Fatal(err)
 	}
-	if got := loadSettings(); got != want {
+	if got := loadSettings(); !reflect.DeepEqual(got, want) {
 		t.Errorf("round trip mismatch: got %+v, want %+v", got, want)
 	}
 }
 
 func TestLoadSettingsDefaults(t *testing.T) {
 	setUserConfigDir(t)
-	if got := loadSettings(); got != (settings{}) {
+	if got := loadSettings(); !reflect.DeepEqual(got, settings{}) {
 		t.Errorf("expected zero settings on first run, got %+v", got)
 	}
 }

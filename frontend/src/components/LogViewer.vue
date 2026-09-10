@@ -11,7 +11,9 @@ import { api, onEvent } from "../api.js";
 import { useStore } from "../store.js";
 import { useReturnFocus } from "../useReturnFocus.js";
 import { copyToClipboard } from "../clipboard.js";
+import { applyLogTemplate } from "../logTemplate.js";
 import Combobox from "./Combobox.vue";
+import LogTemplateDialog from "./LogTemplateDialog.vue";
 
 const props = defineProps({
   namespace: { type: String, required: true },
@@ -21,7 +23,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close"]);
-const { announce } = useStore();
+const { state, announce } = useStore();
 
 const streaming = ref(false);
 const error = ref("");
@@ -44,6 +46,156 @@ const query = ref("");
 const useRegex = ref(false);
 const caseSensitive = ref(false);
 const onlyMatches = ref(false);
+
+// --- Log format templates (experimental) ---------------------------------
+// The Format dropdown applies a field-order template to the log view. Raw
+// lines stay untouched (Copy/Save always export them verbatim); only the
+// displayed text is reordered, so switching templates re-renders the whole
+// buffer without restarting the stream.
+const MANAGE_FORMAT = "__manage__";
+const templates = ref([]); // LogTemplate[]
+const activeTemplateId = ref("");
+const formatSel = ref(""); // Combobox value; MANAGE_FORMAT never sticks
+const dialogOpen = ref(false);
+
+const activeTemplate = computed(
+  () => templates.value.find((t) => t.id === activeTemplateId.value) || null,
+);
+const formatOptions = computed(() => [
+  { value: "", label: "None (raw)" },
+  ...templates.value.map((t) => ({ value: t.id, label: t.name })),
+  { value: MANAGE_FORMAT, label: "Manage templates…" },
+]);
+
+const fmtTotal = ref(0);
+const fmtNoMatch = ref(0); // JSON objects with none of the template's fields
+const fmtNotJson = ref(0); // lines with no JSON object at all
+
+const formatStatus = computed(() => {
+  if (!activeTemplate.value || fmtTotal.value === 0) return "";
+  if (fmtNoMatch.value === 0 && fmtNotJson.value === 0) {
+    return fmtTotal.value === 1
+      ? "1 line matches the template."
+      : `All ${fmtTotal.value} lines match the template.`;
+  }
+  const parts = [];
+  if (fmtNoMatch.value > 0) {
+    parts.push(
+      fmtNoMatch.value === 1
+        ? "1 line doesn't match the template"
+        : `${fmtNoMatch.value} lines don't match the template`,
+    );
+  }
+  if (fmtNotJson.value > 0) {
+    parts.push(
+      fmtNotJson.value === 1
+        ? "1 line isn't a JSON object"
+        : `${fmtNotJson.value} lines aren't JSON objects`,
+    );
+  }
+  return parts.join(" · ") + ".";
+});
+
+// transformLine applies the active template to one raw line and returns the
+// display text plus a category for the passive counters.
+function transformLine(raw) {
+  const t = activeTemplate.value;
+  if (!t) return { text: raw, cat: "none" };
+  const { text, reason } = applyLogTemplate(raw, t.fieldOrder);
+  return { text, cat: reason };
+}
+
+function bumpFmtCounters(cat, delta) {
+  if (cat === "no-overlap") fmtNoMatch.value += delta;
+  else if (cat === "not-json") fmtNotJson.value += delta;
+}
+
+function sameFieldOrder(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+async function refreshTemplates() {
+  if (!state.experimental) return;
+  try {
+    const s = await api.getLogTemplateSettings();
+    const prevId = activeTemplateId.value;
+    const prevTemplate = activeTemplate.value;
+    templates.value = s.templates ?? [];
+    const exists = templates.value.some((t) => t.id === s.activeId);
+    const nextId = exists ? s.activeId : "";
+    activeTemplateId.value = nextId;
+    formatSel.value = nextId;
+    const cur = activeTemplate.value;
+    const orderChanged =
+      prevId === nextId &&
+      prevTemplate !== null &&
+      cur !== null &&
+      !sameFieldOrder(prevTemplate.fieldOrder, cur.fieldOrder);
+    if (prevId !== nextId || orderChanged) scheduleRebuild(false);
+  } catch (e) {
+    announce(`Failed to load log templates: ${String(e)}`, "assertive");
+  }
+}
+
+function resetTemplates() {
+  const hadTemplate = !!activeTemplateId.value;
+  templates.value = [];
+  activeTemplateId.value = "";
+  formatSel.value = "";
+  dialogOpen.value = false;
+  fmtTotal.value = 0;
+  fmtNoMatch.value = 0;
+  fmtNotJson.value = 0;
+  if (hadTemplate) scheduleRebuild(false);
+}
+
+let formatChain = Promise.resolve();
+let formatPickSeq = 0;
+
+function setFormat(id) {
+  if (id === activeTemplateId.value) return;
+  const token = ++formatPickSeq;
+  formatChain = formatChain.then(
+    () => applyFormat(id, token),
+    () => applyFormat(id, token),
+  );
+}
+
+async function applyFormat(id, token) {
+  if (id === activeTemplateId.value) return;
+  try {
+    await api.setActiveLogTemplate(id);
+  } catch (e) {
+    if (token !== formatPickSeq) return;
+    formatSel.value = activeTemplateId.value;
+    announce(`Failed to change log format: ${String(e)}`, "assertive");
+    return;
+  }
+  activeTemplateId.value = id;
+  formatSel.value = id;
+  scheduleRebuild(false); // re-renders the whole buffer under the new format
+  if (id) {
+    announce(`Format: ${activeTemplate.value?.name ?? "template"} applied.`);
+  } else {
+    announce("Format: raw output.");
+  }
+}
+
+function onFormatSelect(value) {
+  if (value === MANAGE_FORMAT) {
+    dialogOpen.value = true;
+    formatSel.value = activeTemplateId.value;
+    return;
+  }
+  setFormat(value);
+}
+
+async function onTemplateDialogChanged() {
+  await refreshTemplates();
+}
 
 const logEl = ref(null);
 const headingEl = ref(null);
@@ -234,14 +386,18 @@ function applyLines(batch) {
   const filterActive = !!query.value && !matcher.error && onlyMatches.value;
   const next = view.value.concat(); // copy entry references, append new ones
   let addedHits = 0;
-  for (const text of batch) {
+  for (const raw of batch) {
     const seq = nextSeq++;
-    rawLines.push({ seq, text });
+    const { text, cat } = transformLine(raw);
+    rawLines.push({ seq, text: raw, cat });
+    fmtTotal.value += 1;
+    bumpFmtCounters(cat, 1);
     const hit = lineMatches(text, matcher);
     if (filterActive && !hit) continue; // kept in the buffer, hidden by the filter
     next.push({
       seq,
       text,
+      raw,
       hit,
       segments: hit ? segmentsFor(text, matcher) : null,
     });
@@ -255,6 +411,10 @@ function applyLines(batch) {
   const drop = rawLines.length - MAX_LINES;
   let refocusEvicted = false;
   if (drop > 0) {
+    for (let k = 0; k < drop; k++) {
+      bumpFmtCounters(rawLines[k].cat, -1);
+    }
+    fmtTotal.value -= drop;
     rawLines.splice(0, drop);
     const firstSeq = rawLines[0].seq;
     const viewCut = next.findIndex((e) => e.seq >= firstSeq);
@@ -297,23 +457,29 @@ function scheduleRebuild(announceResult) {
   let hits = 0;
   let pos = 0;
   let committed = 0;
+  let noMatch = 0;
+  let notJson = 0;
 
   function scanStep() {
     if (token !== rebuildToken) return; // superseded by a newer rebuild
     const start = performance.now();
     while (pos < rawLines.length) {
       const entry = rawLines[pos++];
-      const hit = lineMatches(entry.text, matcher);
+      const { text, cat } = transformLine(entry.text);
+      entry.cat = cat; // keep the passive counters decrementable on eviction
+      if (cat === "no-overlap") noMatch++;
+      else if (cat === "not-json") notJson++;
+      const hit = lineMatches(text, matcher);
       if (only && !hit) continue;
       let segments = null;
       if (hit) {
-        segments = segmentsFor(entry.text, matcher);
+        segments = segmentsFor(text, matcher);
         const prev = oldSegments.get(entry.seq);
         if (prev && sameSegments(prev, segments)) segments = prev;
         hits++;
         nextRows.push(entry.seq);
       }
-      nextView.push({ seq: entry.seq, text: entry.text, hit, segments });
+      nextView.push({ seq: entry.seq, text, raw: entry.text, hit, segments });
       if ((pos & 1023) === 0 && performance.now() - start > 8) {
         nextFrame(scanStep);
         return;
@@ -339,6 +505,11 @@ function scheduleRebuild(announceResult) {
     }
     matchRows = nextRows;
     matchCount.value = hits;
+    // The counters are absolute over the whole buffer at commit time; lines
+    // that queued up mid-rebuild are flushed below and bump them further.
+    fmtTotal.value = rawLines.length;
+    fmtNoMatch.value = noMatch;
+    fmtNotJson.value = notJson;
     rebuilding = false;
     filtering.value = false;
     if (
@@ -410,7 +581,7 @@ async function copyFocused() {
     await copyAll();
     return;
   }
-  await copyToClipboard(view.value[row].text, `Line ${row + 1} of ${len}`);
+  await copyToClipboard(view.value[row].raw, `Line ${row + 1} of ${len}`);
 }
 
 function onLogKeydown(e) {
@@ -507,6 +678,9 @@ function resetBuffer() {
   matchCount.value = 0;
   currentMatchSeq.value = -1;
   activeSeq.value = -1;
+  fmtTotal.value = 0;
+  fmtNoMatch.value = 0;
+  fmtNotJson.value = 0;
 }
 
 async function start() {
@@ -592,8 +766,10 @@ function clear() {
 }
 
 function exportContent() {
+  // Copy/Save always export the RAW lines, even while a format template
+  // reorders the display: the reorder is a presentation aid, not an edit.
   if (onlyMatches.value && query.value && !regexError.value) {
-    return view.value.map((l) => l.text).join("\n");
+    return view.value.map((l) => l.raw).join("\n");
   }
   return rawLines.map((l) => l.text).join("\n");
 }
@@ -653,6 +829,17 @@ watch([query, useRegex, caseSensitive], () => {
   scheduleRebuild(true);
 });
 watch(onlyMatches, () => scheduleRebuild(false));
+
+// Load templates when experimental features are enabled and tear the whole
+// format UI down when they are disabled — the flag can flip live in Settings.
+watch(
+  () => state.experimental,
+  (enabled) => {
+    if (enabled) refreshTemplates();
+    else resetTemplates();
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(stop);
 
@@ -894,6 +1081,28 @@ const displayChecks = [
           }}</label>
         </div>
       </div>
+      <div
+        v-if="state.experimental"
+        class="d-flex flex-column gap-1 border-start ps-3"
+      >
+        <label for="opt-format" class="form-label mb-0 small">Format</label>
+        <Combobox
+          id="opt-format"
+          v-model="formatSel"
+          :options="formatOptions"
+          readonly
+          style="min-width: 11rem"
+          @select="onFormatSelect"
+        />
+        <p
+          v-if="formatStatus"
+          id="format-status"
+          class="form-text mb-0 small"
+          style="max-width: 15rem"
+        >
+          {{ formatStatus }}
+        </p>
+      </div>
     </div>
 
     <p v-if="error" class="text-danger small" role="alert">{{ error }}</p>
@@ -947,6 +1156,12 @@ const displayChecks = [
         No lines match “{{ query }}”.
       </div>
     </div>
+
+    <LogTemplateDialog
+      v-if="dialogOpen"
+      @close="dialogOpen = false"
+      @changed="onTemplateDialogChanged"
+    />
   </section>
 </template>
 

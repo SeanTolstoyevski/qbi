@@ -116,6 +116,10 @@ export const api = {
   setAutoRefresh: wrap(Service.SetAutoRefresh),
   setExperimental: wrap(Service.SetExperimental),
   setWatchNamespace: wrap(Service.SetWatchNamespace),
+  getLogTemplateSettings: wrap(Service.GetLogTemplateSettings),
+  saveLogTemplate: wrap(Service.SaveLogTemplate),
+  deleteLogTemplate: wrap(Service.DeleteLogTemplate),
+  setActiveLogTemplate: wrap(Service.SetActiveLogTemplate),
   buildInfo: wrap(Service.BuildInfo),
 };
 

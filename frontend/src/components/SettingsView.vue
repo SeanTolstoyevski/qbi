@@ -3,10 +3,14 @@ import { ref, onMounted } from "vue";
 import { api } from "../api.js";
 import { useStore } from "../store.js";
 import { useDarkMode } from "../useTheme.js";
+import LogTemplateDialog from "./LogTemplateDialog.vue";
 
 const { state, announce, setAutoRefresh, setExperimental } = useStore();
 
 const { isDark, toggle } = useDarkMode();
+
+const logTemplatesOpen = ref(false);
+const manageBtn = ref(null);
 
 function toggleDarkMode(e) {
   const dark = e.target.checked;
@@ -146,6 +150,22 @@ async function toggleExperimental() {
           <span v-if="saving" class="visually-hidden"> — saving…</span>
         </label>
       </div>
+
+      <button
+        v-if="state.experimental"
+        ref="manageBtn"
+        type="button"
+        class="btn btn-outline-secondary btn-sm mt-2"
+        @click="logTemplatesOpen = true"
+      >
+        Manage log templates
+      </button>
     </div>
   </div>
+
+  <LogTemplateDialog
+    v-if="logTemplatesOpen"
+    :opener="manageBtn"
+    @close="logTemplatesOpen = false"
+  />
 </template>

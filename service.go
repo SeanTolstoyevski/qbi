@@ -101,20 +101,21 @@ func (s *Service) GetSettings() AppSettings {
 // Merely closing the wizard does not call this — only the explicit
 // acknowledgment on the final step does.
 func (s *Service) AcknowledgeWelcome() error {
-	st := loadSettings()
-	st.WelcomeSeen = true
-	if err := saveSettings(st); err != nil {
-		return s.opErr("AcknowledgeWelcome", err)
-	}
-	return nil
+	err := updateSettings(func(st *settings) error {
+		st.WelcomeSeen = true
+		return nil
+	})
+	return s.opErr("AcknowledgeWelcome", err)
 }
 
 // SetAutoRefresh persists the auto-refresh preference and starts or stops the
 // background watch streams accordingly.
 func (s *Service) SetAutoRefresh(enabled bool) error {
-	st := loadSettings()
-	st.AutoRefresh = enabled
-	if err := saveSettings(st); err != nil {
+	err := updateSettings(func(st *settings) error {
+		st.AutoRefresh = enabled
+		return nil
+	})
+	if err != nil {
 		return s.opErr("SetAutoRefresh", err)
 	}
 	if !enabled {
@@ -127,12 +128,11 @@ func (s *Service) SetAutoRefresh(enabled bool) error {
 // features stay hidden and inert while disabled, so they can be removed
 // later without breaking anyone's workflow.
 func (s *Service) SetExperimental(enabled bool) error {
-	st := loadSettings()
-	st.Experimental = enabled
-	if err := saveSettings(st); err != nil {
-		return s.opErr("SetExperimental", err)
-	}
-	return nil
+	err := updateSettings(func(st *settings) error {
+		st.Experimental = enabled
+		return nil
+	})
+	return s.opErr("SetExperimental", err)
 }
 
 // experimentalEnabled reports whether the persisted experimental-features
@@ -140,6 +140,63 @@ func (s *Service) SetExperimental(enabled bool) error {
 // enforced server-side, not just hidden in the UI.
 func experimentalEnabled() bool {
 	return loadSettings().Experimental
+}
+
+// GetLogTemplateSettings returns the user's log field-order templates and
+// the currently active one. Experimental feature: refused while disabled.
+func (s *Service) GetLogTemplateSettings() (LogTemplateSettings, error) {
+	if !experimentalEnabled() {
+		return LogTemplateSettings{}, s.opErr("GetLogTemplateSettings",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+	return logTemplateSettings(loadSettings()), nil
+}
+
+// SaveLogTemplate creates or updates a log template. A template without an
+// id is created; one with an id must already exist and is replaced. These
+// are local user preferences, so unlike cluster writes no confirmation is
+// needed.
+func (s *Service) SaveLogTemplate(t LogTemplate) (LogTemplate, error) {
+	if !experimentalEnabled() {
+		return LogTemplate{}, s.opErr("SaveLogTemplate",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+	var saved LogTemplate
+	err := updateSettings(func(st *settings) error {
+		var err error
+		saved, err = upsertLogTemplate(st, t)
+		return err
+	})
+	if err != nil {
+		return LogTemplate{}, s.opErr("SaveLogTemplate", err)
+	}
+	return saved, nil
+}
+
+// DeleteLogTemplate removes a log template. If it was the active one, the
+// log view falls back to raw output.
+func (s *Service) DeleteLogTemplate(id string) error {
+	if !experimentalEnabled() {
+		return s.opErr("DeleteLogTemplate",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+	err := updateSettings(func(st *settings) error {
+		return deleteLogTemplate(st, id)
+	})
+	return s.opErr("DeleteLogTemplate", err)
+}
+
+// SetActiveLogTemplate selects the template applied to the log view, or ""
+// for raw output. The selection is persisted so it survives restarts.
+func (s *Service) SetActiveLogTemplate(id string) error {
+	if !experimentalEnabled() {
+		return s.opErr("SetActiveLogTemplate",
+			fmt.Errorf("experimental features are disabled; enable them in Settings"))
+	}
+	err := updateSettings(func(st *settings) error {
+		return setActiveLogTemplate(st, id)
+	})
+	return s.opErr("SetActiveLogTemplate", err)
 }
 
 // SetWatchNamespace (re)starts namespace-scoped watch streams for the given
@@ -225,11 +282,14 @@ func (s *Service) SelectKubeconfig() (kube.KubeconfigStatus, error) {
 // the choice for future launches. An empty path restores default resolution.
 func (s *Service) SetKubeconfig(path string) (kube.KubeconfigStatus, error) {
 	s.app.kube.SetKubeconfigPath(path)
-	// Load-then-save: a fresh struct would silently wipe AutoRefresh and
-	// WelcomeSeen (e.g. acknowledging the wizard, then picking a kubeconfig).
-	st := loadSettings()
-	st.KubeconfigPath = path
-	if err := saveSettings(st); err != nil {
+	// updateSettings preserves every other field — a fresh struct would
+	// silently wipe AutoRefresh and WelcomeSeen (e.g. acknowledging the
+	// wizard, then picking a kubeconfig).
+	err := updateSettings(func(st *settings) error {
+		st.KubeconfigPath = path
+		return nil
+	})
+	if err != nil {
 		// Persisting is best-effort; the in-memory choice still applies.
 		slog.Warn("could not persist kubeconfig path", "error", err)
 	}
