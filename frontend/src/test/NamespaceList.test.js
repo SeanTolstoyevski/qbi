@@ -10,7 +10,7 @@ vi.mock("../api.js", () => ({
   onEvent: vi.fn(() => () => {}),
 }));
 
-vi.mock("bootstrap", () => {
+vi.mock("bootstrap/js/src/modal.js", () => {
   class FakeModal {
     constructor(el) {
       this.el = el;
@@ -23,7 +23,7 @@ vi.mock("bootstrap", () => {
     }
     dispose() {}
   }
-  return { Modal: FakeModal };
+  return { default: FakeModal };
 });
 
 const { state, setConnection, clearConnection } = useStore();
