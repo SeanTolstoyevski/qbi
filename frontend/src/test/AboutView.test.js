@@ -12,6 +12,21 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+function infoRows(w) {
+  const terms = w.findAll("dt").map((n) => n.text());
+  const values = w.findAll("dd").map((n) => n.text());
+  return Object.fromEntries(terms.map((t, i) => [t, values[i]]));
+}
+
+function utcStamp(raw) {
+  const stamp = new Intl.DateTimeFormat(undefined, {
+    timeZone: "UTC",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(raw));
+  return `${stamp} UTC`;
+}
+
 describe("AboutView - version info", () => {
   it("renders the keyboard shortcuts reference", async () => {
     api.buildInfo.mockResolvedValue({
@@ -27,20 +42,26 @@ describe("AboutView - version info", () => {
     w.unmount();
   });
 
-  it("renders the version and commit", async () => {
+  it("lists version, commit and build time in separate fields", async () => {
     api.buildInfo.mockResolvedValue({
-      version: "0.2.0",
+      version: "0.2.0-beta.1",
+      channel: "beta",
       commit: "a1b2c3d",
-      buildTime: "unknown",
+      buildTime: "2026-06-18T12:34:56Z",
     });
     const w = mount(AboutView);
     await flushPromises();
-    expect(w.text()).toContain("0.2.0");
-    expect(w.text()).toContain("a1b2c3d");
+
+    const rows = infoRows(w);
+    expect(Object.keys(rows)).toEqual(["Version", "Commit", "Build"]);
+    expect(rows.Version).toBe("0.2.0-beta.1");
+    expect(rows.Commit).toBe("a1b2c3d");
+    expect(rows.Build).toBe(utcStamp("2026-06-18T12:34:56Z"));
+    expect(rows.Build).not.toContain("a1b2c3d");
     w.unmount();
   });
 
-  it("renders the build time in the user's locale", async () => {
+  it("renders the build time in UTC", async () => {
     api.buildInfo.mockResolvedValue({
       version: "dev",
       commit: "unknown",
@@ -48,10 +69,22 @@ describe("AboutView - version info", () => {
     });
     const w = mount(AboutView);
     await flushPromises();
-    expect(w.text()).toContain("Built");
 
-    const expected = new Date("2026-06-18T12:34:56Z").toLocaleString();
-    expect(w.text()).toContain(expected);
+    const built = infoRows(w).Build;
+    expect(built).toContain("UTC");
+    expect(built).toBe(utcStamp("2026-06-18T12:34:56Z"));
+    w.unmount();
+  });
+
+  it("renders an offset build time as the same UTC instant", async () => {
+    api.buildInfo.mockResolvedValue({
+      version: "dev",
+      commit: "unknown",
+      buildTime: "2026-06-18T15:34:56+03:00",
+    });
+    const w = mount(AboutView);
+    await flushPromises();
+    expect(infoRows(w).Build).toBe(utcStamp("2026-06-18T12:34:56Z"));
     w.unmount();
   });
 
@@ -63,9 +96,7 @@ describe("AboutView - version info", () => {
     });
     const w = mount(AboutView);
     await flushPromises();
-
-    const dds = w.findAll("dd");
-    expect(dds[dds.length - 1].text()).toBe("…");
+    expect(infoRows(w).Build).toBe("…");
     w.unmount();
   });
 

@@ -16,12 +16,16 @@ onMounted(async () => {
   }
 });
 
-// The backend stamps RFC 3339 UTC ("2026-06-18T12:34:56Z"); show it in the
-// user's locale. Unstamped (local/dev) builds return "unknown".
 function formatBuildTime(raw) {
   if (!raw || raw === "unknown") return "";
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString();
+  if (Number.isNaN(d.getTime())) return raw;
+  const stamp = new Intl.DateTimeFormat(undefined, {
+    timeZone: "UTC",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d);
+  return `${stamp} UTC`;
 }
 
 function openGitHub(e) {
@@ -47,10 +51,10 @@ function openGitHub(e) {
     <dt class="col-sm-3">Version</dt>
     <dd class="col-sm-9">{{ info?.version || "…" }}</dd>
 
-    <dt class="col-sm-3">Build</dt>
+    <dt class="col-sm-3">Commit</dt>
     <dd class="col-sm-9">{{ info?.commit || "…" }}</dd>
 
-    <dt class="col-sm-3">Built</dt>
+    <dt class="col-sm-3">Build</dt>
     <dd class="col-sm-9">{{ formatBuildTime(info?.buildTime) || "…" }}</dd>
   </dl>
 

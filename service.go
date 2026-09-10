@@ -71,9 +71,10 @@ func NewService(app *App) *Service {
 	return s
 }
 
-// BuildInfo returns the version, git commit, and build time of this binary
-// as a single payload for the About view. The values are injected at build
-// time from the VERSION file; see internal/version.
+// BuildInfo returns the version, channel (release/beta/dev), git commit and
+// build time of this binary as a single payload for the About view. The
+// values are injected at build time from the VERSION file; see
+// internal/version.
 func (s *Service) BuildInfo() version.BuildInfo {
 	return version.Info()
 }
