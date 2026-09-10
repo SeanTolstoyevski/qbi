@@ -366,6 +366,72 @@ describe("LogTemplateDialog - error and edge paths", () => {
   });
 });
 
+describe("LogTemplateDialog - field reorder focus", () => {
+  async function openEditor() {
+    const w = await mountDialog();
+    await w.find(".btn-primary").trigger("click"); // New template
+    await w.find("#logtmpl-sample").setValue(SAMPLE);
+    await w
+      .findAll("button")
+      .find((b) => b.text() === "Load fields")
+      .trigger("click");
+    return w;
+  }
+
+  function row(w, field) {
+    return w
+      .findAll(".list-group-item")
+      .find((li) => li.find("code")?.text() === field);
+  }
+
+  it("keeps focus in the row when the clicked Move up button becomes disabled", async () => {
+    const w = await openEditor();
+    // Fields: ts, level, msg. Moving "level" up puts it first, where its
+    // Move up button becomes disabled; focus must not leave the dialog.
+    const up = row(w, "level").findAll("button")[0];
+    up.element.focus();
+    await up.trigger("click");
+    await nextTick();
+    expect(w.findAll(".list-group-item code").map((c) => c.text())).toEqual([
+      "level",
+      "ts",
+      "msg",
+    ]);
+    expect(document.activeElement).toBe(
+      row(w, "level").findAll("button")[1].element,
+    );
+    w.unmount();
+  });
+
+  it("keeps focus in the row when the clicked Move down button becomes disabled", async () => {
+    const w = await openEditor();
+    const down = row(w, "level").findAll("button")[1];
+    down.element.focus();
+    await down.trigger("click");
+    await nextTick();
+    expect(w.findAll(".list-group-item code").map((c) => c.text())).toEqual([
+      "ts",
+      "msg",
+      "level",
+    ]);
+    expect(document.activeElement).toBe(
+      row(w, "level").findAll("button")[0].element,
+    );
+    w.unmount();
+  });
+
+  it("keeps focus on the clicked button while it stays enabled", async () => {
+    const w = await openEditor();
+    // Move "msg" up: it lands in the middle, so the button stays enabled.
+    const up = row(w, "msg").findAll("button")[0];
+    up.element.focus();
+    await up.trigger("click");
+    await nextTick();
+    expect(document.activeElement).toBe(up.element);
+    w.unmount();
+  });
+});
+
 describe("LogTemplateDialog - focus trap", () => {
   it("wraps Tab and Shift+Tab inside the modal", async () => {
     api.getLogTemplateSettings.mockResolvedValue({

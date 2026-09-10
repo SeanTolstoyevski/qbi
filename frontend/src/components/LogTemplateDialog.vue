@@ -33,6 +33,15 @@ const nameEl = ref(null);
 const dialogEl = ref(null);
 const listEl = ref(null);
 
+// Reading-order rows keyed by field name, so moveField can repair focus
+// after a reorder without reaching into the document.
+const fieldRowEls = new Map();
+
+function setFieldRowEl(f, el) {
+  if (el) fieldRowEls.set(f, el);
+  else fieldRowEls.delete(f);
+}
+
 const view = ref("list"); // "list" | "edit"
 const loading = ref(true);
 const error = ref("");
@@ -123,8 +132,25 @@ function loadFieldsFromSample() {
 function moveField(i, dir) {
   const j = i + dir;
   if (j < 0 || j >= draftFields.value.length) return;
+  const f = draftFields.value[i];
   const arr = draftFields.value;
   [arr[i], arr[j]] = [arr[j], arr[i]];
+
+  // The clicked Move button travels with its row. When the field lands at
+  // the edge of the list that same button flips to disabled, and a disabled
+  // element cannot keep focus — the browser would drop focus to <body>,
+  // stranding keyboard and screen-reader users outside the modal. Hand
+  // focus to the row's other Move button instead.
+  nextTick(() => {
+    const row = fieldRowEls.get(f);
+    if (!row) return;
+    const active = document.activeElement;
+    if (active && !active.disabled && row.contains(active)) return;
+    (
+      row.querySelector('[aria-label^="Move"]:not([disabled])') ||
+      row.querySelector('[aria-label^="Remove"]:not([disabled])')
+    )?.focus();
+  });
 }
 
 function removeField(i) {
@@ -408,6 +434,7 @@ onMounted(load);
             <li
               v-for="(f, i) in draftFields"
               :key="f"
+              :ref="(el) => setFieldRowEl(f, el)"
               class="list-group-item d-flex align-items-center gap-1"
             >
               <code class="flex-grow-1 text-break">{{ f }}</code>
