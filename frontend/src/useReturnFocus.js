@@ -40,7 +40,7 @@ export function useReturnFocus({ focusTarget, onClose, opener } = {}) {
 
   onMounted(() => {
     const o = opener?.value instanceof HTMLElement ? opener.value : opener;
-    openerEl = o instanceof HTMLElement ? o : null;
+    openerEl = o instanceof HTMLElement ? o : document.activeElement;
     nextTick(() => focusTarget?.value?.focus?.());
   });
 

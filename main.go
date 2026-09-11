@@ -39,7 +39,11 @@ func main() {
 		}
 	}()
 
-	slog.Info("qbi starting", "version", version.Version, "commit", version.Commit)
+	slog.Info("qbi starting",
+		"version", version.Version,
+		"channel", version.ChannelOf(version.Version),
+		"commit", version.Commit,
+	)
 
 	app := NewApp()
 	service := NewService(app)

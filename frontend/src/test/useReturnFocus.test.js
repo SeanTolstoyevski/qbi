@@ -90,7 +90,7 @@ describe("useReturnFocus — focus capture and return", () => {
     document.body.removeChild(elsewhere);
   });
 
-  it("does not move focus when no opener was provided", async () => {
+  it("falls back to the focused trigger when no opener was provided", async () => {
     const trigger = document.createElement("button");
     trigger.textContent = "Open overlay";
     document.body.appendChild(trigger);
@@ -103,7 +103,7 @@ describe("useReturnFocus — focus capture and return", () => {
 
     wrapper.unmount();
     await nextTick();
-    expect(document.activeElement).not.toBe(trigger);
+    expect(document.activeElement).toBe(trigger);
 
     document.body.removeChild(trigger);
   });

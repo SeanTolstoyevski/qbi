@@ -19,36 +19,61 @@ jobs:
     timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
+      base_version: ${{ steps.version.outputs.base_version }}
+      channel: ${{ steps.version.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Read VERSION
         id: version
         run: |
-          VERSION="$(cat VERSION)"
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::VERSION must contain a semantic version like 0.2.0 (got: '$VERSION')"
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          # Release: 0.2.0   Beta: 0.2.0-beta (first beta) or 0.2.0-beta.2
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta(\.[0-9]+)?)?$ ]]; then
+            echo "::error::VERSION must be a semantic version like 0.2.0, or a beta like 0.2.0-beta / 0.2.0-beta.1 (got: '$VERSION')"
             exit 1
           fi
+          if [[ "$VERSION" == *-beta* ]]; then
+            CHANNEL="beta"
+          else
+            CHANNEL="release"
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base_version=${VERSION%%-*}" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "Channel: $CHANNEL"
 
       - name: Enforce forward-only versioning
         run: |
+          # GNU version sort only orders a prerelease before its stable release
+          # when the "-" is mapped to "~": 0.2.0~beta < 0.2.0~beta.1 < 0.2.0.
+          # That keeps beta < beta.1 < beta.2 < 0.2.0 < 0.2.1.
+          sortkey() { sed -E 's/-([0-9A-Za-z.]+)$/~\1/'; }
           VERSION="${{ steps.version.outputs.version }}"
-          LATEST="$(git ls-remote --tags origin | grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | sed -E 's|.*refs/tags/v||' | sort -V | tail -n 1)"
-          if [ -n "$LATEST" ] && [ "$LATEST" = "$VERSION" ]; then
-            echo "::error::Version $VERSION is already released (tag v$VERSION exists). Bump VERSION to release again."
+          TAGS="$(git ls-remote --tags origin)"
+          LATEST_KEY="$(printf '%s\n' "$TAGS" \
+            | sed -nE 's|.*refs/tags/v([0-9]+\.[0-9]+\.[0-9]+(-beta(\.[0-9]+)?)?)$|\1|p' \
+            | sortkey \
+            | sort -V | tail -n 1)"
+          if [ -z "$LATEST_KEY" ]; then
+            echo "Releasing v$VERSION (first tagged release)"
+            exit 0
+          fi
+          CURRENT_KEY="$(printf '%s\n' "$VERSION" | sortkey)"
+          LATEST="$(printf '%s' "$LATEST_KEY" | sed -E 's/~/-/')"
+          if [ "$CURRENT_KEY" = "$LATEST_KEY" ]; then
+            echo "::error::Version $VERSION is already released (tag v$LATEST exists). Bump VERSION to release again."
             exit 1
           fi
-          if [ -n "$LATEST" ] && [ "$VERSION" != "$(printf '%s\n' "$LATEST" "$VERSION" | sort -V | tail -n 1)" ]; then
+          if [ "$CURRENT_KEY" != "$(printf '%s\n' "$CURRENT_KEY" "$LATEST_KEY" | sort -V | tail -n 1)" ]; then
             echo "::error::VERSION ($VERSION) must be newer than the latest release (v$LATEST)."
             exit 1
           fi
-          echo "Releasing v$VERSION (latest tag: ${LATEST:-none})"
+          echo "Releasing v$VERSION (latest tag: v$LATEST)"
 
       - name: Template wails.json with the release version
         run: |
-          jq --arg v "${{ steps.version.outputs.version }}" '.info.productVersion = $v' wails.json > wails.json.tmp
+          jq --arg v "${{ steps.version.outputs.base_version }}" '.info.productVersion = $v' wails.json > wails.json.tmp
           mv wails.json.tmp wails.json
 
       - name: Upload release context
@@ -80,6 +105,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - uses: actions/setup-node@v5
         with:
@@ -88,10 +114,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails CLI (pinned to the go.mod version)
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
-      # main.go embeds all:frontend/dist, so bindings generation needs the
-      # directory present with at least one file on a fresh checkout.
       - name: Prepare frontend/dist for bindings
         run: mkdir -p frontend/dist && touch frontend/dist/index.html
 
@@ -99,7 +123,7 @@ jobs:
         run: wails generate module -tags "webkit2_41"
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --no-audit
         working-directory: frontend
 
       - name: Run frontend tests
@@ -121,7 +145,7 @@ jobs:
     name: Backend (vet + test)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: frontend
+    needs: prepare
     steps:
       - uses: actions/checkout@v5
 
@@ -137,12 +161,13 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Download frontend bundle
-        uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: frontend/dist
+      # main.go does //go:embed all:frontend/dist, so compiling the main
+      # package only needs the directory to contain files. The real bundle
+      # is built and tested by the frontend job; only the build jobs embed it.
+      - name: Create placeholder frontend/dist for //go:embed
+        run: mkdir -p frontend/dist && touch frontend/dist/index.html
 
       - name: Vet
         run: go vet -tags webkit2_41 ./...
@@ -164,11 +189,22 @@ jobs:
             platform: linux/amd64
             tags: "-tags webkit2_41"
             binary: qbi
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            platform: linux/arm64
+            tags: "-tags webkit2_41"
+            binary: qbi
           - name: windows-amd64
             os: windows-latest
             platform: windows/amd64
             tags: ""
             binary: qbi.exe
+          - name: windows-arm64
+            os: windows-latest
+            platform: windows/arm64
+            tags: ""
+            binary: qbi.exe
+            cgo: "0"
           - name: darwin-amd64
             os: macos-15-intel
             platform: darwin/amd64
@@ -198,9 +234,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Install Wails CLI (pinned to the go.mod version)
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
       - name: Download release context (wails.json templated with the version)
         uses: actions/download-artifact@v8
@@ -220,7 +257,9 @@ jobs:
 
       - name: Build application (wails)
         shell: bash
-        run: wails build -s ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }} -X qbi/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+        run: wails build -s -m -skipbindings ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }} -X qbi/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Verify binary
         shell: bash
@@ -291,14 +330,13 @@ jobs:
         with:
           tag_name: v${{ needs.prepare.outputs.version }}
           name: QBI v${{ needs.prepare.outputs.version }}
+          # Beta builds ship as pre-releases and never take over "latest".
+          prerelease: ${{ needs.prepare.outputs.channel == 'beta' }}
+          make_latest: ${{ needs.prepare.outputs.channel != 'beta' }}
           body: |
             QBI ${{ needs.prepare.outputs.version }}
 
-            Supported platforms:
-            - Windows (amd64)
-            - macOS (Apple Silicon, arm64)
-            - macOS (Intel, amd64)
-            - Linux (amd64)
+            ${{ needs.prepare.outputs.channel == 'beta' && '> **Beta build** — not a stable release; features and behaviour may still change.' || '' }}
 
             SHA-256 checksums for all assets are in `checksums.txt`.
           files: dist/*

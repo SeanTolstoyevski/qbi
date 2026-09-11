@@ -1,7 +1,11 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import { api } from "../api.js";
-import { Modal } from "bootstrap";
+// Import Modal from its own module, not the package root: the root bundle
+// evaluates every Bootstrap component and registers ALL data-api listeners
+// (including Dropdown's document-level keydown handler for .dropdown-menu,
+// which throws on this app's custom action menus).
+import Modal from "bootstrap/js/src/modal.js";
 import { useStore } from "../store.js";
 import { copyToClipboard } from "../clipboard.js";
 import { useActionMenu } from "../useActionMenu.js";

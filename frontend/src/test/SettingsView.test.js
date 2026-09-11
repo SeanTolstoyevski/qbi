@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { nextTick } from "vue";
 import SettingsView from "../components/SettingsView.vue";
 import { useStore } from "../store.js";
 import { api } from "../api.js";
@@ -9,6 +10,7 @@ vi.mock("../api.js", () => ({
     getSettings: vi.fn(),
     setAutoRefresh: vi.fn(),
     setExperimental: vi.fn(),
+    getLogTemplateSettings: vi.fn(),
   },
   onEvent: vi.fn(() => () => {}),
 }));
@@ -22,6 +24,7 @@ beforeEach(() => {
   api.getSettings.mockResolvedValue({ welcomeSeen: true, autoRefresh: false });
   api.setAutoRefresh.mockResolvedValue(undefined);
   api.setExperimental.mockResolvedValue(undefined);
+  api.getLogTemplateSettings.mockResolvedValue({ templates: [], activeId: "" });
   useStore().setExperimental(false);
 });
 
@@ -241,6 +244,41 @@ describe("SettingsView - toggling experimental features", () => {
     await flushPromises();
     expect(w.find('[role="alert"]').text()).toContain("save failed");
     expect(state.experimental).toBe(false);
+    w.unmount();
+  });
+});
+
+describe("SettingsView - log templates entry", () => {
+  it("hides the manage button while experimental features are off", async () => {
+    const w = await mountSettings();
+    expect(
+      w.findAll("button").some((b) => b.text() === "Manage log templates"),
+    ).toBe(false);
+    w.unmount();
+  });
+
+  it("opens the template manager and returns focus on close", async () => {
+    api.getSettings.mockResolvedValue({ experimental: true });
+    const w = mount(SettingsView, { attachTo: document.body });
+    await flushPromises();
+    const btn = w
+      .findAll("button")
+      .find((b) => b.text() === "Manage log templates");
+    expect(btn).toBeTruthy();
+
+    btn.element.focus();
+    await btn.trigger("click");
+    await flushPromises();
+    const dialog = w.find('[role="dialog"]');
+    expect(dialog.exists()).toBe(true);
+    expect(api.getLogTemplateSettings).toHaveBeenCalled();
+
+    await dialog.trigger("keydown", { key: "Escape" });
+    await flushPromises();
+    await nextTick();
+    expect(w.find('[role="dialog"]').exists()).toBe(false);
+    // Focus returns to the Manage button that opened the dialog.
+    expect(document.activeElement).toBe(btn.element);
     w.unmount();
   });
 });
