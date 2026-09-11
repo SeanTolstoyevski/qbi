@@ -73,9 +73,6 @@ jobs:
 
       - name: Template wails.json with the release version
         run: |
-          # OS-level metadata (Windows VERSIONINFO, macOS CFBundle*) only
-          # accepts a plain x.y.z, so the beta marker from VERSION is dropped
-          # here and lives in the binary's ldflags instead.
           jq --arg v "${{ steps.version.outputs.base_version }}" '.info.productVersion = $v' wails.json > wails.json.tmp
           mv wails.json.tmp wails.json
 
@@ -108,6 +105,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - uses: actions/setup-node@v5
         with:
@@ -116,10 +114,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Wails CLI (pinned to the go.mod version)
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
-      # main.go embeds all:frontend/dist, so bindings generation needs the
-      # directory present with at least one file on a fresh checkout.
       - name: Prepare frontend/dist for bindings
         run: mkdir -p frontend/dist && touch frontend/dist/index.html
 
@@ -127,7 +123,7 @@ jobs:
         run: wails generate module -tags "webkit2_41"
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm ci --no-audit
         working-directory: frontend
 
       - name: Run frontend tests
@@ -149,7 +145,7 @@ jobs:
     name: Backend (vet + test)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: frontend
+    needs: prepare
     steps:
       - uses: actions/checkout@v5
 
@@ -165,12 +161,13 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Download frontend bundle
-        uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: frontend/dist
+      # main.go does //go:embed all:frontend/dist, so compiling the main
+      # package only needs the directory to contain files. The real bundle
+      # is built and tested by the frontend job; only the build jobs embed it.
+      - name: Create placeholder frontend/dist for //go:embed
+        run: mkdir -p frontend/dist && touch frontend/dist/index.html
 
       - name: Vet
         run: go vet -tags webkit2_41 ./...
@@ -192,8 +189,6 @@ jobs:
             platform: linux/amd64
             tags: "-tags webkit2_41"
             binary: qbi
-          # Linux goes through cgo (GTK/WebKit), so arm64 is built natively on
-          # an arm64 runner instead of cross-compiled.
           - name: linux-arm64
             os: ubuntu-24.04-arm
             platform: linux/arm64
@@ -204,8 +199,6 @@ jobs:
             platform: windows/amd64
             tags: ""
             binary: qbi.exe
-          # The Windows backend is pure Go, so arm64 cross-compiles on an x64
-          # runner with cgo disabled (see the build step's CGO_ENABLED).
           - name: windows-arm64
             os: windows-latest
             platform: windows/arm64
@@ -241,9 +234,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Install Wails CLI (pinned to the go.mod version)
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
 
       - name: Download release context (wails.json templated with the version)
         uses: actions/download-artifact@v8
@@ -264,12 +258,8 @@ jobs:
       - name: Build application (wails)
         shell: bash
         env:
-          # Only windows/arm64 sets this (matrix.cgo = "0"): it cross-compiles
-          # on an x64 runner, and the Windows backend is pure Go, so no arm64 C
-          # toolchain is required. Empty everywhere else -> Go/Wails default
-          # (Wails forces 1 for every non-Windows platform).
           CGO_ENABLED: ${{ matrix.cgo }}
-        run: wails build -s ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }} -X qbi/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        run: wails build -s -m -skipbindings ${{ matrix.tags }} -platform "${{ matrix.platform }}" -ldflags "${{ env.LDFLAGS }} -X qbi/internal/version.BuildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Verify binary
         shell: bash
