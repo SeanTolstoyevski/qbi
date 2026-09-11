@@ -21,9 +21,6 @@ import { applyLogTemplate, extractJsonFields } from "../logTemplate.js";
 const emit = defineEmits(["close", "changed"]);
 const { announce } = useStore();
 
-// The trigger element (e.g. the Manage button in Settings). LogViewer passes
-// nothing and relies on useReturnFocus's activeElement fallback, which
-// captures the Format combobox input the pick left focused.
 const props = defineProps({
   opener: { type: Object, default: null },
 });
@@ -33,8 +30,6 @@ const nameEl = ref(null);
 const dialogEl = ref(null);
 const listEl = ref(null);
 
-// Reading-order rows keyed by field name, so moveField can repair focus
-// after a reorder without reaching into the document.
 const fieldRowEls = new Map();
 
 function setFieldRowEl(f, el) {
@@ -49,7 +44,6 @@ const saving = ref(false);
 const templates = ref([]);
 const confirmDeleteId = ref("");
 
-// Editor draft ("create" when draftId is empty).
 const draftId = ref("");
 const draftName = ref("");
 const draftFields = ref([]); // ordered field names
@@ -136,11 +130,6 @@ function moveField(i, dir) {
   const arr = draftFields.value;
   [arr[i], arr[j]] = [arr[j], arr[i]];
 
-  // The clicked Move button travels with its row. When the field lands at
-  // the edge of the list that same button flips to disabled, and a disabled
-  // element cannot keep focus — the browser would drop focus to <body>,
-  // stranding keyboard and screen-reader users outside the modal. Hand
-  // focus to the row's other Move button instead.
   nextTick(() => {
     const row = fieldRowEls.get(f);
     if (!row) return;
@@ -186,11 +175,7 @@ async function save() {
   }
 }
 
-// focusDeleteButton puts focus back on a row's Delete button after its
-// confirmation row collapses, so focus never strands on a removed element.
 function focusDeleteButton(id) {
-  // The id is validated server-side, but escape defensively so a hand-edited
-  // settings file can never break the selector.
   const esc = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(id) : id;
   nextTick(() => {
     listEl.value?.querySelector(`[data-template-delete="${esc}"]`)?.focus();
@@ -212,7 +197,6 @@ async function deleteTemplate(t) {
     confirmDeleteId.value = "";
     emit("changed");
     await load();
-    // The row is gone: land back on the dialog heading.
     nextTick(() => headingEl.value?.focus());
   } catch (e) {
     error.value = String(e);
@@ -224,11 +208,6 @@ async function deleteTemplate(t) {
   }
 }
 
-// trapTab keeps Tab (and Shift+Tab) inside the modal: aria-modal promises
-// the background is unreachable, and the log viewer's focusable rows sit
-// right behind this dialog. The heading (tabindex="-1") and any other
-// non-listed element that holds focus inside the dialog count as an edge:
-// focus moves to the nearest end of the tab order instead of escaping.
 function trapTab(e) {
   const dialog = dialogEl.value;
   if (!dialog) return;
@@ -254,9 +233,6 @@ function trapTab(e) {
   }
 }
 
-// Escape: cancel delete confirmation, then leave the editor, then close the
-// dialog. Keystrokes never leak to the log viewer underneath (its section
-// handler would otherwise close the viewer on Escape).
 function onKeydown(e) {
   if (e.key === "Escape") {
     e.preventDefault();

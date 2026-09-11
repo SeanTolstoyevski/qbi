@@ -47,11 +47,6 @@ const useRegex = ref(false);
 const caseSensitive = ref(false);
 const onlyMatches = ref(false);
 
-// --- Log format templates (experimental) ---------------------------------
-// The Format dropdown applies a field-order template to the log view. Raw
-// lines stay untouched (Copy/Save always export them verbatim); only the
-// displayed text is reordered, so switching templates re-renders the whole
-// buffer without restarting the stream.
 const MANAGE_FORMAT = "__manage__";
 const templates = ref([]); // LogTemplate[]
 const activeTemplateId = ref("");
@@ -176,7 +171,7 @@ async function applyFormat(id, token) {
   }
   activeTemplateId.value = id;
   formatSel.value = id;
-  scheduleRebuild(false); // re-renders the whole buffer under the new format
+  scheduleRebuild(false); 
   if (id) {
     announce(`Format: ${activeTemplate.value?.name ?? "template"} applied.`);
   } else {
@@ -206,7 +201,7 @@ let offBatch = () => {};
 let offEnd = () => {};
 let offErr = () => {};
 let offPart = () => {};
-let partial = ""; // unfinished tail of a long line arriving in pieces
+let partial = "";
 
 const MAX_LINES = 20000;
 
@@ -217,8 +212,8 @@ const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested qu
 const filtering = ref(false); // a search rebuild is in flight
 const matchCount = ref(0); // matching lines (kept live on append too)
 
-let rawLines = []; // {seq, text} — capped at MAX_LINES
-const view = shallowRef([]); // {seq, text, hit, segments|null} — filtered
+let rawLines = []; 
+const view = shallowRef([]);
 let matchRows = []; // seqs of matching rows, in view order (gotoMatch)
 let nextSeq = 0; // stable, never reused: v-for keys survive eviction
 let pendingLines = []; // lines waiting for a mid-rebuild flush
@@ -286,7 +281,7 @@ function segmentizeRegex(text, regex) {
       segs.push({ text: text.slice(last, m.index), hit: false });
     segs.push({ text: m[0], hit: true });
     last = m.index + m[0].length;
-    if (m[0].length === 0) regex.lastIndex++; // guard against zero-width loops
+    if (m[0].length === 0) regex.lastIndex++;
   }
   if (last < text.length) segs.push({ text: text.slice(last), hit: false });
   return segs;
@@ -438,10 +433,6 @@ function applyLines(batch) {
   scrollToBottom();
 }
 
-// Rebuild the filtered view from the raw buffer. Scanning and committing are
-// chunked across frames (about 8ms of work / 1000 rows each), so no query —
-// not even a pathological regex one — can block the main thread for more
-// than one frame. Typing a new query supersedes the in-flight rebuild.
 function scheduleRebuild(announceResult) {
   const token = ++rebuildToken;
   rebuilding = true;
