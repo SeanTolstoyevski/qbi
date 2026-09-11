@@ -171,7 +171,7 @@ async function applyFormat(id, token) {
   }
   activeTemplateId.value = id;
   formatSel.value = id;
-  scheduleRebuild(false); 
+  scheduleRebuild(false);
   if (id) {
     announce(`Format: ${activeTemplate.value?.name ?? "template"} applied.`);
   } else {
@@ -212,7 +212,7 @@ const RE_NESTED_Q = /\)[\*\+]/; // closing paren + quantifier = likely nested qu
 const filtering = ref(false); // a search rebuild is in flight
 const matchCount = ref(0); // matching lines (kept live on append too)
 
-let rawLines = []; 
+let rawLines = [];
 const view = shallowRef([]);
 let matchRows = []; // seqs of matching rows, in view order (gotoMatch)
 let nextSeq = 0; // stable, never reused: v-for keys survive eviction
